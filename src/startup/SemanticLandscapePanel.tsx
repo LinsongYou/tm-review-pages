@@ -80,9 +80,13 @@ export default function SemanticLandscapePanel({
         return;
       }
 
-      const nextWidth = Math.max(320, Math.floor(entry.contentRect.width));
+      const nextWidth = Math.max(240, Math.floor(entry.contentRect.width));
+      const isCompactWidth = nextWidth < 520;
+      const nextHeight = isCompactWidth
+        ? Math.max(260, Math.min(360, Math.round(nextWidth * 0.78)))
+        : Math.max(320, Math.min(540, Math.round(nextWidth * 0.58)));
       setPlotWidth(nextWidth);
-      setPlotHeight(Math.max(360, Math.min(540, Math.round(nextWidth * 0.58))));
+      setPlotHeight(nextHeight);
     });
 
     observer.observe(container);
