@@ -262,9 +262,6 @@ function App() {
   }
 
   const canSearch = !booting && !!query.trim();
-  const selectedResult = selectedEntryId
-    ? results.find((result) => result.entryId === selectedEntryId) ?? null
-    : null;
 
   return (
     <main className="app-shell">
@@ -390,9 +387,10 @@ function App() {
                         <span>{result.score.toFixed(4)}</span>
                       </div>
                       <div className="result-flags">
+                        <span className="result-entry-id">{result.entryId}</span>
                         <span>{result.textLength} chars</span>
-                        <span>{result.hasVector ? 'vector' : 'text-only'}</span>
                       </div>
+                      <p className="result-block">{result.blockName || 'No block'}</p>
                       <p className="result-en">{result.en}</p>
                       <p className="result-zh">{result.zh}</p>
                     </button>
@@ -403,50 +401,6 @@ function App() {
           </div>
 
           <div className="detail-column">
-            <section className="panel detail-panel">
-              <div className="panel-header">
-                <h2>Selection</h2>
-                <span>{selectedResult?.entryId ?? 'None'}</span>
-              </div>
-
-              {selectedResult ? (
-                <div className="detail-body">
-                  <div className="detail-grid">
-                    <div>
-                      <span className="detail-label">Score</span>
-                      <strong>{selectedResult.score.toFixed(4)}</strong>
-                    </div>
-                    <div>
-                      <span className="detail-label">Block</span>
-                      <strong>{selectedResult.blockName || '-'}</strong>
-                    </div>
-                    <div>
-                      <span className="detail-label">Layer</span>
-                      <strong>{selectedResult.layer}</strong>
-                    </div>
-                    <div>
-                      <span className="detail-label">Updated</span>
-                      <strong>{selectedResult.updatedAt || '-'}</strong>
-                    </div>
-                  </div>
-
-                  <div className="detail-copy">
-                    <h3>English</h3>
-                    <p>{selectedResult.en}</p>
-                  </div>
-
-                  <div className="detail-copy">
-                    <h3>Chinese</h3>
-                    <p>{selectedResult.zh}</p>
-                  </div>
-                </div>
-              ) : (
-                <div className="empty-state">
-                  <p>Select a result to inspect its metadata and nearby context.</p>
-                </div>
-              )}
-            </section>
-
             <section className="panel context-panel">
               <div className="panel-header">
                 <h2>Context</h2>

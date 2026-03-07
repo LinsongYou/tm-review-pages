@@ -216,7 +216,6 @@ button {
   box-shadow: var(--shadow);
 }
 
-.detail-label,
 .field span,
 .panel-header span,
 .result-flags,
@@ -227,16 +226,8 @@ button {
   letter-spacing: 0.02em;
 }
 
-.detail-grid strong {
-  display: block;
-  margin-top: 6px;
-  color: var(--text);
-  font-size: 1rem;
-}
-
 .controls-panel,
 .results-panel,
-.detail-panel,
 .context-panel,
 .message {
   border-radius: 24px;
@@ -306,7 +297,6 @@ button {
 
 .message p,
 .empty-state p,
-.detail-copy p,
 .context-item p {
   margin: 0;
   line-height: 1.5;
@@ -340,7 +330,6 @@ button {
 }
 
 .results-panel,
-.detail-panel,
 .context-panel {
   padding: 18px;
 }
@@ -415,8 +404,7 @@ button {
 
 .result-meta,
 .result-flags,
-.context-meta,
-.detail-grid {
+.context-meta {
   display: flex;
   justify-content: space-between;
   gap: 12px;
@@ -425,6 +413,17 @@ button {
 .result-meta {
   font-size: 0.9rem;
   color: var(--accent-strong);
+}
+
+.result-entry-id {
+  overflow-wrap: anywhere;
+}
+
+.result-block {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
 }
 
 .result-en,
@@ -436,27 +435,6 @@ button {
 .result-zh,
 .context-item p:last-child {
   color: var(--muted-strong);
-}
-
-.detail-body {
-  display: grid;
-  gap: 18px;
-}
-
-.detail-grid {
-  flex-wrap: wrap;
-}
-
-.detail-grid > div {
-  min-width: 0;
-  padding: 12px 14px;
-  border-radius: 16px;
-  background: var(--card-bg);
-}
-
-.detail-copy {
-  display: grid;
-  gap: 8px;
 }
 
 .context-item {
@@ -491,8 +469,7 @@ button {
   .panel-header,
   .result-meta,
   .result-flags,
-  .context-meta,
-  .detail-grid {
+  .context-meta {
     display: grid;
   }
 }
