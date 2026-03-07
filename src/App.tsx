@@ -279,7 +279,7 @@ function App() {
           <span className="hero-chip">{QUERY_MODEL_ID}</span>
           <button
             aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-            className="theme-toggle"
+            className={theme === 'dark' ? 'theme-toggle is-dark' : 'theme-toggle is-light'}
             type="button"
             onClick={toggleTheme}
           >
