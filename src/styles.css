@@ -57,17 +57,13 @@ button {
   display: grid;
   grid-template-columns: minmax(0, 1.8fr) minmax(280px, 0.9fr);
   gap: 20px;
-  align-items: end;
+  align-items: start;
   margin-bottom: 18px;
 }
 
-.hero h1 {
-  margin: 0;
-  max-width: 14ch;
-  font-family: "IBM Plex Serif", Georgia, serif;
-  font-size: clamp(2.3rem, 4vw, 4.7rem);
-  line-height: 0.96;
-  letter-spacing: -0.04em;
+.hero-copy {
+  display: grid;
+  align-content: start;
 }
 
 .eyebrow {
@@ -80,6 +76,7 @@ button {
 
 .hero-status {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
   align-content: start;
 }
@@ -172,7 +169,7 @@ button {
 
 .control-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 120px 140px 160px;
+  grid-template-columns: minmax(0, 1.1fr) 120px 140px 160px;
   gap: 12px;
   align-items: end;
 }
@@ -195,13 +192,6 @@ button {
   cursor: default;
 }
 
-.notes {
-  display: grid;
-  gap: 4px;
-  margin-top: 16px;
-}
-
-.notes p,
 .message p,
 .empty-state p,
 .detail-copy p,
@@ -363,10 +353,6 @@ button {
     padding-top: 20px;
   }
 
-  .hero h1 {
-    max-width: 100%;
-  }
-
   .control-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -377,6 +363,7 @@ button {
 }
 
 @media (max-width: 560px) {
+  .hero-status,
   .control-row {
     grid-template-columns: 1fr;
   }

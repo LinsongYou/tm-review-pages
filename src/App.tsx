@@ -4,7 +4,6 @@ import type {
   ContextItem,
   ModelStatus,
   SearchLanguage,
-  SearchMode,
   SearchResult,
   WorkerPayload,
   WorkerResponse,
@@ -50,7 +49,6 @@ function App() {
   const [errorText, setErrorText] = useState<string | null>(null);
   const [searchNote, setSearchNote] = useState<string | null>(null);
   const [query, setQuery] = useState('');
-  const [mode, setMode] = useState<SearchMode>('lexical');
   const [language, setLanguage] = useState<SearchLanguage>('en');
   const [topK, setTopK] = useState(10);
   const [minLength, setMinLength] = useState(0);
@@ -201,6 +199,7 @@ function App() {
     setSearchNote(null);
 
     try {
+      const mode = language === 'en' ? 'semantic' : 'lexical';
       const response = (await callWorker({
         kind: 'search',
         query: trimmed,
@@ -243,15 +242,23 @@ function App() {
   return (
     <main className="app-shell">
       <section className="hero">
-        <div>
+        <div className="hero-copy">
           <p className="eyebrow">Translation Memory Review</p>
-          <h1>Static browser search over TM rows and MiniLM vectors.</h1>
         </div>
         <div className="hero-status">
           <div className="status-card">
             <span>Semantic Model</span>
             <strong>{modelStatus}</strong>
             <small>{booting ? statusText : SEMANTIC_MODEL_ID}</small>
+          </div>
+          <div className="status-card">
+            <span>Corpus</span>
+            <strong>
+              {bootStats ? `${bootStats.totalEntries.toLocaleString()} rows` : 'Loading'}
+            </strong>
+            <small>
+              {bootStats ? `${formatBytes(bootStats.dbSizeBytes)} static SQLite asset` : statusText}
+            </small>
           </div>
         </div>
       </section>
@@ -270,17 +277,6 @@ function App() {
           </label>
 
           <div className="control-row">
-            <label className="field">
-              <span>Mode</span>
-              <select
-                value={mode}
-                onChange={(event) => setMode(event.target.value as SearchMode)}
-              >
-                <option value="lexical">Lexical</option>
-                <option value="semantic">Semantic</option>
-              </select>
-            </label>
-
             <label className="field">
               <span>Language</span>
               <select
@@ -319,23 +315,6 @@ function App() {
             </button>
           </div>
         </form>
-
-        <div className="notes">
-          <p>
-            Semantic search uses browser-side MiniLM query embeddings against the shipped
-            English vector index.
-          </p>
-          <p>
-            Chinese lexical search is supported now. Chinese semantic indexing can be
-            added later as a separate artifact.
-          </p>
-          {bootStats ? (
-            <p>
-              Loaded {bootStats.totalEntries.toLocaleString()} TM rows from{' '}
-              {formatBytes(bootStats.dbSizeBytes)} of static data.
-            </p>
-          ) : null}
-        </div>
       </section>
 
       {errorText ? (
