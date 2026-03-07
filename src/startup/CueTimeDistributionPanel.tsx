@@ -59,15 +59,6 @@ function formatDuration(ms: number): string {
   return `${minutes}m ${seconds}s`;
 }
 
-function formatCount(value: number, total: number): string {
-  const formattedValue = value.toLocaleString();
-  if (value === total) {
-    return formattedValue;
-  }
-
-  return `${formattedValue} / ${total.toLocaleString()}`;
-}
-
 export default function CueTimeDistributionPanel({ data }: CueTimeDistributionPanelProps) {
   const plotWidth = CHART_WIDTH - CHART_PADDING_LEFT - CHART_PADDING_RIGHT;
   const plotHeight = CHART_HEIGHT - CHART_PADDING_TOP - CHART_PADDING_BOTTOM;
@@ -76,6 +67,11 @@ export default function CueTimeDistributionPanel({ data }: CueTimeDistributionPa
   const peakX = CHART_PADDING_LEFT + Math.max(0, peakBinIndex) * stepWidth;
   const excludedEntryCount = Math.max(0, data.totalEntryCount - data.timedEntryCount);
   const excludedVideoCount = Math.max(0, data.totalVideoCount - data.timedVideoCount);
+  const averageCoverage = formatPercent(data.averageCoverage);
+  const peakCoverage = formatPercent(data.peakCoverage);
+  const peakWindow = formatPercentRange(data.peakRangeStart, data.peakRangeEnd);
+  const meanCueLength = formatDuration(data.averageCueDurationMs);
+  const medianSpan = formatDuration(data.medianVideoSpanMs);
 
   return (
     <section className="panel semantic-panel time-distribution-panel" aria-label="Cue time distribution">
@@ -99,7 +95,7 @@ export default function CueTimeDistributionPanel({ data }: CueTimeDistributionPa
           className="time-distribution-svg"
           viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
           role="img"
-          aria-label={`Average cue coverage ${formatPercent(data.averageCoverage)} across the aligned timeline with a peak of ${formatPercent(data.peakCoverage)} around ${formatPercentRange(data.peakRangeStart, data.peakRangeEnd)}.`}
+          aria-label={`Average cue coverage ${averageCoverage} across the aligned timeline with a peak of ${peakCoverage} around ${peakWindow}.`}
         >
           {[0, 0.25, 0.5, 0.75, 1].map((level) => {
             const y = CHART_PADDING_TOP + plotHeight - level * plotHeight;
@@ -166,13 +162,6 @@ export default function CueTimeDistributionPanel({ data }: CueTimeDistributionPa
           <span>100%</span>
         </div>
 
-        <p className="time-distribution-note">
-          Average cue coverage stays at {formatPercent(data.averageCoverage)} across the aligned
-          timeline. The densest slice reaches {formatPercent(data.peakCoverage)} around{' '}
-          {formatPercentRange(data.peakRangeStart, data.peakRangeEnd)}. Mean cue length is{' '}
-          {formatDuration(data.averageCueDurationMs)}.
-        </p>
-
         {excludedEntryCount > 0 || excludedVideoCount > 0 ? (
           <p className="time-distribution-subnote">
             Excluded {excludedEntryCount.toLocaleString()} cues from {excludedVideoCount.toLocaleString()}{' '}
@@ -183,18 +172,28 @@ export default function CueTimeDistributionPanel({ data }: CueTimeDistributionPa
 
       <div className="time-distribution-stats">
         <div className="time-distribution-stat">
-          <span>Timed cues</span>
-          <strong>{formatCount(data.timedEntryCount, data.totalEntryCount)}</strong>
+          <span>Average coverage</span>
+          <strong>{averageCoverage}</strong>
         </div>
 
         <div className="time-distribution-stat">
-          <span>Average coverage</span>
-          <strong>{formatPercent(data.averageCoverage)}</strong>
+          <span>Peak coverage</span>
+          <strong>{peakCoverage}</strong>
+        </div>
+
+        <div className="time-distribution-stat">
+          <span>Peak timing</span>
+          <strong>{peakWindow}</strong>
+        </div>
+
+        <div className="time-distribution-stat">
+          <span>Mean cue length</span>
+          <strong>{meanCueLength}</strong>
         </div>
 
         <div className="time-distribution-stat">
           <span>Median span</span>
-          <strong>{formatDuration(data.medianVideoSpanMs)}</strong>
+          <strong>{medianSpan}</strong>
         </div>
       </div>
     </section>

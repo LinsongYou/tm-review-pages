@@ -506,6 +506,20 @@ function App() {
     setContextRadius(nextRadius);
   }
 
+  function handleTranscriptEntryKeyDown(
+    event: ReactKeyboardEvent<HTMLElement>,
+    entryId: string,
+  ): void {
+    if (event.target !== event.currentTarget) {
+      return;
+    }
+
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      selectTranscriptEntry(entryId);
+    }
+  }
+
   function handleResultCardKeyDown(
     event: ReactKeyboardEvent<HTMLElement>,
     entryId: string,
@@ -539,6 +553,17 @@ function App() {
     setSelectedEntryId(entryId);
     setTranscriptFocusEntryId(entryId);
     setActiveTranscriptEntryId(entryId);
+  }
+
+  function searchFromTranscriptLine(text: string): void {
+    const trimmed = text.trim();
+    if (!trimmed) {
+      return;
+    }
+
+    closeTranscript();
+    setQuery(trimmed);
+    void runSearch(trimmed);
   }
 
   async function openTranscript(videoId: string, focusEntryId: string): Promise<void> {
@@ -979,7 +1004,7 @@ function App() {
                           </span>
                         </button>
 
-                        <button
+                        <article
                           className={[
                             'context-item',
                             'transcript-entry',
@@ -988,16 +1013,45 @@ function App() {
                           ]
                             .filter(Boolean)
                             .join(' ')}
-                          type="button"
+                          role="button"
+                          tabIndex={0}
                           onClick={() => selectTranscriptEntry(item.entryId)}
+                          onKeyDown={(event) => handleTranscriptEntryKeyDown(event, item.entryId)}
                         >
                           <div className="context-meta transcript-entry-meta">
                             <span>{item.videoId}#{item.segIndex}</span>
                             <span>{item.blockName || 'no block'}</span>
                           </div>
-                          <p>{item.en}</p>
-                          <p>{item.zh}</p>
-                        </button>
+                          <div className="transcript-entry-copy-line">
+                            <p className="transcript-entry-line transcript-entry-line--en">{item.en}</p>
+                            <button
+                              aria-label={`Search using cue ${item.segIndex} English text`}
+                              className="transcript-entry-search"
+                              type="button"
+                              disabled={!item.en.trim()}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                searchFromTranscriptLine(item.en);
+                              }}
+                            >
+                              <svg
+                                aria-hidden="true"
+                                className="transcript-entry-search-icon"
+                                viewBox="0 0 16 16"
+                              >
+                                <circle cx="7" cy="7" r="4.25" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                                <path
+                                  d="M10.2 10.2L13.4 13.4"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeLinecap="round"
+                                  strokeWidth="1.5"
+                                />
+                              </svg>
+                            </button>
+                          </div>
+                          <p className="transcript-entry-line transcript-entry-line--zh">{item.zh}</p>
+                        </article>
                       </li>
                     );
                   })}
