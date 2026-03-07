@@ -541,6 +541,10 @@ button {
   align-content: start;
 }
 
+.semantic-detail-card--entry {
+  gap: 12px;
+}
+
 .semantic-detail-card.is-empty strong {
   font-size: 1rem;
 }
@@ -567,6 +571,17 @@ button {
   gap: 12px;
   color: var(--muted);
   font-size: 0.9rem;
+}
+
+.semantic-detail-result-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+}
+
+.semantic-detail-copy-group {
+  margin-top: 0;
 }
 
 .semantic-entry-copy {

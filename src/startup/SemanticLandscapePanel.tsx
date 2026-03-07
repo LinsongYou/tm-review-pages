@@ -376,19 +376,43 @@ export default function SemanticLandscapePanel({
 
         <aside className="semantic-detail-panel">
           {detailPoint ? (
-            <div className="semantic-detail-card">
+            <div className="semantic-detail-card semantic-detail-card--entry">
               <span
                 className="semantic-detail-badge"
                 style={{ ['--cluster-color' as string]: detailCluster?.color ?? '#84a98c' }}
               >
                 {detailCluster?.label ?? 'Selected Entry'}
               </span>
-              <div className="semantic-entry-meta">
-                <strong>{detailPoint.videoId}</strong>
-                <span>#{detailPoint.segIndex}</span>
+
+              <div className="semantic-detail-result-header">
+                <span className="result-metric">
+                  <span className="result-metric-label">YouTube ID</span>
+                  <strong>{detailPoint.videoId}</strong>
+                </span>
+
+                <span className="result-metric result-score">
+                  <span className="result-metric-label">Entry</span>
+                  <strong>#{detailPoint.segIndex}</strong>
+                </span>
               </div>
-              <p className="semantic-entry-copy semantic-entry-copy--en">{detailPoint.en}</p>
-              <p className="semantic-entry-copy semantic-entry-copy--zh">{detailPoint.zh}</p>
+
+              <div className="result-copy-group semantic-detail-copy-group">
+                <div className="result-copy">
+                  <div className="result-copy-line">
+                    <p className="result-en semantic-entry-copy semantic-entry-copy--en">
+                      {detailPoint.en}
+                    </p>
+                    <span className="result-char-count">{detailPoint.en.length} chars</span>
+                  </div>
+                </div>
+
+                <div className="result-copy">
+                  <p className="result-zh semantic-entry-copy semantic-entry-copy--zh">
+                    {detailPoint.zh}
+                  </p>
+                </div>
+              </div>
+
               {detailCluster?.keywords.length ? (
                 <div className="semantic-keyword-list">
                   {detailCluster.keywords.map((keyword) => (
