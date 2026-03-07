@@ -269,7 +269,7 @@ function App() {
   return (
     <main className="app-shell">
       <section className="hero">
-        <p className="eyebrow">Translation Memory Review</p>
+        <h1 className="page-title">Translation Memory Review</h1>
         <div className="hero-meta">
           <span className="hero-chip">
             {bootStats
@@ -287,13 +287,13 @@ function App() {
               aria-hidden="true"
               className={theme === 'dark' ? 'theme-option is-active' : 'theme-option'}
             >
-              🌙
+              ☾
             </span>
             <span
               aria-hidden="true"
               className={theme === 'light' ? 'theme-option is-active' : 'theme-option'}
             >
-              ☀️
+              ☼
             </span>
           </button>
         </div>
@@ -301,16 +301,16 @@ function App() {
 
       <section className="panel controls-panel">
         <form className="search-form" onSubmit={handleSubmit}>
-          <label className="field query-field">
-            <span>Search</span>
+          <div className="field query-field">
             <input
+              aria-label="Search English subtitle lines"
               autoFocus
               type="text"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search English subtitle lines"
             />
-          </label>
+          </div>
 
           <button className="search-button" type="submit" disabled={!canSearch || searching}>
             {searching ? 'Searching…' : 'Search'}
