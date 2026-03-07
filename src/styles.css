@@ -327,108 +327,6 @@ button {
   margin-bottom: 18px;
 }
 
-.startup-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
-}
-
-.startup-secondary {
-  display: grid;
-  gap: 18px;
-  margin-bottom: 18px;
-}
-
-.startup-panel {
-  padding: 18px;
-  border-radius: 24px;
-}
-
-.startup-toggle-panel {
-  padding: 18px;
-  border-radius: 24px;
-}
-
-.startup-toggle-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.startup-toggle-button {
-  min-height: 42px;
-  padding: 0 16px;
-  border-radius: 999px;
-  border: 1px solid var(--accent-border);
-  background: var(--field-bg);
-  color: var(--muted-strong);
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.startup-toggle-button.is-active {
-  background: var(--accent-soft);
-  color: var(--accent-strong);
-}
-
-.startup-header {
-  margin-bottom: 18px;
-}
-
-.startup-metrics {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.startup-metrics--two-up {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.startup-metric-card {
-  display: grid;
-  gap: 6px;
-  min-height: 132px;
-  padding: 16px;
-  border-radius: 18px;
-  border: 1px solid var(--card-border);
-  background: var(--card-bg);
-  align-content: start;
-}
-
-.startup-metric-label,
-.startup-metric-note {
-  color: var(--muted);
-}
-
-.startup-metric-label {
-  font-size: 0.76rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.startup-metric-value {
-  color: var(--accent-strong);
-  font-family: "IBM Plex Serif", Georgia, serif;
-  font-size: clamp(1.8rem, 3.4vw, 2.8rem);
-  font-weight: 600;
-  line-height: 1;
-}
-
-.startup-metric-note {
-  font-size: 0.86rem;
-  line-height: 1.45;
-}
-
-.startup-panel-note {
-  margin: 14px 0 0;
-  color: var(--muted);
-  font-size: 0.9rem;
-  line-height: 1.5;
-}
-
 .semantic-panel {
   padding: 18px;
   border-radius: 24px;
@@ -1194,7 +1092,6 @@ button {
 }
 
 @media (max-width: 1180px) {
-  .startup-grid,
   .semantic-workspace,
   .workspace {
     grid-template-columns: 1fr;
@@ -1219,20 +1116,12 @@ button {
 }
 
 @media (max-width: 560px) {
-  .startup-metrics,
-  .startup-metrics--two-up,
   .semantic-summary,
   .panel-header,
   .context-meta {
     display: grid;
   }
 
-  .startup-metrics,
-  .startup-metrics--two-up {
-    grid-template-columns: 1fr;
-  }
-
-  .startup-toggle-row,
   .cluster-ranking-meta {
     display: grid;
   }

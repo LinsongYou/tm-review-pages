@@ -49,20 +49,6 @@ function getInitialTheme(): Theme {
   return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
 }
 
-function formatStat(value: number): string {
-  if (!Number.isFinite(value)) {
-    return '0';
-  }
-
-  const rounded = Math.round(value);
-  const isWhole = Math.abs(value - rounded) < 0.001;
-
-  return value.toLocaleString(undefined, {
-    minimumFractionDigits: isWhole ? 0 : 1,
-    maximumFractionDigits: isWhole ? 0 : 1,
-  });
-}
-
 function formatCueTimestamp(ms: number | null): string {
   if (ms === null || !Number.isFinite(ms)) {
     return '--:--.---';
@@ -121,7 +107,6 @@ function App() {
   const [minScore, setMinScore] = useState(0);
   const [contextRadius, setContextRadius] = useState(DEFAULT_CONTEXT_RADIUS);
   const [theme, setTheme] = useState<Theme>(getInitialTheme);
-  const [showStartupStats, setShowStartupStats] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
@@ -613,7 +598,6 @@ function App() {
     setMinLength(0);
     setMinScore(0);
     setContextRadius(DEFAULT_CONTEXT_RADIUS);
-    setShowStartupStats(false);
     setHasSearched(false);
     setSearching(false);
     setErrorText(null);
@@ -736,110 +720,6 @@ function App() {
             />
           ) : null}
 
-          <section className="startup-secondary" aria-label="Startup summaries">
-            <section className="panel startup-toggle-panel">
-              <div className="startup-toggle-row">
-                <div className="results-heading">
-                  <h2>Dataset Stats</h2>
-                  <span>Video-level cue density and line-length medians are hidden by default.</span>
-                </div>
-
-                <button
-                  aria-controls="startup-dataset-stats"
-                  aria-expanded={showStartupStats}
-                  className={
-                    showStartupStats ? 'startup-toggle-button is-active' : 'startup-toggle-button'
-                  }
-                  type="button"
-                  onClick={() => setShowStartupStats((currentValue) => !currentValue)}
-                >
-                  {showStartupStats ? 'Hide Stats' : 'Show Stats'}
-                </button>
-              </div>
-            </section>
-
-            {showStartupStats ? (
-              <section id="startup-dataset-stats" className="startup-grid" aria-label="Dataset overview">
-                <section className="panel startup-panel">
-                  <div className="panel-header startup-header">
-                    <div className="results-heading">
-                      <h2>Subtitle Cues Per Video</h2>
-                      <span>
-                        How densely the current dataset&apos;s subtitle cues are distributed across
-                        videos.
-                      </span>
-                    </div>
-                  </div>
-
-                  {bootStats ? (
-                    <div className="startup-metrics">
-                      <article className="startup-metric-card">
-                        <span className="startup-metric-label">Average</span>
-                        <strong className="startup-metric-value">
-                          {formatStat(bootStats.avgRowsPerVideo)}
-                        </strong>
-                        <span className="startup-metric-note">cues per video</span>
-                      </article>
-
-                      <article className="startup-metric-card">
-                        <span className="startup-metric-label">Median</span>
-                        <strong className="startup-metric-value">
-                          {formatStat(bootStats.medianRowsPerVideo)}
-                        </strong>
-                        <span className="startup-metric-note">cues per video</span>
-                      </article>
-
-                      <article className="startup-metric-card">
-                        <span className="startup-metric-label">Max</span>
-                        <strong className="startup-metric-value">
-                          {formatStat(bootStats.maxRowsPerVideo)}
-                        </strong>
-                        <span className="startup-metric-note">cues in one video</span>
-                      </article>
-                    </div>
-                  ) : (
-                    <div className="empty-state">
-                      <p>Loading video distribution…</p>
-                    </div>
-                  )}
-                </section>
-
-                <section className="panel startup-panel">
-                  <div className="panel-header startup-header">
-                    <div className="results-heading">
-                      <h2>Line Length Medians</h2>
-                      <span>Median character counts for English and Chinese subtitle lines.</span>
-                    </div>
-                  </div>
-
-                  {bootStats ? (
-                    <div className="startup-metrics startup-metrics--two-up">
-                      <article className="startup-metric-card">
-                        <span className="startup-metric-label">English</span>
-                        <strong className="startup-metric-value">
-                          {formatStat(bootStats.medianEnLength)}
-                        </strong>
-                        <span className="startup-metric-note">median characters</span>
-                      </article>
-
-                      <article className="startup-metric-card">
-                        <span className="startup-metric-label">Chinese</span>
-                        <strong className="startup-metric-value">
-                          {formatStat(bootStats.medianZhLength)}
-                        </strong>
-                        <span className="startup-metric-note">median characters</span>
-                      </article>
-                    </div>
-                  ) : (
-                    <div className="empty-state">
-                      <p>Loading line length summary…</p>
-                    </div>
-                  )}
-                </section>
-              </section>
-            ) : null}
-
-          </section>
         </>
       ) : null}
 
