@@ -1,4 +1,4 @@
-import { FormEvent, startTransition, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type {
   BootStats,
   ContextItem,
@@ -12,9 +12,25 @@ type PendingRequest = {
   reject: (reason?: unknown) => void;
 };
 
+type Theme = 'dark' | 'light';
+
 const VECTOR_MODEL_ID = 'sentence-transformers/all-MiniLM-L6-v2';
 const QUERY_MODEL_ID = 'Xenova/all-MiniLM-L6-v2';
 const DB_ASSET = 'data/tm_misha_minilm.db';
+const THEME_STORAGE_KEY = 'tm-review-theme';
+
+function getInitialTheme(): Theme {
+  if (typeof window === 'undefined') {
+    return 'dark';
+  }
+
+  const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+  if (storedTheme === 'dark' || storedTheme === 'light') {
+    return storedTheme;
+  }
+
+  return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+}
 
 function App() {
   const workerRef = useRef<Worker | null>(null);
@@ -31,12 +47,19 @@ function App() {
   const [query, setQuery] = useState('');
   const [topK, setTopK] = useState(10);
   const [minLength, setMinLength] = useState(0);
+  const [theme, setTheme] = useState<Theme>(getInitialTheme);
   const [hasSearched, setHasSearched] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
   const [contextItems, setContextItems] = useState<ContextItem[]>([]);
 
   const dbUrl = useMemo(() => `${import.meta.env.BASE_URL}${DB_ASSET}`, []);
+
+  useLayoutEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+  }, [theme]);
 
   useEffect(() => {
     const worker = new Worker(new URL('./search/search.worker.ts', import.meta.url), {
@@ -234,6 +257,10 @@ function App() {
     }
   }
 
+  function toggleTheme(): void {
+    setTheme((currentTheme) => (currentTheme === 'dark' ? 'light' : 'dark'));
+  }
+
   const canSearch = !booting && !!query.trim();
   const selectedResult = selectedEntryId
     ? results.find((result) => result.entryId === selectedEntryId) ?? null
@@ -250,6 +277,19 @@ function App() {
               : 'Loading EN/中文 pairs'}
           </span>
           <span className="hero-chip">{QUERY_MODEL_ID}</span>
+          <button
+            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+            className="theme-toggle"
+            type="button"
+            onClick={toggleTheme}
+          >
+            <span className={theme === 'dark' ? 'theme-option is-active' : 'theme-option'}>
+              Dark
+            </span>
+            <span className={theme === 'light' ? 'theme-option is-active' : 'theme-option'}>
+              Light
+            </span>
+          </button>
         </div>
       </section>
 

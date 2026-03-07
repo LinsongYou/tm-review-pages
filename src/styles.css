@@ -1,26 +1,54 @@
 :root {
   font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
-  color: #f4f1e8;
-  background:
-    radial-gradient(circle at top left, rgba(235, 112, 60, 0.15), transparent 32%),
-    radial-gradient(circle at top right, rgba(44, 101, 146, 0.22), transparent 28%),
-    linear-gradient(180deg, #16181d 0%, #0d0f12 100%);
-  color-scheme: dark;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  --panel: rgba(19, 23, 30, 0.86);
-  --panel-border: rgba(246, 201, 154, 0.16);
+  --page-bg: #11151b;
+  --panel: #1a2029;
+  --panel-border: #2d3542;
+  --chip-bg: #1a2029;
+  --chip-border: #353f4d;
+  --field-bg: #121820;
+  --field-border: #343d4b;
+  --card-bg: #151b23;
+  --card-border: #2d3541;
   --accent: #f2b063;
   --accent-strong: #ffcf91;
-  --accent-soft: rgba(242, 176, 99, 0.14);
+  --accent-soft: #302617;
+  --button-text: #24170b;
   --text: #f4f1e8;
   --muted: #bdb6aa;
   --muted-strong: #d7d0c4;
   --danger: #ff7f6c;
   --note: #8bc7ff;
   --shadow: 0 28px 60px rgba(0, 0, 0, 0.35);
+  color: var(--text);
+  background: var(--page-bg);
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+  --page-bg: #f3eee4;
+  --panel: #ffffff;
+  --panel-border: #ddd5c9;
+  --chip-bg: #ffffff;
+  --chip-border: #d7cfbf;
+  --field-bg: #f6f1e8;
+  --field-border: #d7cfbf;
+  --card-bg: #fbf8f2;
+  --card-border: #e2dbcf;
+  --accent: #c76b31;
+  --accent-strong: #a6501f;
+  --accent-soft: #f4e2d2;
+  --button-text: #fff8f2;
+  --text: #1f2430;
+  --muted: #6f695f;
+  --muted-strong: #534b40;
+  --danger: #c04a3f;
+  --note: #2d73ac;
+  --shadow: 0 18px 36px rgba(30, 37, 45, 0.09);
+  color-scheme: light;
 }
 
 * {
@@ -35,6 +63,9 @@ body,
 
 body {
   margin: 0;
+  background: var(--page-bg);
+  color: var(--text);
+  transition: background-color 160ms ease, color 160ms ease;
 }
 
 button,
@@ -75,24 +106,50 @@ button {
   gap: 10px;
   align-items: center;
   flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .hero-chip {
   padding: 10px 14px;
   border-radius: 999px;
-  border: 1px solid rgba(246, 201, 154, 0.16);
-  background: rgba(19, 23, 30, 0.72);
+  border: 1px solid var(--chip-border);
+  background: var(--chip-bg);
   color: var(--muted-strong);
   font-size: 0.82rem;
   letter-spacing: 0.02em;
   white-space: nowrap;
 }
 
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--chip-border);
+  border-radius: 999px;
+  background: var(--chip-bg);
+  color: var(--muted);
+}
+
+.theme-option {
+  min-width: 58px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+}
+
+.theme-option.is-active {
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
+}
+
 .panel {
   background: var(--panel);
   border: 1px solid var(--panel-border);
   box-shadow: var(--shadow);
-  backdrop-filter: blur(14px);
 }
 
 .detail-label,
@@ -151,8 +208,8 @@ button {
   min-height: 48px;
   padding: 0 14px;
   color: var(--text);
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--field-bg);
+  border: 1px solid var(--field-border);
   border-radius: 14px;
   outline: none;
 }
@@ -173,9 +230,9 @@ button {
   min-height: 48px;
   border: none;
   border-radius: 14px;
-  color: #21180f;
+  color: var(--button-text);
   font-weight: 700;
-  background: linear-gradient(135deg, #f8cb90 0%, #e48b55 100%);
+  background: var(--accent);
 }
 
 .search-button:disabled {
@@ -282,8 +339,8 @@ button {
   text-align: left;
   padding: 14px 16px;
   border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.028);
+  border: 1px solid var(--card-border);
+  background: var(--card-bg);
   color: inherit;
 }
 
@@ -314,7 +371,7 @@ button {
 
 .result-zh,
 .context-item p:last-child {
-  color: #d6d2cb;
+  color: var(--muted-strong);
 }
 
 .detail-body {
@@ -330,7 +387,7 @@ button {
   min-width: 0;
   padding: 12px 14px;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--card-bg);
 }
 
 .detail-copy {
@@ -345,7 +402,7 @@ button {
 
 .context-item.is-focus {
   border-color: rgba(255, 207, 145, 0.58);
-  background: rgba(242, 176, 99, 0.08);
+  background: var(--accent-soft);
 }
 
 .empty-state {
