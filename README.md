@@ -13,6 +13,7 @@ Static GitHub Pages app for reviewing translation-memory data in the browser.
 ## Current Prototype
 
 - Loads `public/data/tm_misha_minilm.db` directly in the browser.
+- Loads a precomputed `public/data/semantic-landscape.json` startup artifact for the home-page semantic visualization.
 - Uses a single English semantic search flow powered by the shipped `sentence-transformers/all-MiniLM-L6-v2` vectors.
 - Includes adjustable `Top K`, `Min Chars`, `Score`, and context-radius controls.
 - Shows result cards with YouTube ID, transcript entry number, score, block ID, and emphasized EN/ZH text.
@@ -50,6 +51,12 @@ Copy the latest prototype DB from the pipeline repo:
 ```powershell
 New-Item -ItemType Directory -Force .\public\data
 Copy-Item D:\subtitle-workflow-pipeline\tm_tools\tm_misha_minilm.db .\public\data\tm_misha_minilm.db -Force
+```
+
+Then regenerate the startup semantic map:
+
+```powershell
+npm run generate:semantic-landscape
 ```
 
 If the data changes shape or raw SQLite becomes awkward on Pages, the next step is to export slimmer read-only artifacts from the pipeline repo and keep this app unchanged at the UI layer.

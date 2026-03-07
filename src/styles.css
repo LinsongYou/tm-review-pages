@@ -395,6 +395,254 @@ button {
   line-height: 1.5;
 }
 
+.semantic-panel {
+  padding: 18px;
+  border-radius: 24px;
+  margin-bottom: 18px;
+}
+
+.semantic-panel--loading {
+  min-height: 280px;
+}
+
+.semantic-panel-header {
+  align-items: start;
+  flex-wrap: wrap;
+}
+
+.semantic-summary {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.semantic-cluster-strip {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  padding-bottom: 6px;
+  margin-bottom: 16px;
+}
+
+.semantic-cluster-chip {
+  --cluster-color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--field-border);
+  background: var(--field-bg);
+  color: var(--muted-strong);
+  white-space: nowrap;
+}
+
+.semantic-cluster-chip strong {
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.semantic-cluster-chip.is-active {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+}
+
+.semantic-cluster-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--cluster-color);
+  flex: 0 0 auto;
+}
+
+.semantic-cluster-dot--all {
+  background: var(--accent);
+}
+
+.semantic-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.78fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.semantic-plot-shell {
+  display: grid;
+  gap: 10px;
+}
+
+.semantic-canvas-shell {
+  position: relative;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid var(--field-border);
+  background: var(--field-bg);
+}
+
+.semantic-canvas {
+  display: block;
+  width: 100%;
+}
+
+.semantic-tooltip {
+  position: absolute;
+  z-index: 2;
+  max-width: 240px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--card-border);
+  background: rgba(8, 13, 11, 0.92);
+  box-shadow: var(--shadow);
+  color: var(--text);
+  pointer-events: none;
+}
+
+:root[data-theme='light'] .semantic-tooltip {
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.semantic-tooltip strong,
+.semantic-sample-card strong,
+.semantic-entry-meta strong,
+.semantic-detail-stat strong {
+  color: var(--text);
+}
+
+.semantic-tooltip p,
+.semantic-footnote,
+.semantic-detail-card p,
+.semantic-sample-card span {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.semantic-footnote {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.semantic-detail-panel {
+  display: grid;
+}
+
+.semantic-detail-card {
+  display: grid;
+  gap: 14px;
+  min-height: 100%;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid var(--card-border);
+  background: var(--card-bg);
+  align-content: start;
+}
+
+.semantic-detail-card.is-empty strong {
+  font-size: 1rem;
+}
+
+.semantic-detail-badge {
+  --cluster-color: var(--accent);
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--cluster-color);
+  color: var(--cluster-color);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.semantic-entry-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.semantic-entry-copy {
+  font-size: 0.96rem;
+}
+
+.semantic-entry-copy--en {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.semantic-entry-copy--zh {
+  color: var(--muted-strong);
+}
+
+.semantic-keyword-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.semantic-keyword {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--field-bg);
+  border: 1px solid var(--field-border);
+  color: var(--muted-strong);
+  font-size: 0.82rem;
+}
+
+.semantic-action-button {
+  min-height: 44px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 14px;
+  background: var(--accent);
+  color: var(--button-text);
+  font-weight: 700;
+}
+
+.semantic-detail-stat {
+  display: grid;
+  gap: 4px;
+}
+
+.semantic-detail-stat strong {
+  font-family: "IBM Plex Serif", Georgia, serif;
+  font-size: 1.7rem;
+  font-weight: 600;
+}
+
+.semantic-detail-stat span {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.semantic-sample-list {
+  display: grid;
+  gap: 10px;
+}
+
+.semantic-sample-card {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  padding: 12px;
+  text-align: left;
+  border-radius: 14px;
+  border: 1px solid var(--field-border);
+  background: var(--field-bg);
+  color: inherit;
+}
+
 .error-message {
   border-color: rgba(255, 127, 108, 0.28);
 }
@@ -695,6 +943,7 @@ button {
 
 @media (max-width: 1180px) {
   .startup-grid,
+  .semantic-workspace,
   .workspace {
     grid-template-columns: 1fr;
   }
@@ -710,6 +959,7 @@ button {
 @media (max-width: 560px) {
   .startup-metrics,
   .startup-metrics--two-up,
+  .semantic-summary,
   .panel-header,
   .context-meta {
     display: grid;

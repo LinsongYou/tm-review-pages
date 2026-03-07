@@ -15,6 +15,8 @@ import type {
   WorkerPayload,
   WorkerResponse,
 } from './search/protocol';
+import SemanticLandscapePanel from './startup/SemanticLandscapePanel';
+import type { SemanticLandscapeData } from './startup/semantic-landscape';
 
 type PendingRequest = {
   resolve: (value: WorkerResponse) => void;
@@ -26,6 +28,7 @@ type Theme = 'dark' | 'light';
 const VECTOR_MODEL_ID = 'sentence-transformers/all-MiniLM-L6-v2';
 const QUERY_MODEL_ID = 'Xenova/all-MiniLM-L6-v2';
 const DB_ASSET = 'data/tm_misha_minilm.db';
+const LANDSCAPE_ASSET = 'data/semantic-landscape.json';
 const THEME_STORAGE_KEY = 'tm-review-theme';
 const DEFAULT_CONTEXT_RADIUS = 3;
 
@@ -83,8 +86,12 @@ function App() {
   const [transcriptItems, setTranscriptItems] = useState<ContextItem[]>([]);
   const [transcriptLoading, setTranscriptLoading] = useState(false);
   const [transcriptErrorText, setTranscriptErrorText] = useState<string | null>(null);
+  const [landscapeData, setLandscapeData] = useState<SemanticLandscapeData | null>(null);
+  const [landscapeLoading, setLandscapeLoading] = useState(true);
+  const [landscapeErrorText, setLandscapeErrorText] = useState<string | null>(null);
 
   const dbUrl = useMemo(() => `${import.meta.env.BASE_URL}${DB_ASSET}`, []);
+  const landscapeUrl = useMemo(() => `${import.meta.env.BASE_URL}${LANDSCAPE_ASSET}`, []);
 
   useLayoutEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -137,6 +144,16 @@ function App() {
       workerRef.current = null;
     };
   }, [dbUrl]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    void loadSemanticLandscape(controller.signal);
+
+    return () => {
+      controller.abort();
+    };
+  }, [landscapeUrl]);
 
   useEffect(() => {
     if (!selectedEntryId || !bootStats) {
@@ -229,6 +246,35 @@ function App() {
     } catch (error) {
       setBooting(false);
       setErrorText(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function loadSemanticLandscape(signal: AbortSignal): Promise<void> {
+    setLandscapeLoading(true);
+    setLandscapeErrorText(null);
+
+    try {
+      const response = await fetch(landscapeUrl, { cache: 'force-cache', signal });
+      if (!response.ok) {
+        throw new Error(`Failed to download ${landscapeUrl} (${response.status}).`);
+      }
+
+      const payload = (await response.json()) as SemanticLandscapeData;
+      if (signal.aborted) {
+        return;
+      }
+
+      startTransition(() => {
+        setLandscapeData(payload);
+        setLandscapeLoading(false);
+      });
+    } catch (error) {
+      if (signal.aborted) {
+        return;
+      }
+
+      setLandscapeLoading(false);
+      setLandscapeErrorText(error instanceof Error ? error.message : String(error));
     }
   }
 
@@ -482,94 +528,123 @@ function App() {
       ) : null}
 
       {!hasSearched ? (
-        <section className="startup-grid" aria-label="Dataset overview">
-          <section className="panel startup-panel">
-            <div className="panel-header startup-header">
-              <div className="results-heading">
-                <h2>Rows Per Video</h2>
-                <span>How densely the current dataset is distributed across videos.</span>
-              </div>
-            </div>
-
-            {bootStats ? (
-              <>
-                <div className="startup-metrics">
-                  <article className="startup-metric-card">
-                    <span className="startup-metric-label">Average</span>
-                    <strong className="startup-metric-value">
-                      {formatStat(bootStats.avgRowsPerVideo)}
-                    </strong>
-                    <span className="startup-metric-note">rows per video</span>
-                  </article>
-
-                  <article className="startup-metric-card">
-                    <span className="startup-metric-label">Median</span>
-                    <strong className="startup-metric-value">
-                      {formatStat(bootStats.medianRowsPerVideo)}
-                    </strong>
-                    <span className="startup-metric-note">rows per video</span>
-                  </article>
-
-                  <article className="startup-metric-card">
-                    <span className="startup-metric-label">Max</span>
-                    <strong className="startup-metric-value">
-                      {formatStat(bootStats.maxRowsPerVideo)}
-                    </strong>
-                    <span className="startup-metric-note">rows in one video</span>
-                  </article>
+        <>
+          <section className="startup-grid" aria-label="Dataset overview">
+            <section className="panel startup-panel">
+              <div className="panel-header startup-header">
+                <div className="results-heading">
+                  <h2>Rows Per Video</h2>
+                  <span>How densely the current dataset is distributed across videos.</span>
                 </div>
-
-                <p className="startup-panel-note">
-                  Based on {bootStats.videoCount.toLocaleString()} videos in the current SQLite
-                  snapshot.
-                </p>
-              </>
-            ) : (
-              <div className="empty-state">
-                <p>Loading video distribution…</p>
               </div>
-            )}
+
+              {bootStats ? (
+                <>
+                  <div className="startup-metrics">
+                    <article className="startup-metric-card">
+                      <span className="startup-metric-label">Average</span>
+                      <strong className="startup-metric-value">
+                        {formatStat(bootStats.avgRowsPerVideo)}
+                      </strong>
+                      <span className="startup-metric-note">rows per video</span>
+                    </article>
+
+                    <article className="startup-metric-card">
+                      <span className="startup-metric-label">Median</span>
+                      <strong className="startup-metric-value">
+                        {formatStat(bootStats.medianRowsPerVideo)}
+                      </strong>
+                      <span className="startup-metric-note">rows per video</span>
+                    </article>
+
+                    <article className="startup-metric-card">
+                      <span className="startup-metric-label">Max</span>
+                      <strong className="startup-metric-value">
+                        {formatStat(bootStats.maxRowsPerVideo)}
+                      </strong>
+                      <span className="startup-metric-note">rows in one video</span>
+                    </article>
+                  </div>
+
+                  <p className="startup-panel-note">
+                    Based on {bootStats.videoCount.toLocaleString()} videos in the current SQLite
+                    snapshot.
+                  </p>
+                </>
+              ) : (
+                <div className="empty-state">
+                  <p>Loading video distribution…</p>
+                </div>
+              )}
+            </section>
+
+            <section className="panel startup-panel">
+              <div className="panel-header startup-header">
+                <div className="results-heading">
+                  <h2>Line Length Medians</h2>
+                  <span>Median character counts for English and Chinese subtitle lines.</span>
+                </div>
+              </div>
+
+              {bootStats ? (
+                <>
+                  <div className="startup-metrics startup-metrics--two-up">
+                    <article className="startup-metric-card">
+                      <span className="startup-metric-label">English</span>
+                      <strong className="startup-metric-value">
+                        {formatStat(bootStats.medianEnLength)}
+                      </strong>
+                      <span className="startup-metric-note">median characters</span>
+                    </article>
+
+                    <article className="startup-metric-card">
+                      <span className="startup-metric-label">Chinese</span>
+                      <strong className="startup-metric-value">
+                        {formatStat(bootStats.medianZhLength)}
+                      </strong>
+                      <span className="startup-metric-note">median characters</span>
+                    </article>
+                  </div>
+
+                  <p className="startup-panel-note">
+                    Useful for setting expectations around scan density and minimum-length filters.
+                  </p>
+                </>
+              ) : (
+                <div className="empty-state">
+                  <p>Loading line length summary…</p>
+                </div>
+              )}
+            </section>
           </section>
 
-          <section className="panel startup-panel">
-            <div className="panel-header startup-header">
-              <div className="results-heading">
-                <h2>Line Length Medians</h2>
-                <span>Median character counts for English and Chinese subtitle lines.</span>
-              </div>
-            </div>
-
-            {bootStats ? (
-              <>
-                <div className="startup-metrics startup-metrics--two-up">
-                  <article className="startup-metric-card">
-                    <span className="startup-metric-label">English</span>
-                    <strong className="startup-metric-value">
-                      {formatStat(bootStats.medianEnLength)}
-                    </strong>
-                    <span className="startup-metric-note">median characters</span>
-                  </article>
-
-                  <article className="startup-metric-card">
-                    <span className="startup-metric-label">Chinese</span>
-                    <strong className="startup-metric-value">
-                      {formatStat(bootStats.medianZhLength)}
-                    </strong>
-                    <span className="startup-metric-note">median characters</span>
-                  </article>
+          {landscapeErrorText ? (
+            <section className="panel message error-message">
+              <strong>Semantic Landscape</strong>
+              <p>{landscapeErrorText}</p>
+            </section>
+          ) : landscapeLoading ? (
+            <section className="panel startup-panel semantic-panel semantic-panel--loading">
+              <div className="panel-header semantic-panel-header">
+                <div className="results-heading">
+                  <h2>Semantic Landscape</h2>
+                  <span>Preparing the precomputed startup distribution…</span>
                 </div>
-
-                <p className="startup-panel-note">
-                  Useful for setting expectations around scan density and minimum-length filters.
-                </p>
-              </>
-            ) : (
-              <div className="empty-state">
-                <p>Loading line length summary…</p>
               </div>
-            )}
-          </section>
-        </section>
+              <div className="empty-state">
+                <p>Loading all-entry semantic coordinates…</p>
+              </div>
+            </section>
+          ) : landscapeData ? (
+            <SemanticLandscapePanel
+              data={landscapeData}
+              theme={theme}
+              onOpenTranscript={(videoId, focusEntryId) => {
+                void openTranscript(videoId, focusEntryId);
+              }}
+            />
+          ) : null}
+        </>
       ) : null}
 
       {hasSearched ? (
