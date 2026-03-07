@@ -367,6 +367,7 @@ export default function SemanticLandscapePanel({
         className={
           hasDetailPanel ? 'semantic-workspace' : 'semantic-workspace semantic-workspace--plot-only'
         }
+        style={{ ['--semantic-plot-height' as string]: `${plotHeight}px` }}
       >
         <div className="semantic-plot-shell">
           <div ref={containerRef} className="semantic-canvas-shell">

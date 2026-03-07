@@ -469,6 +469,7 @@ button {
 .semantic-detail-panel {
   display: grid;
   min-width: 0;
+  min-height: 0;
 }
 
 .semantic-detail-card {
@@ -484,6 +485,12 @@ button {
 
 .semantic-detail-card--entry {
   gap: 12px;
+}
+
+.semantic-detail-card--all {
+  gap: 12px;
+  min-height: 0;
+  max-height: var(--semantic-plot-height, 420px);
 }
 
 .semantic-detail-badge {
@@ -594,7 +601,14 @@ button {
 }
 
 .cluster-ranking-list--embedded {
-  gap: 8px;
+  gap: 6px;
+}
+
+.semantic-detail-card--all .cluster-ranking-list--embedded {
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
 }
 
 .cluster-ranking-row {
@@ -608,6 +622,12 @@ button {
   background: var(--card-bg);
   color: inherit;
   text-align: left;
+}
+
+.semantic-detail-card--all .cluster-ranking-row {
+  gap: 7px;
+  padding: 8px 10px;
+  border-radius: 14px;
 }
 
 .cluster-ranking-row--interactive {
@@ -625,6 +645,10 @@ button {
   grid-template-columns: auto minmax(0, 1fr) auto auto;
   gap: 12px;
   align-items: center;
+}
+
+.semantic-detail-card--all .cluster-ranking-meta {
+  gap: 8px;
 }
 
 .cluster-ranking-rank,
@@ -663,12 +687,26 @@ button {
   white-space: nowrap;
 }
 
+.semantic-detail-card--all .cluster-ranking-rank,
+.semantic-detail-card--all .cluster-ranking-count,
+.semantic-detail-card--all .cluster-ranking-share {
+  font-size: 0.76rem;
+}
+
+.semantic-detail-card--all .cluster-ranking-name {
+  font-size: 0.88rem;
+}
+
 .cluster-ranking-bar-track {
   width: 100%;
   height: 10px;
   border-radius: 999px;
   overflow: hidden;
   background: var(--field-bg);
+}
+
+.semantic-detail-card--all .cluster-ranking-bar-track {
+  height: 5px;
 }
 
 .cluster-ranking-bar-fill {
@@ -1244,6 +1282,15 @@ button {
   .semantic-workspace,
   .workspace {
     grid-template-columns: 1fr;
+  }
+
+  .semantic-detail-card--all {
+    max-height: none;
+  }
+
+  .semantic-detail-card--all .cluster-ranking-list--embedded {
+    overflow-y: visible;
+    padding-right: 0;
   }
 }
 
