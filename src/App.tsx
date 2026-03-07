@@ -807,9 +807,6 @@ function App() {
                     </article>
                   </div>
 
-                  <p className="startup-panel-note">
-                    Useful for setting expectations around scan density and minimum-length filters.
-                  </p>
                 </>
               ) : (
                 <div className="empty-state">
