@@ -8,19 +8,18 @@ Static GitHub Pages app for reviewing translation-memory data in the browser.
 - React + TypeScript
 - `sql.js` for browser-side SQLite
 - `@huggingface/transformers` for browser-side MiniLM query embeddings
-- Web Worker for SQLite loading, lexical search, semantic search, and context lookup
+- Web Worker for SQLite loading, semantic search, and context lookup
 
 ## Current Prototype
 
 - Loads `public/data/tm_misha_minilm.db` directly in the browser.
-- Supports lexical search for English and Chinese.
-- Supports semantic search for English using the shipped `sentence-transformers/all-MiniLM-L6-v2` vectors.
+- Uses a single English semantic search flow powered by the shipped `sentence-transformers/all-MiniLM-L6-v2` vectors.
 - Includes adjustable `Top K`, `Min Chars`, `Score`, and context-radius controls.
 - Shows result cards with YouTube ID, transcript entry number, score, block ID, and emphasized EN/ZH text.
 - Opens a full-video transcript modal when you click a YouTube ID, using the same context-style row presentation.
 - Runs as a fully static site with no backend.
 
-Chinese semantic indexing is intentionally not shipped yet. The current database only contains English MiniLM vectors, so semantic mode is English-only in this first build.
+The current UI intentionally keeps search to a single English semantic query path. Results still display both EN and ZH text for review.
 
 ## Local Development
 
