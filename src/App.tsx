@@ -14,7 +14,8 @@ type PendingRequest = {
   reject: (reason?: unknown) => void;
 };
 
-const SEMANTIC_MODEL_ID = 'sentence-transformers/all-MiniLM-L6-v2';
+const VECTOR_MODEL_ID = 'sentence-transformers/all-MiniLM-L6-v2';
+const QUERY_MODEL_ID = 'Xenova/all-MiniLM-L6-v2';
 const DB_ASSET = 'data/tm_misha_minilm.db';
 
 function formatBytes(bytes: number): string {
@@ -52,6 +53,7 @@ function App() {
   const [language, setLanguage] = useState<SearchLanguage>('en');
   const [topK, setTopK] = useState(10);
   const [minLength, setMinLength] = useState(0);
+  const [hasSearched, setHasSearched] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
   const [contextItems, setContextItems] = useState<ContextItem[]>([]);
@@ -167,7 +169,8 @@ function App() {
       const response = (await callWorker({
         kind: 'boot',
         dbUrl,
-        modelId: SEMANTIC_MODEL_ID,
+        vectorModelId: VECTOR_MODEL_ID,
+        queryModelId: QUERY_MODEL_ID,
       })) as Extract<WorkerResponse, { kind: 'boot:ok' }>;
 
       startTransition(() => {
@@ -185,8 +188,10 @@ function App() {
     const trimmed = query.trim();
 
     if (!trimmed || !bootStats) {
+      setHasSearched(false);
       setResults([]);
       setSelectedEntryId(null);
+      setContextItems([]);
       setSearchNote(null);
       return;
     }
@@ -197,6 +202,7 @@ function App() {
     setSearching(true);
     setErrorText(null);
     setSearchNote(null);
+    setHasSearched(true);
 
     try {
       const mode = language === 'en' ? 'semantic' : 'lexical';
@@ -249,7 +255,7 @@ function App() {
           <div className="status-card">
             <span>Semantic Model</span>
             <strong>{modelStatus}</strong>
-            <small>{booting ? statusText : SEMANTIC_MODEL_ID}</small>
+            <small>{booting ? statusText : QUERY_MODEL_ID}</small>
           </div>
           <div className="status-card">
             <span>Corpus</span>
@@ -331,120 +337,122 @@ function App() {
         </section>
       ) : null}
 
-      <section className="workspace">
-        <div className="panel results-panel">
-          <div className="panel-header">
-            <h2>Results</h2>
-            <span>{results.length.toLocaleString()} shown</span>
-          </div>
-
-          {results.length === 0 ? (
-            <div className="empty-state">
-              <p>Run a search to inspect TM rows, scores, and local context.</p>
-            </div>
-          ) : (
-            <ol className="results-list">
-              {results.map((result) => (
-                <li key={result.entryId}>
-                  <button
-                    className={
-                      result.entryId === selectedEntryId ? 'result-card is-active' : 'result-card'
-                    }
-                    type="button"
-                    onClick={() => setSelectedEntryId(result.entryId)}
-                  >
-                    <div className="result-meta">
-                      <span>{result.videoId}#{result.segIndex}</span>
-                      <span>{result.score.toFixed(4)}</span>
-                    </div>
-                    <div className="result-flags">
-                      <span>{result.textLength} chars</span>
-                      <span>{result.hasVector ? 'vector' : 'text-only'}</span>
-                    </div>
-                    <p className="result-en">{result.en}</p>
-                    <p className="result-zh">{result.zh}</p>
-                  </button>
-                </li>
-              ))}
-            </ol>
-          )}
-        </div>
-
-        <div className="detail-column">
-          <section className="panel detail-panel">
+      {hasSearched ? (
+        <section className="workspace">
+          <div className="panel results-panel">
             <div className="panel-header">
-              <h2>Selection</h2>
-              <span>{selectedResult?.entryId ?? 'None'}</span>
+              <h2>Results</h2>
+              <span>{results.length.toLocaleString()} shown</span>
             </div>
 
-            {selectedResult ? (
-              <div className="detail-body">
-                <div className="detail-grid">
-                  <div>
-                    <span className="detail-label">Score</span>
-                    <strong>{selectedResult.score.toFixed(4)}</strong>
-                  </div>
-                  <div>
-                    <span className="detail-label">Block</span>
-                    <strong>{selectedResult.blockName || '-'}</strong>
-                  </div>
-                  <div>
-                    <span className="detail-label">Layer</span>
-                    <strong>{selectedResult.layer}</strong>
-                  </div>
-                  <div>
-                    <span className="detail-label">Updated</span>
-                    <strong>{selectedResult.updatedAt || '-'}</strong>
-                  </div>
-                </div>
-
-                <div className="detail-copy">
-                  <h3>English</h3>
-                  <p>{selectedResult.en}</p>
-                </div>
-
-                <div className="detail-copy">
-                  <h3>Chinese</h3>
-                  <p>{selectedResult.zh}</p>
-                </div>
+            {results.length === 0 ? (
+              <div className="empty-state">
+                <p>No matches found for this query.</p>
               </div>
             ) : (
-              <div className="empty-state">
-                <p>Select a result to inspect its metadata and nearby context.</p>
-              </div>
-            )}
-          </section>
-
-          <section className="panel context-panel">
-            <div className="panel-header">
-              <h2>Context</h2>
-              <span>±2 rows in the same video</span>
-            </div>
-
-            {contextItems.length === 0 ? (
-              <div className="empty-state">
-                <p>Context appears here after you select a result.</p>
-              </div>
-            ) : (
-              <ol className="context-list">
-                {contextItems.map((item) => (
-                  <li
-                    key={item.entryId}
-                    className={item.isFocus ? 'context-item is-focus' : 'context-item'}
-                  >
-                    <div className="context-meta">
-                      <span>{item.videoId}#{item.segIndex}</span>
-                      <span>{item.blockName || 'no block'}</span>
-                    </div>
-                    <p>{item.en}</p>
-                    <p>{item.zh}</p>
+              <ol className="results-list">
+                {results.map((result) => (
+                  <li key={result.entryId}>
+                    <button
+                      className={
+                        result.entryId === selectedEntryId ? 'result-card is-active' : 'result-card'
+                      }
+                      type="button"
+                      onClick={() => setSelectedEntryId(result.entryId)}
+                    >
+                      <div className="result-meta">
+                        <span>{result.videoId}#{result.segIndex}</span>
+                        <span>{result.score.toFixed(4)}</span>
+                      </div>
+                      <div className="result-flags">
+                        <span>{result.textLength} chars</span>
+                        <span>{result.hasVector ? 'vector' : 'text-only'}</span>
+                      </div>
+                      <p className="result-en">{result.en}</p>
+                      <p className="result-zh">{result.zh}</p>
+                    </button>
                   </li>
                 ))}
               </ol>
             )}
-          </section>
-        </div>
-      </section>
+          </div>
+
+          <div className="detail-column">
+            <section className="panel detail-panel">
+              <div className="panel-header">
+                <h2>Selection</h2>
+                <span>{selectedResult?.entryId ?? 'None'}</span>
+              </div>
+
+              {selectedResult ? (
+                <div className="detail-body">
+                  <div className="detail-grid">
+                    <div>
+                      <span className="detail-label">Score</span>
+                      <strong>{selectedResult.score.toFixed(4)}</strong>
+                    </div>
+                    <div>
+                      <span className="detail-label">Block</span>
+                      <strong>{selectedResult.blockName || '-'}</strong>
+                    </div>
+                    <div>
+                      <span className="detail-label">Layer</span>
+                      <strong>{selectedResult.layer}</strong>
+                    </div>
+                    <div>
+                      <span className="detail-label">Updated</span>
+                      <strong>{selectedResult.updatedAt || '-'}</strong>
+                    </div>
+                  </div>
+
+                  <div className="detail-copy">
+                    <h3>English</h3>
+                    <p>{selectedResult.en}</p>
+                  </div>
+
+                  <div className="detail-copy">
+                    <h3>Chinese</h3>
+                    <p>{selectedResult.zh}</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="empty-state">
+                  <p>Select a result to inspect its metadata and nearby context.</p>
+                </div>
+              )}
+            </section>
+
+            <section className="panel context-panel">
+              <div className="panel-header">
+                <h2>Context</h2>
+                <span>±2 rows in the same video</span>
+              </div>
+
+              {contextItems.length === 0 ? (
+                <div className="empty-state">
+                  <p>Context appears here after you select a result.</p>
+                </div>
+              ) : (
+                <ol className="context-list">
+                  {contextItems.map((item) => (
+                    <li
+                      key={item.entryId}
+                      className={item.isFocus ? 'context-item is-focus' : 'context-item'}
+                    >
+                      <div className="context-meta">
+                        <span>{item.videoId}#{item.segIndex}</span>
+                        <span>{item.blockName || 'no block'}</span>
+                      </div>
+                      <p>{item.en}</p>
+                      <p>{item.zh}</p>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </section>
+          </div>
+        </section>
+      ) : null}
     </main>
   );
 }

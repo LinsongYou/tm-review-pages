@@ -30,7 +30,8 @@ export interface BootStats {
   vectorEntries: number;
   vectorCoverage: number;
   vectorDim: number;
-  modelId: string;
+  vectorModelId: string;
+  queryModelId: string;
   loadMs: number;
   semanticLanguageSupport: 'en-only';
 }
@@ -39,7 +40,8 @@ export interface BootRequest {
   kind: 'boot';
   requestId: number;
   dbUrl: string;
-  modelId: string;
+  vectorModelId: string;
+  queryModelId: string;
 }
 
 export interface SearchRequest {

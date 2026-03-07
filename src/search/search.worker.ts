@@ -45,7 +45,8 @@ interface LoadedState {
   semanticEntryIndexes: Int32Array;
   semanticVectors: Float32Array;
   vectorDim: number;
-  modelId: string;
+  vectorModelId: string;
+  queryModelId: string;
 }
 
 let state: LoadedState | null = null;
@@ -257,11 +258,11 @@ async function loadDatabase(request: BootRequest): Promise<BootStats> {
     SELECT m.video_id, m.seg_index, v.vector
     FROM tm_vectors AS v
     JOIN tm_main AS m USING (content_sha)
-    WHERE v.model_id = $modelId
+    WHERE v.model_id = $vectorModelId
     ORDER BY m.video_id, m.seg_index
   `);
 
-  vectorStatement.bind({ $modelId: request.modelId });
+  vectorStatement.bind({ $vectorModelId: request.vectorModelId });
 
   while (vectorStatement.step()) {
     const row = vectorStatement.getAsObject() as Record<string, string | number | SqlBlob | null>;
@@ -310,7 +311,8 @@ async function loadDatabase(request: BootRequest): Promise<BootStats> {
     semanticEntryIndexes: Int32Array.from(semanticIndexes),
     semanticVectors: Float32Array.from(vectors),
     vectorDim,
-    modelId: request.modelId,
+    vectorModelId: request.vectorModelId,
+    queryModelId: request.queryModelId,
   };
 
   const loadMs = performance.now() - start;
@@ -323,7 +325,8 @@ async function loadDatabase(request: BootRequest): Promise<BootStats> {
     vectorEntries: semanticIndexes.length,
     vectorCoverage: entries.length === 0 ? 0 : semanticIndexes.length / entries.length,
     vectorDim,
-    modelId: request.modelId,
+    vectorModelId: request.vectorModelId,
+    queryModelId: request.queryModelId,
     loadMs,
     semanticLanguageSupport: 'en-only',
   };
@@ -445,7 +448,7 @@ async function handleSearch(request: SearchRequest): Promise<{ results: SearchRe
     };
   }
 
-  const queryVector = await embedQuery(loaded.modelId, request.requestId, query);
+  const queryVector = await embedQuery(loaded.queryModelId, request.requestId, query);
   if (queryVector.length !== loaded.vectorDim) {
     throw new Error(
       `Query vector dimension mismatch: expected ${loaded.vectorDim}, got ${queryVector.length}.`,
