@@ -387,7 +387,13 @@ export default function SemanticLandscapePanel({
               <div className="semantic-detail-result-header">
                 <span className="result-metric">
                   <span className="result-metric-label">YouTube ID</span>
-                  <strong>{detailPoint.videoId}</strong>
+                  <button
+                    className="video-id-button"
+                    type="button"
+                    onClick={() => onOpenTranscript(detailPoint.videoId, detailPoint.entryId)}
+                  >
+                    {detailPoint.videoId}
+                  </button>
                 </span>
 
                 <span className="result-metric result-score">
@@ -422,13 +428,6 @@ export default function SemanticLandscapePanel({
                   ))}
                 </div>
               ) : null}
-              <button
-                className="semantic-action-button"
-                type="button"
-                onClick={() => onOpenTranscript(detailPoint.videoId, detailPoint.entryId)}
-              >
-                Open Transcript
-              </button>
             </div>
           ) : detailCluster ? (
             <div className="semantic-detail-card">

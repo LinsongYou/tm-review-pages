@@ -615,16 +615,6 @@ button {
   font-size: 0.82rem;
 }
 
-.semantic-action-button {
-  min-height: 44px;
-  padding: 0 16px;
-  border: none;
-  border-radius: 14px;
-  background: var(--accent);
-  color: var(--button-text);
-  font-weight: 700;
-}
-
 .semantic-detail-stat {
   display: grid;
   gap: 4px;
