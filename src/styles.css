@@ -276,7 +276,8 @@ button {
 
 .query-field input {
   min-height: 48px;
-  font-size: 1rem;
+  font-size: 1.3rem;
+  line-height: 1.35;
 }
 
 .search-button {
