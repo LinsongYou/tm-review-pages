@@ -254,7 +254,7 @@ function App() {
     setLandscapeErrorText(null);
 
     try {
-      const response = await fetch(landscapeUrl, { cache: 'force-cache', signal });
+      const response = await fetch(landscapeUrl, { cache: 'no-cache', signal });
       if (!response.ok) {
         throw new Error(`Failed to download ${landscapeUrl} (${response.status}).`);
       }
@@ -529,6 +529,33 @@ function App() {
 
       {!hasSearched ? (
         <>
+          {landscapeErrorText ? (
+            <section className="panel message error-message">
+              <strong>Semantic Landscape</strong>
+              <p>{landscapeErrorText}</p>
+            </section>
+          ) : landscapeLoading ? (
+            <section className="panel startup-panel semantic-panel semantic-panel--loading">
+              <div className="panel-header semantic-panel-header">
+                <div className="results-heading">
+                  <h2>Semantic Landscape</h2>
+                  <span>Preparing the precomputed startup distribution…</span>
+                </div>
+              </div>
+              <div className="empty-state">
+                <p>Loading all-entry semantic coordinates…</p>
+              </div>
+            </section>
+          ) : landscapeData ? (
+            <SemanticLandscapePanel
+              data={landscapeData}
+              theme={theme}
+              onOpenTranscript={(videoId, focusEntryId) => {
+                void openTranscript(videoId, focusEntryId);
+              }}
+            />
+          ) : null}
+
           <section className="startup-grid" aria-label="Dataset overview">
             <section className="panel startup-panel">
               <div className="panel-header startup-header">
@@ -617,33 +644,6 @@ function App() {
               )}
             </section>
           </section>
-
-          {landscapeErrorText ? (
-            <section className="panel message error-message">
-              <strong>Semantic Landscape</strong>
-              <p>{landscapeErrorText}</p>
-            </section>
-          ) : landscapeLoading ? (
-            <section className="panel startup-panel semantic-panel semantic-panel--loading">
-              <div className="panel-header semantic-panel-header">
-                <div className="results-heading">
-                  <h2>Semantic Landscape</h2>
-                  <span>Preparing the precomputed startup distribution…</span>
-                </div>
-              </div>
-              <div className="empty-state">
-                <p>Loading all-entry semantic coordinates…</p>
-              </div>
-            </section>
-          ) : landscapeData ? (
-            <SemanticLandscapePanel
-              data={landscapeData}
-              theme={theme}
-              onOpenTranscript={(videoId, focusEntryId) => {
-                void openTranscript(videoId, focusEntryId);
-              }}
-            />
-          ) : null}
         </>
       ) : null}
 

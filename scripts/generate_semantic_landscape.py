@@ -148,6 +148,30 @@ PALETTE = [
     "#6d597a",
     "#4d908e",
 ]
+CLUSTER_LABEL_OVERRIDES = {
+    "tm_misha_minilm.db": {
+        0: "Track Access & Overtakes",
+        1: "Reactions & Appreciation",
+        2: "Trackside Logistics & Retakes",
+        3: "Powertrain & Performance Specs",
+        4: "Wheels, Brakes & Chassis",
+        5: "Build Plans & Weight",
+        6: "Track Feel & Compliance",
+        7: "Driver Commentary & Notes",
+        8: "Conversation & Outro Beats",
+        9: "Lap Times & Track Conditions",
+    }
+}
+LABEL_HINTS = [
+    ("Track Access & Logistics", {"track", "marshal", "closed", "overtake", "pass", "earplugs", "headlights"}),
+    ("Reactions & Appreciation", {"thank", "wow", "great", "nice", "loved", "happy", "feedback"}),
+    ("Powertrain & Performance Specs", {"engine", "engines", "gearbox", "horsepower", "power", "rpm", "torque"}),
+    ("Wheels, Brakes & Chassis", {"wheel", "wheels", "brake", "brakes", "calipers", "aerodynamics", "aero"}),
+    ("Build Plans & Weight", {"weight", "carbon", "fiber", "metal", "stripped", "build", "cage"}),
+    ("Track Feel & Driving Technique", {"bumps", "heel", "transition", "driving", "turning", "trail", "rolling"}),
+    ("Channel Talk & Outros", {"subscribe", "bye", "recording", "books", "code", "content", "tuned"}),
+    ("Lap Times & Conditions", {"laps", "lap", "rain", "wet", "parking", "trail", "conditions"}),
+]
 
 
 def normalize(vector: list[float]) -> list[float]:
@@ -204,6 +228,46 @@ def kmeans_2d(points: list[tuple[float, float]], cluster_count: int) -> tuple[li
             break
 
     return assignments, [(center[0], center[1]) for center in centers]
+
+
+def titleize_keyword(keyword: str) -> str:
+    return keyword.replace("_", " ").replace("-", " ").title()
+
+
+def infer_cluster_label(
+    source_db: str,
+    cluster_id: int,
+    keywords: list[str],
+    samples: list[dict[str, object]],
+) -> str:
+    override = CLUSTER_LABEL_OVERRIDES.get(source_db, {}).get(cluster_id)
+    if override:
+        return override
+
+    observed = set(keywords)
+    for sample in samples:
+        for token in TOKEN_RE.findall(str(sample["en"]).lower()):
+            if len(token) > 2 and token not in STOPWORDS:
+                observed.add(token)
+
+    best_label = ""
+    best_score = 0
+    for label, hints in LABEL_HINTS:
+        score = len(observed.intersection(hints))
+        if score > best_score:
+            best_label = label
+            best_score = score
+
+    if best_score > 0:
+        return best_label
+
+    if len(keywords) >= 2:
+        return f"{titleize_keyword(keywords[0])} & {titleize_keyword(keywords[1])}"
+
+    if keywords:
+        return titleize_keyword(keywords[0])
+
+    return f"Cluster {cluster_id + 1}"
 
 
 def main() -> None:
@@ -357,10 +421,12 @@ def main() -> None:
             if len(samples) == 3:
                 break
 
+        label = infer_cluster_label(DB_PATH.name, cluster_id, keywords, samples)
+
         clusters.append(
             {
                 "id": cluster_id,
-                "label": f"Cluster {cluster_id + 1}",
+                "label": label,
                 "color": PALETTE[cluster_id % len(PALETTE)],
                 "size": len(members),
                 "x": round(center_x),
