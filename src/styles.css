@@ -132,16 +132,25 @@ button {
 .controls-panel {
   padding: 18px;
   margin-bottom: 18px;
+  overflow-x: auto;
 }
 
 .search-form {
-  display: grid;
-  gap: 18px;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 12px;
+  align-items: end;
+  min-width: max-content;
 }
 
 .field {
   display: grid;
   gap: 8px;
+  flex: 0 0 auto;
+}
+
+.query-field {
+  flex: 1 0 440px;
 }
 
 .field input,
@@ -163,15 +172,8 @@ button {
 }
 
 .query-field input {
-  min-height: 58px;
-  font-size: 1.1rem;
-}
-
-.control-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1.1fr) 120px 140px 160px;
-  gap: 12px;
-  align-items: end;
+  min-height: 48px;
+  font-size: 1rem;
 }
 
 .small-field input {
@@ -179,6 +181,7 @@ button {
 }
 
 .search-button {
+  flex: 0 0 148px;
   min-height: 48px;
   border: none;
   border-radius: 14px;
@@ -347,24 +350,15 @@ button {
   }
 }
 
-@media (max-width: 860px) {
+@media (max-width: 1040px) {
   .app-shell {
     width: min(100% - 20px, 100%);
     padding-top: 20px;
   }
-
-  .control-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .search-button {
-    grid-column: 1 / -1;
-  }
 }
 
 @media (max-width: 560px) {
-  .hero-status,
-  .control-row {
+  .hero-status {
     grid-template-columns: 1fr;
   }
 

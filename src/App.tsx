@@ -3,7 +3,6 @@ import type {
   BootStats,
   ContextItem,
   ModelStatus,
-  SearchLanguage,
   SearchResult,
   WorkerPayload,
   WorkerResponse,
@@ -50,7 +49,6 @@ function App() {
   const [errorText, setErrorText] = useState<string | null>(null);
   const [searchNote, setSearchNote] = useState<string | null>(null);
   const [query, setQuery] = useState('');
-  const [language, setLanguage] = useState<SearchLanguage>('en');
   const [topK, setTopK] = useState(10);
   const [minLength, setMinLength] = useState(0);
   const [hasSearched, setHasSearched] = useState(false);
@@ -205,12 +203,11 @@ function App() {
     setHasSearched(true);
 
     try {
-      const mode = language === 'en' ? 'semantic' : 'lexical';
       const response = (await callWorker({
         kind: 'search',
         query: trimmed,
-        mode,
-        language,
+        mode: 'semantic',
+        language: 'en',
         topK,
         minLength,
       })) as Extract<WorkerResponse, { kind: 'search:ok' }>;
@@ -272,54 +269,41 @@ function App() {
       <section className="panel controls-panel">
         <form className="search-form" onSubmit={handleSubmit}>
           <label className="field query-field">
-            <span>Query</span>
+            <span>Search</span>
             <input
               autoFocus
               type="text"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search English or Chinese TM text"
+              placeholder="Search English subtitle lines"
             />
           </label>
 
-          <div className="control-row">
-            <label className="field">
-              <span>Language</span>
-              <select
-                value={language}
-                onChange={(event) => setLanguage(event.target.value as SearchLanguage)}
-              >
-                <option value="en">English</option>
-                <option value="zh">Chinese</option>
-              </select>
-            </label>
+          <label className="field small-field">
+            <span>Top K</span>
+            <input
+              type="number"
+              min={1}
+              max={100}
+              value={topK}
+              onChange={(event) => setTopK(Math.max(1, Number(event.target.value) || 1))}
+            />
+          </label>
 
-            <label className="field small-field">
-              <span>Top K</span>
-              <input
-                type="number"
-                min={1}
-                max={100}
-                value={topK}
-                onChange={(event) => setTopK(Math.max(1, Number(event.target.value) || 1))}
-              />
-            </label>
+          <label className="field small-field">
+            <span>Min Chars</span>
+            <input
+              type="number"
+              min={0}
+              max={500}
+              value={minLength}
+              onChange={(event) => setMinLength(Math.max(0, Number(event.target.value) || 0))}
+            />
+          </label>
 
-            <label className="field small-field">
-              <span>Min Length</span>
-              <input
-                type="number"
-                min={0}
-                max={500}
-                value={minLength}
-                onChange={(event) => setMinLength(Math.max(0, Number(event.target.value) || 0))}
-              />
-            </label>
-
-            <button className="search-button" type="submit" disabled={!canSearch || searching}>
-              {searching ? 'Searching…' : 'Search'}
-            </button>
-          </div>
+          <button className="search-button" type="submit" disabled={!canSearch || searching}>
+            {searching ? 'Searching…' : 'Search'}
+          </button>
         </form>
       </section>
 
