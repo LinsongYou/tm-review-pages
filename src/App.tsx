@@ -804,8 +804,8 @@ function App() {
           >
             <div className="transcript-modal-header">
               <div className="transcript-heading">
-                <h2 id="transcript-dialog-title">Video Transcript</h2>
-                <span>{transcriptVideoId}</span>
+                <span className="result-metric-label">YouTube ID</span>
+                <h2 id="transcript-dialog-title">{transcriptVideoId}</h2>
               </div>
 
               <button className="modal-close" type="button" onClick={closeTranscript}>
