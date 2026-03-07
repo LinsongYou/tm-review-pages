@@ -223,7 +223,9 @@ function App() {
         <p className="eyebrow">Translation Memory Review</p>
         <div className="hero-meta">
           <span className="hero-chip">
-            {bootStats ? `${bootStats.totalEntries.toLocaleString()} rows` : 'Loading rows'}
+            {bootStats
+              ? `${bootStats.totalEntries.toLocaleString()} EN/中文 pairs`
+              : 'Loading EN/中文 pairs'}
           </span>
           <span className="hero-chip">{QUERY_MODEL_ID}</span>
         </div>
