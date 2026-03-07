@@ -128,7 +128,7 @@ button {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  padding: 4px;
+  padding: 3px;
   border: 1px solid var(--chip-border);
   border-radius: 999px;
   background: var(--chip-bg);
@@ -136,12 +136,13 @@ button {
 }
 
 .theme-option {
-  min-width: 58px;
-  padding: 7px 12px;
+  min-width: 34px;
+  padding: 6px 8px;
   border-radius: 999px;
   color: var(--muted);
-  font-size: 0.82rem;
-  letter-spacing: 0.02em;
+  font-size: 0.95rem;
+  line-height: 1;
+  text-align: center;
 }
 
 .theme-option.is-active {

@@ -283,11 +283,17 @@ function App() {
             type="button"
             onClick={toggleTheme}
           >
-            <span className={theme === 'dark' ? 'theme-option is-active' : 'theme-option'}>
-              Dark
+            <span
+              aria-hidden="true"
+              className={theme === 'dark' ? 'theme-option is-active' : 'theme-option'}
+            >
+              🌙
             </span>
-            <span className={theme === 'light' ? 'theme-option is-active' : 'theme-option'}>
-              Light
+            <span
+              aria-hidden="true"
+              className={theme === 'light' ? 'theme-option is-active' : 'theme-option'}
+            >
+              ☀️
             </span>
           </button>
         </div>
