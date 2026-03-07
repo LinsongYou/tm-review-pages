@@ -42,6 +42,20 @@ function getInitialTheme(): Theme {
   return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
 }
 
+function formatStat(value: number): string {
+  if (!Number.isFinite(value)) {
+    return '0';
+  }
+
+  const rounded = Math.round(value);
+  const isWhole = Math.abs(value - rounded) < 0.001;
+
+  return value.toLocaleString(undefined, {
+    minimumFractionDigits: isWhole ? 0 : 1,
+    maximumFractionDigits: isWhole ? 0 : 1,
+  });
+}
+
 function App() {
   const workerRef = useRef<Worker | null>(null);
   const pendingRef = useRef(new Map<number, PendingRequest>());
@@ -368,6 +382,25 @@ function App() {
     setTranscriptErrorText(null);
   }
 
+  function goHome(): void {
+    latestSearchRef.current += 1;
+    latestContextRef.current += 1;
+    closeTranscript();
+    setQuery('');
+    setTopK(10);
+    setMinLength(0);
+    setMinScore(0);
+    setContextRadius(DEFAULT_CONTEXT_RADIUS);
+    setHasSearched(false);
+    setSearching(false);
+    setErrorText(null);
+    setSearchNote(null);
+    setResults([]);
+    setSelectedEntryId(null);
+    setContextItems([]);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
   function toggleTheme(): void {
     setTheme((currentTheme) => (currentTheme === 'dark' ? 'light' : 'dark'));
   }
@@ -377,7 +410,11 @@ function App() {
   return (
     <main className="app-shell">
       <section className="hero">
-        <h1 className="page-title">Translation Memory</h1>
+        <h1 className="page-title">
+          <button className="title-home" type="button" onClick={goHome}>
+            Translation Memory
+          </button>
+        </h1>
         <div className="hero-meta">
           <span className="hero-chip">
             {bootStats ? (
@@ -441,6 +478,97 @@ function App() {
         <section className="panel message note-message">
           <strong>Note</strong>
           <p>{searchNote}</p>
+        </section>
+      ) : null}
+
+      {!hasSearched ? (
+        <section className="startup-grid" aria-label="Dataset overview">
+          <section className="panel startup-panel">
+            <div className="panel-header startup-header">
+              <div className="results-heading">
+                <h2>Rows Per Video</h2>
+                <span>How densely the current dataset is distributed across videos.</span>
+              </div>
+            </div>
+
+            {bootStats ? (
+              <>
+                <div className="startup-metrics">
+                  <article className="startup-metric-card">
+                    <span className="startup-metric-label">Average</span>
+                    <strong className="startup-metric-value">
+                      {formatStat(bootStats.avgRowsPerVideo)}
+                    </strong>
+                    <span className="startup-metric-note">rows per video</span>
+                  </article>
+
+                  <article className="startup-metric-card">
+                    <span className="startup-metric-label">Median</span>
+                    <strong className="startup-metric-value">
+                      {formatStat(bootStats.medianRowsPerVideo)}
+                    </strong>
+                    <span className="startup-metric-note">rows per video</span>
+                  </article>
+
+                  <article className="startup-metric-card">
+                    <span className="startup-metric-label">Max</span>
+                    <strong className="startup-metric-value">
+                      {formatStat(bootStats.maxRowsPerVideo)}
+                    </strong>
+                    <span className="startup-metric-note">rows in one video</span>
+                  </article>
+                </div>
+
+                <p className="startup-panel-note">
+                  Based on {bootStats.videoCount.toLocaleString()} videos in the current SQLite
+                  snapshot.
+                </p>
+              </>
+            ) : (
+              <div className="empty-state">
+                <p>Loading video distribution…</p>
+              </div>
+            )}
+          </section>
+
+          <section className="panel startup-panel">
+            <div className="panel-header startup-header">
+              <div className="results-heading">
+                <h2>Line Length Medians</h2>
+                <span>Median character counts for English and Chinese subtitle lines.</span>
+              </div>
+            </div>
+
+            {bootStats ? (
+              <>
+                <div className="startup-metrics startup-metrics--two-up">
+                  <article className="startup-metric-card">
+                    <span className="startup-metric-label">English</span>
+                    <strong className="startup-metric-value">
+                      {formatStat(bootStats.medianEnLength)}
+                    </strong>
+                    <span className="startup-metric-note">median characters</span>
+                  </article>
+
+                  <article className="startup-metric-card">
+                    <span className="startup-metric-label">Chinese</span>
+                    <strong className="startup-metric-value">
+                      {formatStat(bootStats.medianZhLength)}
+                    </strong>
+                    <span className="startup-metric-note">median characters</span>
+                  </article>
+                </div>
+
+                <p className="startup-panel-note">
+                  Useful for setting expectations around scan density and minimum-length filters.
+                </p>
+              </>
+            ) : (
+              <div className="empty-state">
+                <p>Loading line length summary…</p>
+              </div>
+            )}
+          </section>
         </section>
       ) : null}
 

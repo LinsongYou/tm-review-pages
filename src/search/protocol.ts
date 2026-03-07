@@ -30,6 +30,12 @@ export interface BootStats {
   vectorModelId: string;
   queryModelId: string;
   loadMs: number;
+  videoCount: number;
+  avgRowsPerVideo: number;
+  medianRowsPerVideo: number;
+  maxRowsPerVideo: number;
+  medianEnLength: number;
+  medianZhLength: number;
   semanticLanguageSupport: 'en-only';
 }
 

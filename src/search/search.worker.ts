@@ -197,6 +197,34 @@ function toFloat32(blob: SqlBlob, dim: number): Float32Array {
   return new Float32Array(blob.buffer.slice(blob.byteOffset, blob.byteOffset + dim * 4));
 }
 
+function average(values: number[]): number {
+  if (values.length === 0) {
+    return 0;
+  }
+
+  let total = 0;
+  for (const value of values) {
+    total += value;
+  }
+
+  return total / values.length;
+}
+
+function median(values: number[]): number {
+  if (values.length === 0) {
+    return 0;
+  }
+
+  const sorted = [...values].sort((left, right) => left - right);
+  const middle = Math.floor(sorted.length / 2);
+
+  if (sorted.length % 2 === 0) {
+    return (sorted[middle - 1]! + sorted[middle]!) / 2;
+  }
+
+  return sorted[middle]!;
+}
+
 async function loadDatabase(request: BootRequest): Promise<BootStats> {
   postStatus(request.requestId, 'boot', 'Downloading and opening the SQLite asset.');
 
@@ -324,6 +352,9 @@ async function loadDatabase(request: BootRequest): Promise<BootStats> {
   };
 
   const loadMs = performance.now() - start;
+  const rowCounts = Array.from(videoGroups.values(), (group) => group.length);
+  const enLengths = entries.map((entry) => entry.enLength);
+  const zhLengths = entries.map((entry) => entry.zhLength);
   postStatus(request.requestId, 'boot', 'SQLite asset is ready.');
 
   return {
@@ -336,6 +367,12 @@ async function loadDatabase(request: BootRequest): Promise<BootStats> {
     vectorModelId: request.vectorModelId,
     queryModelId: request.queryModelId,
     loadMs,
+    videoCount: rowCounts.length,
+    avgRowsPerVideo: average(rowCounts),
+    medianRowsPerVideo: median(rowCounts),
+    maxRowsPerVideo: rowCounts.length === 0 ? 0 : Math.max(...rowCounts),
+    medianEnLength: median(enLengths),
+    medianZhLength: median(zhLengths),
     semanticLanguageSupport: 'en-only',
   };
 }
