@@ -384,33 +384,31 @@ function App() {
                     >
                       <div className="result-header">
                         <span className="result-metric">
-                          <span className="result-metric-label">YouTube</span>
+                          <span className="result-metric-label">YouTube ID</span>
                           <strong>{result.videoId}</strong>
                         </span>
                         <span className="result-metric">
                           <span className="result-metric-label">Entry</span>
                           <strong>{result.segIndex}</strong>
                         </span>
-                        <span className="result-metric result-score">
-                          <span className="result-metric-label">Score</span>
-                          <strong>{result.score.toFixed(4)}</strong>
-                        </span>
                         <span className="result-metric">
                           <span className="result-metric-label">Chars</span>
                           <strong>{result.textLength}</strong>
                         </span>
+                        <span className="result-metric result-score">
+                          <span className="result-metric-label">Score</span>
+                          <strong>{result.score.toFixed(4)}</strong>
+                        </span>
                       </div>
-                      <p className="result-block">Block {result.blockName || 'No block'}</p>
                       <div className="result-copy-group">
                         <div className="result-copy">
-                          <span className="result-copy-label">EN</span>
                           <p className="result-en">{result.en}</p>
                         </div>
                         <div className="result-copy">
-                          <span className="result-copy-label">ZH</span>
                           <p className="result-zh">{result.zh}</p>
                         </div>
                       </div>
+                      <p className="result-block">Block ID {result.blockName || 'No block'}</p>
                     </button>
                   </li>
                 ))}

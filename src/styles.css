@@ -458,18 +458,10 @@ button {
 
 .result-copy {
   display: grid;
-  gap: 8px;
   padding: 12px 14px;
   border-radius: 14px;
   border: 1px solid var(--field-border);
   background: var(--field-bg);
-}
-
-.result-copy-label {
-  color: var(--muted);
-  font-size: 0.72rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
 .result-en,
