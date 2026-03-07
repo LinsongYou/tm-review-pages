@@ -343,6 +343,10 @@ button {
   min-height: 280px;
 }
 
+.time-distribution-panel--loading {
+  min-height: 240px;
+}
+
 .semantic-panel-header {
   align-items: start;
   flex-wrap: wrap;
@@ -672,6 +676,138 @@ button {
   height: 100%;
   border-radius: inherit;
   background: var(--cluster-color);
+}
+
+.time-distribution-chart-shell {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid var(--field-border);
+  background: var(--field-bg);
+}
+
+.time-distribution-chart-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.time-distribution-chart-header strong {
+  color: var(--text);
+  font-size: 0.86rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.time-distribution-chart-header span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.time-distribution-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.time-distribution-svg text {
+  fill: var(--muted);
+  font-family: "IBM Plex Mono", "Cascadia Code", "SFMono-Regular", monospace;
+  font-size: 11px;
+}
+
+.time-distribution-grid-line {
+  stroke: var(--field-border);
+  stroke-width: 1;
+  stroke-dasharray: 4 6;
+}
+
+.time-distribution-grid-line--baseline {
+  stroke: var(--accent-border);
+  stroke-dasharray: none;
+}
+
+.time-distribution-peak-band {
+  fill: var(--accent-ring);
+}
+
+.time-distribution-bar {
+  fill: var(--accent);
+  opacity: 0.42;
+}
+
+.time-distribution-bar--peak {
+  opacity: 0.9;
+}
+
+.time-distribution-axis {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.time-distribution-axis span:nth-child(2),
+.time-distribution-axis span:nth-child(3),
+.time-distribution-axis span:nth-child(4) {
+  text-align: center;
+}
+
+.time-distribution-axis span:last-child {
+  text-align: right;
+}
+
+.time-distribution-note,
+.time-distribution-subnote {
+  margin: 0;
+  line-height: 1.55;
+}
+
+.time-distribution-note {
+  color: var(--muted-strong);
+  font-size: 0.92rem;
+}
+
+.time-distribution-subnote {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.time-distribution-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.time-distribution-stat {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid var(--card-border);
+  background: var(--card-bg);
+}
+
+.time-distribution-stat span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.time-distribution-stat strong {
+  color: var(--text);
+  font-family: "IBM Plex Serif", Georgia, serif;
+  font-size: 1.4rem;
+  font-weight: 600;
 }
 
 .error-message {
@@ -1343,6 +1479,10 @@ button {
 
   .results-tools {
     grid-template-columns: 1fr;
+  }
+
+  .time-distribution-chart-header {
+    align-items: start;
   }
 
   .result-header,

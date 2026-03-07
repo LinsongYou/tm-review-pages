@@ -22,6 +22,21 @@ export interface ContextItem extends EntrySummary {
   isFocus: boolean;
 }
 
+export interface CueTimeDistribution {
+  binCount: number;
+  bins: number[];
+  timedEntryCount: number;
+  totalEntryCount: number;
+  timedVideoCount: number;
+  totalVideoCount: number;
+  averageCueDurationMs: number;
+  medianVideoSpanMs: number;
+  averageCoverage: number;
+  peakCoverage: number;
+  peakRangeStart: number;
+  peakRangeEnd: number;
+}
+
 export interface BootStats {
   dbUrl: string;
   dbSizeBytes: number;
@@ -39,6 +54,7 @@ export interface BootStats {
   medianEnLength: number;
   medianZhLength: number;
   semanticLanguageSupport: 'en-only';
+  cueTimeDistribution: CueTimeDistribution | null;
 }
 
 export interface BootRequest {

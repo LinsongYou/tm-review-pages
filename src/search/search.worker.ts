@@ -4,6 +4,7 @@ import { env, pipeline } from '@huggingface/transformers';
 import type {
   BootRequest,
   BootStats,
+  CueTimeDistribution,
   ContextItem,
   ContextRequest,
   EntrySummary,
@@ -22,6 +23,7 @@ const TOKEN_RE = /[\p{Letter}\p{Number}_]+/gu;
 const DEFAULT_CONTEXT_RADIUS = 3;
 const MODEL_LANGUAGE_NOTE =
   'The shipped semantic index is English-only in this prototype. Switch to English or use lexical search for Chinese.';
+const TIME_DISTRIBUTION_BIN_COUNT = 120;
 
 type SqlBlob = Uint8Array;
 type ExtractorOutput = { data: Float32Array | number[] };
@@ -114,6 +116,18 @@ function toNullableNumber(value: string | number | null | undefined): number | n
 
 function toEntryId(videoId: string, segIndex: number): string {
   return `${videoId}#${segIndex}`;
+}
+
+function clamp01(value: number): number {
+  return Math.min(1, Math.max(0, value));
+}
+
+function toStartBinIndex(value: number, binCount: number): number {
+  return Math.max(0, Math.min(binCount - 1, Math.floor(value * binCount)));
+}
+
+function toEndBinIndex(value: number, binCount: number): number {
+  return Math.max(0, Math.min(binCount - 1, Math.ceil(value * binCount) - 1));
 }
 
 function ensureState(): LoadedState {
@@ -234,6 +248,119 @@ function median(values: number[]): number {
   }
 
   return sorted[middle]!;
+}
+
+function buildCueTimeDistribution(
+  entries: Entry[],
+  videoGroups: Map<string, number[]>,
+): CueTimeDistribution | null {
+  const binCount = TIME_DISTRIBUTION_BIN_COUNT;
+  const coverageTotals = new Float64Array(binCount);
+  const cueDurations: number[] = [];
+  const videoSpans: number[] = [];
+  const binWidth = 1 / binCount;
+  let timedEntryCount = 0;
+  let timedVideoCount = 0;
+
+  for (const group of videoGroups.values()) {
+    let videoStartMs = Number.POSITIVE_INFINITY;
+    let videoEndMs = Number.NEGATIVE_INFINITY;
+
+    for (const entryIndex of group) {
+      const entry = entries[entryIndex];
+      if (!entry) {
+        continue;
+      }
+
+      if (entry.startMs !== null) {
+        videoStartMs = Math.min(videoStartMs, entry.startMs);
+      }
+
+      if (entry.endMs !== null) {
+        videoEndMs = Math.max(videoEndMs, entry.endMs);
+      }
+    }
+
+    if (!Number.isFinite(videoStartMs) || !Number.isFinite(videoEndMs) || videoEndMs <= videoStartMs) {
+      continue;
+    }
+
+    const videoSpanMs = videoEndMs - videoStartMs;
+    const videoCoverage = new Float64Array(binCount);
+    timedVideoCount += 1;
+    videoSpans.push(videoSpanMs);
+
+    for (const entryIndex of group) {
+      const entry = entries[entryIndex];
+      if (!entry || entry.startMs === null || entry.endMs === null) {
+        continue;
+      }
+
+      const startMs = Math.max(videoStartMs, entry.startMs);
+      const endMs = Math.min(videoEndMs, entry.endMs);
+      if (!(endMs > startMs)) {
+        continue;
+      }
+
+      const startRatio = clamp01((startMs - videoStartMs) / videoSpanMs);
+      const endRatio = clamp01((endMs - videoStartMs) / videoSpanMs);
+      if (!(endRatio > startRatio)) {
+        continue;
+      }
+
+      timedEntryCount += 1;
+      cueDurations.push(endMs - startMs);
+
+      const startBinIndex = toStartBinIndex(startRatio, binCount);
+      const endBinIndex = toEndBinIndex(endRatio, binCount);
+
+      for (let binIndex = startBinIndex; binIndex <= endBinIndex; binIndex += 1) {
+        const binStart = binIndex * binWidth;
+        const binEnd = binStart + binWidth;
+        const overlap = Math.min(endRatio, binEnd) - Math.max(startRatio, binStart);
+        if (overlap > 0) {
+          videoCoverage[binIndex] = (videoCoverage[binIndex] ?? 0) + overlap / binWidth;
+        }
+      }
+    }
+
+    for (let binIndex = 0; binIndex < binCount; binIndex += 1) {
+      coverageTotals[binIndex] = (coverageTotals[binIndex] ?? 0) + Math.min(1, videoCoverage[binIndex] ?? 0);
+    }
+  }
+
+  if (timedVideoCount === 0 || timedEntryCount === 0) {
+    return null;
+  }
+
+  const bins = Array.from(coverageTotals, (value) => value / timedVideoCount);
+  let peakCoverage = 0;
+  let peakBinIndex = 0;
+  let coverageTotal = 0;
+
+  for (let index = 0; index < bins.length; index += 1) {
+    const value = bins[index] ?? 0;
+    coverageTotal += value;
+    if (value > peakCoverage) {
+      peakCoverage = value;
+      peakBinIndex = index;
+    }
+  }
+
+  return {
+    binCount,
+    bins,
+    timedEntryCount,
+    totalEntryCount: entries.length,
+    timedVideoCount,
+    totalVideoCount: videoGroups.size,
+    averageCueDurationMs: average(cueDurations),
+    medianVideoSpanMs: median(videoSpans),
+    averageCoverage: coverageTotal / binCount,
+    peakCoverage,
+    peakRangeStart: peakBinIndex / binCount,
+    peakRangeEnd: (peakBinIndex + 1) / binCount,
+  };
 }
 
 async function loadDatabase(request: BootRequest): Promise<BootStats> {
@@ -380,6 +507,7 @@ async function loadDatabase(request: BootRequest): Promise<BootStats> {
   const rowCounts = Array.from(videoGroups.values(), (group) => group.length);
   const enLengths = entries.map((entry) => entry.enLength);
   const zhLengths = entries.map((entry) => entry.zhLength);
+  const cueTimeDistribution = buildCueTimeDistribution(entries, videoGroups);
   postStatus(request.requestId, 'boot', 'SQLite asset is ready.');
 
   return {
@@ -399,6 +527,7 @@ async function loadDatabase(request: BootRequest): Promise<BootStats> {
     medianEnLength: median(enLengths),
     medianZhLength: median(zhLengths),
     semanticLanguageSupport: 'en-only',
+    cueTimeDistribution,
   };
 }
 

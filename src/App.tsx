@@ -15,6 +15,7 @@ import type {
   WorkerPayload,
   WorkerResponse,
 } from './search/protocol';
+import CueTimeDistributionPanel from './startup/CueTimeDistributionPanel';
 import SemanticLandscapePanel from './startup/SemanticLandscapePanel';
 import type { SemanticLandscapeData } from './startup/semantic-landscape';
 
@@ -718,6 +719,34 @@ function App() {
                 void openTranscript(videoId, focusEntryId);
               }}
             />
+          ) : null}
+
+          {booting ? (
+            <section className="panel semantic-panel time-distribution-panel time-distribution-panel--loading">
+              <div className="panel-header semantic-panel-header">
+                <div className="results-heading">
+                  <h2>Time Distribution</h2>
+                  <span>Preparing the normalized subtitle-timing distribution…</span>
+                </div>
+              </div>
+              <div className="empty-state">
+                <p>Aggregating cue coverage from subtitle timestamps…</p>
+              </div>
+            </section>
+          ) : bootStats?.cueTimeDistribution ? (
+            <CueTimeDistributionPanel data={bootStats.cueTimeDistribution} />
+          ) : bootStats ? (
+            <section className="panel semantic-panel time-distribution-panel">
+              <div className="panel-header semantic-panel-header">
+                <div className="results-heading">
+                  <h2>Time Distribution</h2>
+                  <span>No complete subtitle timing spans were found in this TM snapshot.</span>
+                </div>
+              </div>
+              <div className="empty-state">
+                <p>Load a database with cue-level `start_ms` and `end_ms` values to populate this view.</p>
+              </div>
+            </section>
           ) : null}
 
         </>

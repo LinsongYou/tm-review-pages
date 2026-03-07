@@ -1,0 +1,211 @@
+import type { CueTimeDistribution } from '../search/protocol';
+
+const CHART_WIDTH = 920;
+const CHART_HEIGHT = 240;
+const CHART_PADDING_TOP = 20;
+const CHART_PADDING_RIGHT = 12;
+const CHART_PADDING_BOTTOM = 34;
+const CHART_PADDING_LEFT = 16;
+
+interface CueTimeDistributionPanelProps {
+  data: CueTimeDistribution;
+}
+
+function formatPercent(value: number): string {
+  if (!Number.isFinite(value)) {
+    return '--';
+  }
+
+  const percent = value * 100;
+  if (percent >= 10) {
+    return `${Math.round(percent)}%`;
+  }
+
+  return `${percent.toFixed(1)}%`;
+}
+
+function formatPercentRange(start: number, end: number): string {
+  const startPercent = Math.round(start * 100);
+  const endPercent = Math.round(end * 100);
+  return startPercent === endPercent ? `${startPercent}%` : `${startPercent}% - ${endPercent}%`;
+}
+
+function formatDuration(ms: number): string {
+  if (!Number.isFinite(ms) || ms <= 0) {
+    return '--';
+  }
+
+  const totalSeconds = Math.round(ms / 1000);
+  if (totalSeconds < 60) {
+    return `${totalSeconds}s`;
+  }
+
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    if (minutes === 0) {
+      return `${hours}h`;
+    }
+
+    return `${hours}h ${minutes}m`;
+  }
+
+  if (seconds === 0) {
+    return `${minutes}m`;
+  }
+
+  return `${minutes}m ${seconds}s`;
+}
+
+function formatCount(value: number, total: number): string {
+  const formattedValue = value.toLocaleString();
+  if (value === total) {
+    return formattedValue;
+  }
+
+  return `${formattedValue} / ${total.toLocaleString()}`;
+}
+
+export default function CueTimeDistributionPanel({ data }: CueTimeDistributionPanelProps) {
+  const plotWidth = CHART_WIDTH - CHART_PADDING_LEFT - CHART_PADDING_RIGHT;
+  const plotHeight = CHART_HEIGHT - CHART_PADDING_TOP - CHART_PADDING_BOTTOM;
+  const stepWidth = plotWidth / Math.max(1, data.bins.length);
+  const peakBinIndex = data.bins.findIndex((value) => value === data.peakCoverage);
+  const peakX = CHART_PADDING_LEFT + Math.max(0, peakBinIndex) * stepWidth;
+  const excludedEntryCount = Math.max(0, data.totalEntryCount - data.timedEntryCount);
+  const excludedVideoCount = Math.max(0, data.totalVideoCount - data.timedVideoCount);
+
+  return (
+    <section className="panel semantic-panel time-distribution-panel" aria-label="Cue time distribution">
+      <div className="panel-header semantic-panel-header">
+        <div className="results-heading">
+          <h2>Time Distribution</h2>
+          <span>
+            Subtitle cue coverage after aligning every video from its first cue start to its
+            last cue end.
+          </span>
+        </div>
+        <div className="semantic-summary">
+          <span>{data.timedEntryCount.toLocaleString()} timed cues</span>
+          <span>{data.timedVideoCount.toLocaleString()} aligned videos</span>
+        </div>
+      </div>
+
+      <div className="time-distribution-chart-shell">
+        <div className="time-distribution-chart-header">
+          <strong>Share of aligned videos carrying cues</strong>
+          <span>Normalized from 0% to 100% of each video span</span>
+        </div>
+
+        <svg
+          className="time-distribution-svg"
+          viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
+          role="img"
+          aria-label={`Average cue coverage ${formatPercent(data.averageCoverage)} across the aligned timeline with a peak of ${formatPercent(data.peakCoverage)} around ${formatPercentRange(data.peakRangeStart, data.peakRangeEnd)}.`}
+        >
+          {[0, 0.25, 0.5, 0.75, 1].map((level) => {
+            const y = CHART_PADDING_TOP + plotHeight - level * plotHeight;
+            return (
+              <g key={level}>
+                <line
+                  className={
+                    level === 0
+                      ? 'time-distribution-grid-line time-distribution-grid-line--baseline'
+                      : 'time-distribution-grid-line'
+                  }
+                  x1={CHART_PADDING_LEFT}
+                  x2={CHART_WIDTH - CHART_PADDING_RIGHT}
+                  y1={y}
+                  y2={y}
+                />
+                {level < 1 ? (
+                  <text className="time-distribution-grid-label" x={CHART_WIDTH - CHART_PADDING_RIGHT} y={y - 6}>
+                    {formatPercent(level)}
+                  </text>
+                ) : null}
+              </g>
+            );
+          })}
+
+          <rect
+            className="time-distribution-peak-band"
+            x={peakX}
+            y={CHART_PADDING_TOP}
+            width={stepWidth}
+            height={plotHeight}
+            rx={6}
+          />
+
+          {data.bins.map((value, index) => {
+            const barHeight = Math.max(2, value * plotHeight);
+            const x = CHART_PADDING_LEFT + index * stepWidth;
+            const y = CHART_PADDING_TOP + plotHeight - barHeight;
+            const width = Math.max(1.5, stepWidth - 1.25);
+
+            return (
+              <rect
+                key={index}
+                className={
+                  index === peakBinIndex
+                    ? 'time-distribution-bar time-distribution-bar--peak'
+                    : 'time-distribution-bar'
+                }
+                x={x}
+                y={y}
+                width={width}
+                height={barHeight}
+                rx={Math.min(3, width / 2)}
+              />
+            );
+          })}
+        </svg>
+
+        <div className="time-distribution-axis" aria-hidden="true">
+          <span>0%</span>
+          <span>25%</span>
+          <span>50%</span>
+          <span>75%</span>
+          <span>100%</span>
+        </div>
+
+        <p className="time-distribution-note">
+          Average cue coverage stays at {formatPercent(data.averageCoverage)} across the aligned
+          timeline. The densest slice reaches {formatPercent(data.peakCoverage)} around{' '}
+          {formatPercentRange(data.peakRangeStart, data.peakRangeEnd)}. Mean cue length is{' '}
+          {formatDuration(data.averageCueDurationMs)}.
+        </p>
+
+        {excludedEntryCount > 0 || excludedVideoCount > 0 ? (
+          <p className="time-distribution-subnote">
+            Excluded {excludedEntryCount.toLocaleString()} cues from {excludedVideoCount.toLocaleString()}{' '}
+            videos without complete timing spans.
+          </p>
+        ) : null}
+      </div>
+
+      <div className="time-distribution-stats">
+        <div className="time-distribution-stat">
+          <span>Timed cues</span>
+          <strong>{formatCount(data.timedEntryCount, data.totalEntryCount)}</strong>
+        </div>
+
+        <div className="time-distribution-stat">
+          <span>Videos aligned</span>
+          <strong>{formatCount(data.timedVideoCount, data.totalVideoCount)}</strong>
+        </div>
+
+        <div className="time-distribution-stat">
+          <span>Average coverage</span>
+          <strong>{formatPercent(data.averageCoverage)}</strong>
+        </div>
+
+        <div className="time-distribution-stat">
+          <span>Median span</span>
+          <strong>{formatDuration(data.medianVideoSpanMs)}</strong>
+        </div>
+      </div>
+    </section>
+  );
+}
