@@ -738,8 +738,8 @@ function App() {
             <section className="panel startup-panel">
               <div className="panel-header startup-header">
                 <div className="results-heading">
-                  <h2>Rows Per Video</h2>
-                  <span>How densely the current dataset is distributed across videos.</span>
+                  <h2>Subtitle Cues Per Video</h2>
+                  <span>How densely the current dataset's subtitle cues are distributed across videos.</span>
                 </div>
               </div>
 
@@ -751,7 +751,7 @@ function App() {
                       <strong className="startup-metric-value">
                         {formatStat(bootStats.avgRowsPerVideo)}
                       </strong>
-                      <span className="startup-metric-note">rows per video</span>
+                      <span className="startup-metric-note">cues per video</span>
                     </article>
 
                     <article className="startup-metric-card">
@@ -759,7 +759,7 @@ function App() {
                       <strong className="startup-metric-value">
                         {formatStat(bootStats.medianRowsPerVideo)}
                       </strong>
-                      <span className="startup-metric-note">rows per video</span>
+                      <span className="startup-metric-note">cues per video</span>
                     </article>
 
                     <article className="startup-metric-card">
@@ -767,14 +767,10 @@ function App() {
                       <strong className="startup-metric-value">
                         {formatStat(bootStats.maxRowsPerVideo)}
                       </strong>
-                      <span className="startup-metric-note">rows in one video</span>
+                      <span className="startup-metric-note">cues in one video</span>
                     </article>
                   </div>
 
-                  <p className="startup-panel-note">
-                    Based on {bootStats.videoCount.toLocaleString()} videos in the current SQLite
-                    snapshot.
-                  </p>
                 </>
               ) : (
                 <div className="empty-state">
