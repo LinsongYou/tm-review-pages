@@ -4,19 +4,21 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  --page-bg: #11151b;
-  --panel: #1a2029;
-  --panel-border: #2d3542;
-  --chip-bg: #1a2029;
-  --chip-border: #353f4d;
-  --field-bg: #121820;
-  --field-border: #343d4b;
-  --card-bg: #151b23;
-  --card-border: #2d3541;
-  --accent: #f2b063;
-  --accent-strong: #ffcf91;
-  --accent-soft: #302617;
-  --button-text: #24170b;
+  --page-bg: #0f1512;
+  --panel: #17201b;
+  --panel-border: #2a3d33;
+  --chip-bg: #17201b;
+  --chip-border: #33483d;
+  --field-bg: #101712;
+  --field-border: #31453a;
+  --card-bg: #131b17;
+  --card-border: #2a3c33;
+  --accent: #5d8f6b;
+  --accent-strong: #a4d0b0;
+  --accent-soft: #203026;
+  --accent-border: rgba(164, 208, 176, 0.42);
+  --accent-ring: rgba(93, 143, 107, 0.2);
+  --button-text: #f4f8f2;
   --text: #f4f1e8;
   --muted: #bdb6aa;
   --muted-strong: #d7d0c4;
@@ -29,22 +31,24 @@
 }
 
 :root[data-theme='light'] {
-  --page-bg: #f3eee4;
+  --page-bg: #edf2ed;
   --panel: #ffffff;
-  --panel-border: #ddd5c9;
+  --panel-border: #d6ddd5;
   --chip-bg: #ffffff;
-  --chip-border: #d7cfbf;
-  --field-bg: #f6f1e8;
-  --field-border: #d7cfbf;
-  --card-bg: #fbf8f2;
-  --card-border: #e2dbcf;
-  --accent: #c76b31;
-  --accent-strong: #a6501f;
-  --accent-soft: #f4e2d2;
-  --button-text: #fff8f2;
+  --chip-border: #d1d8d0;
+  --field-bg: #f3f7f2;
+  --field-border: #d1d8d0;
+  --card-bg: #f8fbf7;
+  --card-border: #dde5db;
+  --accent: #336848;
+  --accent-strong: #2c5d40;
+  --accent-soft: #dfebe1;
+  --accent-border: rgba(51, 104, 72, 0.3);
+  --accent-ring: rgba(51, 104, 72, 0.14);
+  --button-text: #f7fbf6;
   --text: #1f2430;
-  --muted: #6f695f;
-  --muted-strong: #534b40;
+  --muted: #627064;
+  --muted-strong: #465145;
   --danger: #c04a3f;
   --note: #2d73ac;
   --shadow: 0 18px 36px rgba(30, 37, 45, 0.09);
@@ -216,8 +220,8 @@ button {
 
 .field input:focus,
 .field select:focus {
-  border-color: rgba(255, 207, 145, 0.6);
-  box-shadow: 0 0 0 3px rgba(255, 207, 145, 0.14);
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
 .query-field input {
@@ -345,7 +349,7 @@ button {
 }
 
 .result-card.is-active {
-  border-color: rgba(255, 207, 145, 0.58);
+  border-color: var(--accent-border);
   background: var(--accent-soft);
 }
 
@@ -401,7 +405,7 @@ button {
 }
 
 .context-item.is-focus {
-  border-color: rgba(255, 207, 145, 0.58);
+  border-color: var(--accent-border);
   background: var(--accent-soft);
 }
 
