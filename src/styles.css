@@ -471,9 +471,12 @@ button {
   align-items: start;
 }
 
+.semantic-workspace--plot-only {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .semantic-plot-shell {
   display: grid;
-  gap: 10px;
 }
 
 .semantic-canvas-shell {
@@ -514,16 +517,10 @@ button {
 }
 
 .semantic-tooltip p,
-.semantic-footnote,
 .semantic-detail-card p,
 .semantic-sample-card span {
   margin: 0;
   line-height: 1.5;
-}
-
-.semantic-footnote {
-  color: var(--muted);
-  font-size: 0.88rem;
 }
 
 .semantic-detail-panel {
@@ -543,10 +540,6 @@ button {
 
 .semantic-detail-card--entry {
   gap: 12px;
-}
-
-.semantic-detail-card.is-empty strong {
-  font-size: 1rem;
 }
 
 .semantic-detail-badge {

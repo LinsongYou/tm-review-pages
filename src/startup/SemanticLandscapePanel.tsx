@@ -127,6 +127,7 @@ export default function SemanticLandscapePanel({
       : detailPoint
         ? clusterById.get(detailPoint.clusterId) ?? null
         : null;
+  const hasDetailPanel = detailPoint !== null || detailCluster !== null;
 
   const visiblePointCount =
     selectedClusterId === null ? data.points.length : interactivePoints.length;
@@ -343,7 +344,11 @@ export default function SemanticLandscapePanel({
         ))}
       </div>
 
-      <div className="semantic-workspace">
+      <div
+        className={
+          hasDetailPanel ? 'semantic-workspace' : 'semantic-workspace semantic-workspace--plot-only'
+        }
+      >
         <div className="semantic-plot-shell">
           <div ref={containerRef} className="semantic-canvas-shell">
             <canvas
@@ -367,15 +372,11 @@ export default function SemanticLandscapePanel({
               </div>
             ) : null}
           </div>
-
-          <p className="semantic-footnote">
-            Hover to inspect a point. Click to pin it. Filter by cluster to isolate one semantic
-            region.
-          </p>
         </div>
 
-        <aside className="semantic-detail-panel">
-          {detailPoint ? (
+        {hasDetailPanel ? (
+          <aside className="semantic-detail-panel">
+            {detailPoint ? (
             <div className="semantic-detail-card semantic-detail-card--entry">
               <span
                 className="semantic-detail-badge"
@@ -466,24 +467,9 @@ export default function SemanticLandscapePanel({
                 ))}
               </div>
             </div>
-          ) : (
-            <div className="semantic-detail-card is-empty">
-              <strong>All-entry view</strong>
-              <p>
-                This panel shows a precomputed 2D projection of the stored MiniLM vectors. Each
-                dot is one TM entry.
-              </p>
-              <p>
-                Use the cluster chips to focus a region, then hover or click a point to inspect the
-                underlying EN/ZH pair.
-              </p>
-              <div className="semantic-detail-stat">
-                <strong>{data.pointCount.toLocaleString()}</strong>
-                <span>semantic points loaded from startup data</span>
-              </div>
-            </div>
-          )}
-        </aside>
+            ) : null}
+          </aside>
+        ) : null}
       </div>
     </section>
   );
