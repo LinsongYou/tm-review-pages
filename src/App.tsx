@@ -1,4 +1,13 @@
-import { FormEvent, startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  FormEvent,
+  KeyboardEvent as ReactKeyboardEvent,
+  startTransition,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import type {
   BootStats,
   ContextItem,
@@ -38,6 +47,7 @@ function App() {
   const requestIdRef = useRef(1);
   const latestSearchRef = useRef(0);
   const latestContextRef = useRef(0);
+  const latestTranscriptRef = useRef(0);
 
   const [bootStats, setBootStats] = useState<BootStats | null>(null);
   const [booting, setBooting] = useState(true);
@@ -54,6 +64,10 @@ function App() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
   const [contextItems, setContextItems] = useState<ContextItem[]>([]);
+  const [transcriptVideoId, setTranscriptVideoId] = useState<string | null>(null);
+  const [transcriptItems, setTranscriptItems] = useState<ContextItem[]>([]);
+  const [transcriptLoading, setTranscriptLoading] = useState(false);
+  const [transcriptErrorText, setTranscriptErrorText] = useState<string | null>(null);
 
   const dbUrl = useMemo(() => `${import.meta.env.BASE_URL}${DB_ASSET}`, []);
 
@@ -142,6 +156,27 @@ function App() {
       }
     })();
   }, [bootStats, contextRadius, selectedEntryId]);
+
+  useEffect(() => {
+    if (!transcriptVideoId) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closeTranscript();
+      }
+    };
+
+    window.addEventListener('keydown', handleEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [transcriptVideoId]);
 
   async function callWorker(payload: WorkerPayload): Promise<WorkerResponse> {
     const worker = workerRef.current;
@@ -275,6 +310,63 @@ function App() {
     setContextRadius(nextRadius);
   }
 
+  function handleResultCardKeyDown(
+    event: ReactKeyboardEvent<HTMLElement>,
+    entryId: string,
+  ): void {
+    if (event.target !== event.currentTarget) {
+      return;
+    }
+
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      setSelectedEntryId(entryId);
+    }
+  }
+
+  async function openTranscript(videoId: string, focusEntryId: string): Promise<void> {
+    const sequence = latestTranscriptRef.current + 1;
+    latestTranscriptRef.current = sequence;
+
+    setSelectedEntryId(focusEntryId);
+    setTranscriptVideoId(videoId);
+    setTranscriptItems([]);
+    setTranscriptLoading(true);
+    setTranscriptErrorText(null);
+
+    try {
+      const response = (await callWorker({
+        kind: 'transcript',
+        videoId,
+        focusEntryId,
+      })) as Extract<WorkerResponse, { kind: 'transcript:ok' }>;
+
+      if (latestTranscriptRef.current !== sequence) {
+        return;
+      }
+
+      startTransition(() => {
+        setTranscriptItems(response.items);
+        setTranscriptLoading(false);
+      });
+    } catch (error) {
+      if (latestTranscriptRef.current !== sequence) {
+        return;
+      }
+
+      setTranscriptLoading(false);
+      setTranscriptErrorText(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  function closeTranscript(): void {
+    latestTranscriptRef.current += 1;
+    setTranscriptVideoId(null);
+    setTranscriptItems([]);
+    setTranscriptLoading(false);
+    setTranscriptErrorText(null);
+  }
+
   function toggleTheme(): void {
     setTheme((currentTheme) => (currentTheme === 'dark' ? 'light' : 'dark'));
   }
@@ -404,17 +496,28 @@ function App() {
               <ol className="results-list">
                 {results.map((result) => (
                   <li key={result.entryId}>
-                    <button
+                    <article
                       className={
                         result.entryId === selectedEntryId ? 'result-card is-active' : 'result-card'
                       }
-                      type="button"
+                      role="button"
+                      tabIndex={0}
                       onClick={() => setSelectedEntryId(result.entryId)}
+                      onKeyDown={(event) => handleResultCardKeyDown(event, result.entryId)}
                     >
                       <div className="result-header">
                         <span className="result-metric">
                           <span className="result-metric-label">YouTube ID</span>
-                          <strong>{result.videoId}</strong>
+                          <button
+                            className="video-id-button"
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void openTranscript(result.videoId, result.entryId);
+                            }}
+                          >
+                            {result.videoId}
+                          </button>
                         </span>
                         <span className="result-metric">
                           <span className="result-metric-label">Entry</span>
@@ -437,7 +540,7 @@ function App() {
                         </div>
                       </div>
                       <p className="result-block">Block ID {result.blockName || 'No block'}</p>
-                    </button>
+                    </article>
                   </li>
                 ))}
               </ol>
@@ -484,6 +587,57 @@ function App() {
             </section>
           </div>
         </section>
+      ) : null}
+
+      {transcriptVideoId ? (
+        <div className="modal-backdrop" role="presentation" onClick={closeTranscript}>
+          <section
+            aria-labelledby="transcript-dialog-title"
+            aria-modal="true"
+            className="panel transcript-modal"
+            role="dialog"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="transcript-modal-header">
+              <div className="transcript-heading">
+                <h2 id="transcript-dialog-title">Video Transcript</h2>
+                <span>{transcriptVideoId}</span>
+              </div>
+
+              <button className="modal-close" type="button" onClick={closeTranscript}>
+                Close
+              </button>
+            </div>
+
+            {transcriptLoading ? (
+              <div className="empty-state">
+                <p>Loading the full transcript…</p>
+              </div>
+            ) : transcriptErrorText ? (
+              <div className="empty-state">
+                <p>{transcriptErrorText}</p>
+              </div>
+            ) : (
+              <div className="transcript-modal-body">
+                <ol className="context-list transcript-list">
+                  {transcriptItems.map((item) => (
+                    <li
+                      key={item.entryId}
+                      className={item.isFocus ? 'context-item is-focus' : 'context-item'}
+                    >
+                      <div className="context-meta">
+                        <span>{item.videoId}#{item.segIndex}</span>
+                        <span>{item.blockName || 'no block'}</span>
+                      </div>
+                      <p>{item.en}</p>
+                      <p>{item.zh}</p>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
+          </section>
+        </div>
       ) : null}
     </main>
   );

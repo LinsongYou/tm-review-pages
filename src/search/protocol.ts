@@ -62,11 +62,19 @@ export interface ContextRequest {
   radius?: number;
 }
 
-export type WorkerRequest = BootRequest | SearchRequest | ContextRequest;
+export interface TranscriptRequest {
+  kind: 'transcript';
+  requestId: number;
+  videoId: string;
+  focusEntryId?: string;
+}
+
+export type WorkerRequest = BootRequest | SearchRequest | ContextRequest | TranscriptRequest;
 export type WorkerPayload =
   | Omit<BootRequest, 'requestId'>
   | Omit<SearchRequest, 'requestId'>
-  | Omit<ContextRequest, 'requestId'>;
+  | Omit<ContextRequest, 'requestId'>
+  | Omit<TranscriptRequest, 'requestId'>;
 
 export interface StatusResponse {
   kind: 'status';
@@ -95,6 +103,13 @@ export interface ContextOkResponse {
   context: ContextItem[];
 }
 
+export interface TranscriptOkResponse {
+  kind: 'transcript:ok';
+  requestId: number;
+  videoId: string;
+  items: ContextItem[];
+}
+
 export interface ErrorResponse {
   kind: 'error';
   requestId: number;
@@ -106,4 +121,5 @@ export type WorkerResponse =
   | BootOkResponse
   | SearchOkResponse
   | ContextOkResponse
+  | TranscriptOkResponse
   | ErrorResponse;

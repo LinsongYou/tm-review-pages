@@ -499,6 +499,30 @@ function handleContext(request: ContextRequest): ContextItem[] {
   return context;
 }
 
+function handleTranscript(request: { videoId: string; focusEntryId?: string }): ContextItem[] {
+  const loaded = ensureState();
+  const group = loaded.videoGroups.get(request.videoId);
+
+  if (!group || group.length === 0) {
+    throw new Error(`No TM entries found for video ${request.videoId}.`);
+  }
+
+  const items: ContextItem[] = [];
+  for (const entryIndex of group) {
+    const entry = loaded.entries[entryIndex];
+    if (!entry) {
+      continue;
+    }
+
+    items.push({
+      ...summarize(entry),
+      isFocus: entry.entryId === request.focusEntryId,
+    });
+  }
+
+  return items;
+}
+
 workerScope.addEventListener('message', async (event: MessageEvent<WorkerRequest>) => {
   const request = event.data;
 
@@ -531,6 +555,17 @@ workerScope.addEventListener('message', async (event: MessageEvent<WorkerRequest
           kind: 'context:ok',
           requestId: request.requestId,
           context,
+        });
+        return;
+      }
+
+      case 'transcript': {
+        const items = handleTranscript(request);
+        post({
+          kind: 'transcript:ok',
+          requestId: request.requestId,
+          videoId: request.videoId,
+          items,
         });
         return;
       }
