@@ -103,6 +103,15 @@ function tokenize(text: string): string[] {
   return normalizeText(text).match(TOKEN_RE) ?? [];
 }
 
+function toNullableNumber(value: string | number | null | undefined): number | null {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function toEntryId(videoId: string, segIndex: number): string {
   return `${videoId}#${segIndex}`;
 }
@@ -182,6 +191,8 @@ function summarize(entry: Entry): EntrySummary {
     en: entry.en,
     zh: entry.zh,
     blockName: entry.blockName,
+    startMs: entry.startMs,
+    endMs: entry.endMs,
   };
 }
 
@@ -229,7 +240,7 @@ async function loadDatabase(request: BootRequest): Promise<BootStats> {
   postStatus(request.requestId, 'boot', 'Downloading and opening the SQLite asset.');
 
   const start = performance.now();
-  const response = await fetch(request.dbUrl, { cache: 'force-cache' });
+  const response = await fetch(request.dbUrl, { cache: 'no-cache' });
   if (!response.ok) {
     throw new Error(`Failed to download ${request.dbUrl} (${response.status}).`);
   }
@@ -243,9 +254,19 @@ async function loadDatabase(request: BootRequest): Promise<BootStats> {
   const entries: Entry[] = [];
   const entryById = new Map<string, number>();
   const videoGroups = new Map<string, number[]>();
+  const tmMainColumns = new Set<string>();
+
+  const tableInfoStatement = db.prepare(`PRAGMA table_info(tm_main)`);
+  while (tableInfoStatement.step()) {
+    const row = tableInfoStatement.getAsObject() as Record<string, string | number | null>;
+    tmMainColumns.add(String(row.name ?? ''));
+  }
+  tableInfoStatement.free();
+
+  const hasCueTiming = tmMainColumns.has('start_ms') && tmMainColumns.has('end_ms');
 
   const textStatement = db.prepare(`
-    SELECT video_id, seg_index, en, zh, block_name
+    SELECT video_id, seg_index, en, zh, block_name${hasCueTiming ? ', start_ms, end_ms' : ''}
     FROM tm_main
     ORDER BY video_id, seg_index
   `);
@@ -257,6 +278,8 @@ async function loadDatabase(request: BootRequest): Promise<BootStats> {
     const en = String(row.en ?? '');
     const zh = String(row.zh ?? '');
     const blockName = String(row.block_name ?? '');
+    const startMs = hasCueTiming ? toNullableNumber(row.start_ms) : null;
+    const endMs = hasCueTiming ? toNullableNumber(row.end_ms) : null;
     const id = toEntryId(videoId, segIndex);
 
     const entry: Entry = {
@@ -266,6 +289,8 @@ async function loadDatabase(request: BootRequest): Promise<BootStats> {
       en,
       zh,
       blockName,
+      startMs,
+      endMs,
       enNorm: normalizeText(en),
       zhNorm: normalizeText(zh),
       enLength: en.length,

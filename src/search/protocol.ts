@@ -9,6 +9,8 @@ export interface EntrySummary {
   en: string;
   zh: string;
   blockName: string;
+  startMs: number | null;
+  endMs: number | null;
 }
 
 export interface SearchResult extends EntrySummary {

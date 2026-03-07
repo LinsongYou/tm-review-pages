@@ -32,6 +32,10 @@ const LANDSCAPE_ASSET = 'data/semantic-landscape.json';
 const THEME_STORAGE_KEY = 'tm-review-theme';
 const DEFAULT_CONTEXT_RADIUS = 3;
 
+function withAssetVersion(path: string, version: string): string {
+  return `${path}?v=${encodeURIComponent(version)}`;
+}
+
 function getInitialTheme(): Theme {
   if (typeof window === 'undefined') {
     return 'dark';
@@ -59,6 +63,43 @@ function formatStat(value: number): string {
   });
 }
 
+function formatCueTimestamp(ms: number | null): string {
+  if (ms === null || !Number.isFinite(ms)) {
+    return '--:--.---';
+  }
+
+  const totalMs = Math.max(0, Math.round(ms));
+  const hours = Math.floor(totalMs / 3_600_000);
+  const minutes = Math.floor((totalMs % 3_600_000) / 60_000);
+  const seconds = Math.floor((totalMs % 60_000) / 1_000);
+  const milliseconds = totalMs % 1_000;
+  const secondFragment = `${seconds.toString().padStart(2, '0')}.${milliseconds
+    .toString()
+    .padStart(3, '0')}`;
+
+  if (hours > 0) {
+    return `${hours}:${minutes.toString().padStart(2, '0')}:${secondFragment}`;
+  }
+
+  return `${minutes.toString().padStart(2, '0')}:${secondFragment}`;
+}
+
+function formatCueRange(startMs: number | null, endMs: number | null): string {
+  if (startMs === null && endMs === null) {
+    return 'No timestamps';
+  }
+
+  if (startMs === null) {
+    return `Ends ${formatCueTimestamp(endMs)}`;
+  }
+
+  if (endMs === null) {
+    return `Starts ${formatCueTimestamp(startMs)}`;
+  }
+
+  return `${formatCueTimestamp(startMs)} - ${formatCueTimestamp(endMs)}`;
+}
+
 function App() {
   const workerRef = useRef<Worker | null>(null);
   const pendingRef = useRef(new Map<number, PendingRequest>());
@@ -66,6 +107,8 @@ function App() {
   const latestSearchRef = useRef(0);
   const latestContextRef = useRef(0);
   const latestTranscriptRef = useRef(0);
+  const transcriptBodyRef = useRef<HTMLDivElement | null>(null);
+  const transcriptItemRefs = useRef(new Map<string, HTMLLIElement>());
 
   const [bootStats, setBootStats] = useState<BootStats | null>(null);
   const [booting, setBooting] = useState(true);
@@ -84,13 +127,18 @@ function App() {
   const [contextItems, setContextItems] = useState<ContextItem[]>([]);
   const [transcriptVideoId, setTranscriptVideoId] = useState<string | null>(null);
   const [transcriptItems, setTranscriptItems] = useState<ContextItem[]>([]);
+  const [transcriptFocusEntryId, setTranscriptFocusEntryId] = useState<string | null>(null);
+  const [activeTranscriptEntryId, setActiveTranscriptEntryId] = useState<string | null>(null);
   const [transcriptLoading, setTranscriptLoading] = useState(false);
   const [transcriptErrorText, setTranscriptErrorText] = useState<string | null>(null);
   const [landscapeData, setLandscapeData] = useState<SemanticLandscapeData | null>(null);
   const [landscapeLoading, setLandscapeLoading] = useState(true);
   const [landscapeErrorText, setLandscapeErrorText] = useState<string | null>(null);
 
-  const dbUrl = useMemo(() => `${import.meta.env.BASE_URL}${DB_ASSET}`, []);
+  const dbUrl = useMemo(
+    () => `${import.meta.env.BASE_URL}${withAssetVersion(DB_ASSET, __TM_DB_VERSION__)}`,
+    [],
+  );
   const landscapeUrl = useMemo(() => `${import.meta.env.BASE_URL}${LANDSCAPE_ASSET}`, []);
 
   useLayoutEffect(() => {
@@ -209,6 +257,106 @@ function App() {
       window.removeEventListener('keydown', handleEscape);
     };
   }, [transcriptVideoId]);
+
+  useEffect(() => {
+    if (!transcriptVideoId || transcriptItems.length === 0) {
+      return;
+    }
+
+    const nextEntryId =
+      transcriptFocusEntryId ??
+      transcriptItems.find((item) => item.entryId === selectedEntryId)?.entryId ??
+      transcriptItems[0]?.entryId ??
+      null;
+
+    if (!nextEntryId) {
+      return;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      const container = transcriptBodyRef.current;
+      const entry = transcriptItemRefs.current.get(nextEntryId);
+
+      if (!container || !entry) {
+        return;
+      }
+
+      const containerBounds = container.getBoundingClientRect();
+      const entryBounds = entry.getBoundingClientRect();
+      const top = container.scrollTop + (entryBounds.top - containerBounds.top) - 24;
+      container.scrollTo({
+        top: Math.max(0, top),
+        behavior: 'auto',
+      });
+      setActiveTranscriptEntryId(nextEntryId);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [selectedEntryId, transcriptFocusEntryId, transcriptItems, transcriptVideoId]);
+
+  useEffect(() => {
+    if (!transcriptVideoId || transcriptItems.length === 0) {
+      return;
+    }
+
+    const container = transcriptBodyRef.current;
+    if (!container) {
+      return;
+    }
+
+    let frameId = 0;
+
+    const updateActiveEntry = () => {
+      frameId = 0;
+
+      const containerBounds = container.getBoundingClientRect();
+      const anchorY = containerBounds.top + 32;
+      let closestEntryId = transcriptItems[0]?.entryId ?? null;
+      let closestDistance = Number.POSITIVE_INFINITY;
+
+      for (const item of transcriptItems) {
+        const element = transcriptItemRefs.current.get(item.entryId);
+        if (!element) {
+          continue;
+        }
+
+        const distance = Math.abs(element.getBoundingClientRect().top - anchorY);
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestEntryId = item.entryId;
+        }
+      }
+
+      if (closestEntryId) {
+        setActiveTranscriptEntryId((current) =>
+          current === closestEntryId ? current : closestEntryId,
+        );
+      }
+    };
+
+    const scheduleUpdate = () => {
+      if (frameId !== 0) {
+        return;
+      }
+
+      frameId = window.requestAnimationFrame(updateActiveEntry);
+    };
+
+    updateActiveEntry();
+    container.addEventListener('scroll', scheduleUpdate, { passive: true });
+    window.addEventListener('resize', scheduleUpdate);
+
+    return () => {
+      if (frameId !== 0) {
+        window.cancelAnimationFrame(frameId);
+      }
+
+      container.removeEventListener('scroll', scheduleUpdate);
+      window.removeEventListener('resize', scheduleUpdate);
+    };
+  }, [transcriptItems, transcriptVideoId]);
 
   async function callWorker(payload: WorkerPayload): Promise<WorkerResponse> {
     const worker = workerRef.current;
@@ -385,13 +533,37 @@ function App() {
     }
   }
 
+  function setTranscriptItemRef(entryId: string, element: HTMLLIElement | null): void {
+    if (element) {
+      transcriptItemRefs.current.set(entryId, element);
+      return;
+    }
+
+    transcriptItemRefs.current.delete(entryId);
+  }
+
+  function selectTranscriptEntry(entryId: string): void {
+    setSelectedEntryId(entryId);
+    setTranscriptFocusEntryId(entryId);
+    setActiveTranscriptEntryId(entryId);
+  }
+
+  function focusTranscriptEntry(entryId: string): void {
+    setSelectedEntryId(entryId);
+    setTranscriptFocusEntryId(entryId);
+    setActiveTranscriptEntryId(entryId);
+  }
+
   async function openTranscript(videoId: string, focusEntryId: string): Promise<void> {
     const sequence = latestTranscriptRef.current + 1;
     latestTranscriptRef.current = sequence;
+    transcriptItemRefs.current.clear();
 
     setSelectedEntryId(focusEntryId);
     setTranscriptVideoId(videoId);
     setTranscriptItems([]);
+    setTranscriptFocusEntryId(focusEntryId);
+    setActiveTranscriptEntryId(focusEntryId);
     setTranscriptLoading(true);
     setTranscriptErrorText(null);
 
@@ -422,8 +594,11 @@ function App() {
 
   function closeTranscript(): void {
     latestTranscriptRef.current += 1;
+    transcriptItemRefs.current.clear();
     setTranscriptVideoId(null);
     setTranscriptItems([]);
+    setTranscriptFocusEntryId(null);
+    setActiveTranscriptEntryId(null);
     setTranscriptLoading(false);
     setTranscriptErrorText(null);
   }
@@ -452,6 +627,9 @@ function App() {
   }
 
   const canSearch = !booting && !!query.trim();
+  const transcriptHasTimestamps = transcriptItems.some(
+    (item) => item.startMs !== null || item.endMs !== null,
+  );
 
   return (
     <main className="app-shell">
@@ -806,6 +984,13 @@ function App() {
               <div className="transcript-heading">
                 <span className="result-metric-label">YouTube ID</span>
                 <h2 id="transcript-dialog-title">{transcriptVideoId}</h2>
+                <p className="transcript-heading-note">
+                  {transcriptLoading
+                    ? 'Loading transcript cues…'
+                    : `${transcriptItems.length.toLocaleString()} cues${
+                        transcriptHasTimestamps ? ' with cue timestamps' : ''
+                      }`}
+                </p>
               </div>
 
               <button className="modal-close" type="button" onClick={closeTranscript}>
@@ -822,21 +1007,73 @@ function App() {
                 <p>{transcriptErrorText}</p>
               </div>
             ) : (
-              <div className="transcript-modal-body">
-                <ol className="context-list transcript-list">
-                  {transcriptItems.map((item) => (
-                    <li
-                      key={item.entryId}
-                      className={item.isFocus ? 'context-item is-focus' : 'context-item'}
-                    >
-                      <div className="context-meta">
-                        <span>{item.videoId}#{item.segIndex}</span>
-                        <span>{item.blockName || 'no block'}</span>
-                      </div>
-                      <p>{item.en}</p>
-                      <p>{item.zh}</p>
-                    </li>
-                  ))}
+              <div ref={transcriptBodyRef} className="transcript-modal-body">
+                <ol className="transcript-row-list">
+                  {transcriptItems.map((item) => {
+                    const isSelected = item.entryId === selectedEntryId;
+                    const isActive = item.entryId === activeTranscriptEntryId;
+
+                    return (
+                      <li
+                        key={item.entryId}
+                        ref={(element) => setTranscriptItemRef(item.entryId, element)}
+                        className={[
+                          'transcript-row',
+                          isActive ? 'is-active' : '',
+                          isSelected ? 'is-selected' : '',
+                        ]
+                          .filter(Boolean)
+                          .join(' ')}
+                      >
+                        <button
+                          aria-label={`Jump to ${item.videoId} cue ${item.segIndex}. ${formatCueRange(
+                            item.startMs,
+                            item.endMs,
+                          )}.`}
+                          className={[
+                            'transcript-timeline-button',
+                            isActive ? 'is-active' : '',
+                            isSelected ? 'is-selected' : '',
+                          ]
+                            .filter(Boolean)
+                            .join(' ')}
+                          type="button"
+                          onClick={() => focusTranscriptEntry(item.entryId)}
+                        >
+                          <span className="transcript-timeline-index">#{item.segIndex}</span>
+                          <span className="transcript-timeline-time">
+                            {formatCueTimestamp(item.startMs)}
+                          </span>
+                          <span className="transcript-timeline-arrow" aria-hidden="true">
+                            to
+                          </span>
+                          <span className="transcript-timeline-time transcript-timeline-time--end">
+                            {formatCueTimestamp(item.endMs)}
+                          </span>
+                        </button>
+
+                        <button
+                          className={[
+                            'context-item',
+                            'transcript-entry',
+                            isActive ? 'is-active' : '',
+                            isSelected ? 'is-selected' : '',
+                          ]
+                            .filter(Boolean)
+                            .join(' ')}
+                          type="button"
+                          onClick={() => selectTranscriptEntry(item.entryId)}
+                        >
+                          <div className="context-meta transcript-entry-meta">
+                            <span>{item.videoId}#{item.segIndex}</span>
+                            <span>{item.blockName || 'no block'}</span>
+                          </div>
+                          <p>{item.en}</p>
+                          <p>{item.zh}</p>
+                        </button>
+                      </li>
+                    );
+                  })}
                 </ol>
               </div>
             )}
