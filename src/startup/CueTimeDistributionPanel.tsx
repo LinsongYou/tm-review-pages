@@ -87,10 +87,6 @@ export default function CueTimeDistributionPanel({ data }: CueTimeDistributionPa
             last cue end.
           </span>
         </div>
-        <div className="semantic-summary">
-          <span>{data.timedEntryCount.toLocaleString()} timed cues</span>
-          <span>{data.timedVideoCount.toLocaleString()} aligned videos</span>
-        </div>
       </div>
 
       <div className="time-distribution-chart-shell">
@@ -189,11 +185,6 @@ export default function CueTimeDistributionPanel({ data }: CueTimeDistributionPa
         <div className="time-distribution-stat">
           <span>Timed cues</span>
           <strong>{formatCount(data.timedEntryCount, data.totalEntryCount)}</strong>
-        </div>
-
-        <div className="time-distribution-stat">
-          <span>Videos aligned</span>
-          <strong>{formatCount(data.timedVideoCount, data.totalVideoCount)}</strong>
         </div>
 
         <div className="time-distribution-stat">
