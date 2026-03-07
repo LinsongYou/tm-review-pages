@@ -27,6 +27,7 @@ const VECTOR_MODEL_ID = 'sentence-transformers/all-MiniLM-L6-v2';
 const QUERY_MODEL_ID = 'Xenova/all-MiniLM-L6-v2';
 const DB_ASSET = 'data/tm_misha_minilm.db';
 const THEME_STORAGE_KEY = 'tm-review-theme';
+const DEFAULT_CONTEXT_RADIUS = 3;
 
 function getInitialTheme(): Theme {
   if (typeof window === 'undefined') {
@@ -58,7 +59,7 @@ function App() {
   const [topK, setTopK] = useState(10);
   const [minLength, setMinLength] = useState(0);
   const [minScore, setMinScore] = useState(0);
-  const [contextRadius, setContextRadius] = useState(3);
+  const [contextRadius, setContextRadius] = useState(DEFAULT_CONTEXT_RADIUS);
   const [theme, setTheme] = useState<Theme>(getInitialTheme);
   const [hasSearched, setHasSearched] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);

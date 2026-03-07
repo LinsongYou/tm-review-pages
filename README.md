@@ -1,4 +1,4 @@
-# TM Review Pages
+# Translation Memory Pages
 
 Static GitHub Pages app for reviewing translation-memory data in the browser.
 
@@ -15,7 +15,9 @@ Static GitHub Pages app for reviewing translation-memory data in the browser.
 - Loads `public/data/tm_misha_minilm.db` directly in the browser.
 - Supports lexical search for English and Chinese.
 - Supports semantic search for English using the shipped `sentence-transformers/all-MiniLM-L6-v2` vectors.
-- Shows top-k matches with score, `video_id#seg_index`, EN/ZH text, and a local `±2` context panel.
+- Includes adjustable `Top K`, `Min Chars`, `Score`, and context-radius controls.
+- Shows result cards with YouTube ID, transcript entry number, score, block ID, and emphasized EN/ZH text.
+- Opens a full-video transcript modal when you click a YouTube ID, using the same context-style row presentation.
 - Runs as a fully static site with no backend.
 
 Chinese semantic indexing is intentionally not shipped yet. The current database only contains English MiniLM vectors, so semantic mode is English-only in this first build.

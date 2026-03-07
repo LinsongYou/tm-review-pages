@@ -19,6 +19,7 @@ import type {
 
 const workerScope = self as DedicatedWorkerGlobalScope;
 const TOKEN_RE = /[\p{Letter}\p{Number}_]+/gu;
+const DEFAULT_CONTEXT_RADIUS = 3;
 const MODEL_LANGUAGE_NOTE =
   'The shipped semantic index is English-only in this prototype. Switch to English or use lexical search for Chinese.';
 
@@ -145,16 +146,32 @@ function scoreLexical(
   return tokenScore;
 }
 
-function rankHits(hits: RankedHit[], topK: number): RankedHit[] {
-  hits.sort((left, right) => {
-    if (right.score !== left.score) {
-      return right.score - left.score;
-    }
+function compareRankedHits(left: RankedHit, right: RankedHit): number {
+  if (right.score !== left.score) {
+    return right.score - left.score;
+  }
 
-    return left.entryIndex - right.entryIndex;
-  });
+  return left.entryIndex - right.entryIndex;
+}
 
-  return hits.slice(0, topK);
+function pushRankedHit(hits: RankedHit[], candidate: RankedHit, topK: number): void {
+  if (topK <= 0) {
+    return;
+  }
+
+  let insertAt = hits.length;
+  while (insertAt > 0 && compareRankedHits(candidate, hits[insertAt - 1]!) < 0) {
+    insertAt -= 1;
+  }
+
+  if (hits.length === topK && insertAt === hits.length) {
+    return;
+  }
+
+  hits.splice(insertAt, 0, candidate);
+  if (hits.length > topK) {
+    hits.pop();
+  }
 }
 
 function summarize(entry: Entry): EntrySummary {
@@ -165,9 +182,6 @@ function summarize(entry: Entry): EntrySummary {
     en: entry.en,
     zh: entry.zh,
     blockName: entry.blockName,
-    layer: entry.layer,
-    updatedAt: entry.updatedAt,
-    hasVector: entry.hasVector,
   };
 }
 
@@ -203,7 +217,7 @@ async function loadDatabase(request: BootRequest): Promise<BootStats> {
   const videoGroups = new Map<string, number[]>();
 
   const textStatement = db.prepare(`
-    SELECT video_id, seg_index, en, zh, block_name, layer, updated_at
+    SELECT video_id, seg_index, en, zh, block_name
     FROM tm_main
     ORDER BY video_id, seg_index
   `);
@@ -215,8 +229,6 @@ async function loadDatabase(request: BootRequest): Promise<BootStats> {
     const en = String(row.en ?? '');
     const zh = String(row.zh ?? '');
     const blockName = String(row.block_name ?? '');
-    const layer = Number(row.layer ?? 0);
-    const updatedAt = String(row.updated_at ?? '');
     const id = toEntryId(videoId, segIndex);
 
     const entry: Entry = {
@@ -226,9 +238,6 @@ async function loadDatabase(request: BootRequest): Promise<BootStats> {
       en,
       zh,
       blockName,
-      layer,
-      updatedAt,
-      hasVector: false,
       enNorm: normalizeText(en),
       zhNorm: normalizeText(zh),
       enLength: en.length,
@@ -296,7 +305,6 @@ async function loadDatabase(request: BootRequest): Promise<BootStats> {
       continue;
     }
 
-    sourceEntry.hasVector = true;
     semanticIndexes.push(sourceIndex);
     vectors.push(...toFloat32(blob, dim));
   }
@@ -362,7 +370,7 @@ async function embedQuery(modelId: string, requestId: number, query: string): Pr
 function searchLexical(request: SearchRequest, loaded: LoadedState): SearchResult[] {
   const query = request.query.trim();
   const normalizedQuery = normalizeText(query);
-  const results: RankedHit[] = [];
+  const topHits: RankedHit[] = [];
 
   for (let index = 0; index < loaded.entries.length; index += 1) {
     const entry = loaded.entries[index];
@@ -380,17 +388,17 @@ function searchLexical(request: SearchRequest, loaded: LoadedState): SearchResul
 
     const score = scoreLexical(query, normalizedQuery, text, normalizedText);
     if (score > 0 && score >= request.minScore) {
-      results.push({ entryIndex: index, score });
+      pushRankedHit(topHits, { entryIndex: index, score }, request.topK);
     }
   }
 
-  return rankHits(results, request.topK).map(({ entryIndex, score }) =>
+  return topHits.map(({ entryIndex, score }) =>
     toSearchResult(loaded.entries[entryIndex]!, score, request.language),
   );
 }
 
 function searchSemantic(request: SearchRequest, loaded: LoadedState, queryVector: Float32Array): SearchResult[] {
-  const results: RankedHit[] = [];
+  const topHits: RankedHit[] = [];
 
   for (let row = 0; row < loaded.semanticEntryIndexes.length; row += 1) {
     const entryIndex = loaded.semanticEntryIndexes[row];
@@ -415,11 +423,11 @@ function searchSemantic(request: SearchRequest, loaded: LoadedState, queryVector
     }
 
     if (score >= request.minScore) {
-      results.push({ entryIndex, score });
+      pushRankedHit(topHits, { entryIndex, score }, request.topK);
     }
   }
 
-  return rankHits(results, request.topK).map(({ entryIndex, score }) =>
+  return topHits.map(({ entryIndex, score }) =>
     toSearchResult(loaded.entries[entryIndex]!, score, 'en'),
   );
 }
@@ -474,7 +482,7 @@ function handleContext(request: ContextRequest): ContextItem[] {
 
   const group = loaded.videoGroups.get(focusEntry.videoId) ?? [];
   const position = group.indexOf(focusIndex);
-  const radius = request.radius ?? 2;
+  const radius = request.radius ?? DEFAULT_CONTEXT_RADIUS;
   const start = Math.max(0, position - radius);
   const end = Math.min(group.length, position + radius + 1);
 

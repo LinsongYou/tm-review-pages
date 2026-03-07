@@ -9,9 +9,6 @@ export interface EntrySummary {
   en: string;
   zh: string;
   blockName: string;
-  layer: number;
-  updatedAt: string;
-  hasVector: boolean;
 }
 
 export interface SearchResult extends EntrySummary {
