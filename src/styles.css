@@ -218,7 +218,6 @@ button {
 
 .field span,
 .panel-header span,
-.result-flags,
 .context-meta,
 .message strong {
   color: var(--muted);
@@ -368,12 +367,26 @@ button {
 .results-tools {
   display: flex;
   gap: 12px;
-  align-items: end;
+  align-items: center;
   flex-wrap: wrap;
 }
 
-.compact-field input {
-  width: 96px;
+.compact-inline-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.compact-inline-field span {
+  white-space: nowrap;
+}
+
+.compact-inline-field input {
+  width: 72px;
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: 12px;
+  font-size: 0.95rem;
   text-align: center;
 }
 
@@ -408,7 +421,7 @@ button {
 }
 
 .result-header {
-  grid-template-columns: minmax(0, 1.7fr) repeat(3, minmax(72px, auto));
+  grid-template-columns: minmax(0, 1.7fr) repeat(2, minmax(72px, auto));
   align-items: start;
   color: var(--accent-strong);
 }
@@ -464,6 +477,20 @@ button {
   background: var(--field-bg);
 }
 
+.result-copy-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+}
+
+.result-char-count {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
 .result-en,
 .result-zh {
   margin: 0;
@@ -513,5 +540,10 @@ button {
 
   .result-header {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .result-copy-line {
+    grid-template-columns: 1fr;
+    gap: 8px;
   }
 }

@@ -52,6 +52,7 @@ export interface SearchRequest {
   language: SearchLanguage;
   topK: number;
   minLength: number;
+  minScore: number;
 }
 
 export interface ContextRequest {

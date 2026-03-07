@@ -379,7 +379,7 @@ function searchLexical(request: SearchRequest, loaded: LoadedState): SearchResul
     }
 
     const score = scoreLexical(query, normalizedQuery, text, normalizedText);
-    if (score > 0) {
+    if (score > 0 && score >= request.minScore) {
       results.push({ entryIndex: index, score });
     }
   }
@@ -414,7 +414,9 @@ function searchSemantic(request: SearchRequest, loaded: LoadedState, queryVector
       score += loaded.semanticVectors[offset + dim]! * queryVector[dim]!;
     }
 
-    results.push({ entryIndex, score });
+    if (score >= request.minScore) {
+      results.push({ entryIndex, score });
+    }
   }
 
   return rankHits(results, request.topK).map(({ entryIndex, score }) =>

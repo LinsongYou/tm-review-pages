@@ -47,6 +47,8 @@ function App() {
   const [query, setQuery] = useState('');
   const [topK, setTopK] = useState(10);
   const [minLength, setMinLength] = useState(0);
+  const [minScore, setMinScore] = useState(0);
+  const [contextRadius, setContextRadius] = useState(3);
   const [theme, setTheme] = useState<Theme>(getInitialTheme);
   const [hasSearched, setHasSearched] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -121,7 +123,7 @@ function App() {
         const response = (await callWorker({
           kind: 'context',
           entryId: selectedEntryId,
-          radius: 2,
+          radius: contextRadius,
         })) as Extract<WorkerResponse, { kind: 'context:ok' }>;
 
         if (latestContextRef.current !== sequence) {
@@ -139,7 +141,7 @@ function App() {
         setErrorText(error instanceof Error ? error.message : String(error));
       }
     })();
-  }, [bootStats, selectedEntryId]);
+  }, [bootStats, contextRadius, selectedEntryId]);
 
   async function callWorker(payload: WorkerPayload): Promise<WorkerResponse> {
     const worker = workerRef.current;
@@ -184,6 +186,7 @@ function App() {
     nextQuery = query,
     nextTopK = topK,
     nextMinLength = minLength,
+    nextMinScore = minScore,
   ): Promise<void> {
     const trimmed = nextQuery.trim();
 
@@ -212,6 +215,7 @@ function App() {
         language: 'en',
         topK: nextTopK,
         minLength: nextMinLength,
+        minScore: nextMinScore,
       })) as Extract<WorkerResponse, { kind: 'search:ok' }>;
 
       if (latestSearchRef.current !== sequence) {
@@ -244,7 +248,7 @@ function App() {
     setTopK(nextTopK);
 
     if (hasSearched && query.trim()) {
-      void runSearch(query, nextTopK, minLength);
+      void runSearch(query, nextTopK, minLength, minScore);
     }
   }
 
@@ -253,8 +257,22 @@ function App() {
     setMinLength(nextMinLength);
 
     if (hasSearched && query.trim()) {
-      void runSearch(query, topK, nextMinLength);
+      void runSearch(query, topK, nextMinLength, minScore);
     }
+  }
+
+  function handleMinScoreChange(value: string): void {
+    const nextMinScore = Math.max(0, Number(value) || 0);
+    setMinScore(nextMinScore);
+
+    if (hasSearched && query.trim()) {
+      void runSearch(query, topK, minLength, nextMinScore);
+    }
+  }
+
+  function handleContextRadiusChange(value: string): void {
+    const nextRadius = Math.max(0, Number(value) || 0);
+    setContextRadius(nextRadius);
   }
 
   function toggleTheme(): void {
@@ -339,11 +357,10 @@ function App() {
             <div className="panel-header results-header">
               <div className="results-heading">
                 <h2>Results</h2>
-                <span>{results.length.toLocaleString()} shown</span>
               </div>
 
               <div className="results-tools">
-                <label className="field compact-field">
+                <label className="field compact-inline-field">
                   <span>Top K</span>
                   <input
                     type="number"
@@ -354,7 +371,7 @@ function App() {
                   />
                 </label>
 
-                <label className="field compact-field">
+                <label className="field compact-inline-field">
                   <span>Min Chars</span>
                   <input
                     type="number"
@@ -362,6 +379,18 @@ function App() {
                     max={500}
                     value={minLength}
                     onChange={(event) => handleMinLengthChange(event.target.value)}
+                  />
+                </label>
+
+                <label className="field compact-inline-field">
+                  <span>Score</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={2}
+                    step={0.05}
+                    value={minScore}
+                    onChange={(event) => handleMinScoreChange(event.target.value)}
                   />
                 </label>
               </div>
@@ -389,11 +418,7 @@ function App() {
                         </span>
                         <span className="result-metric">
                           <span className="result-metric-label">Entry</span>
-                          <strong>{result.segIndex}</strong>
-                        </span>
-                        <span className="result-metric">
-                          <span className="result-metric-label">Chars</span>
-                          <strong>{result.textLength}</strong>
+                          <strong>#{result.segIndex}</strong>
                         </span>
                         <span className="result-metric result-score">
                           <span className="result-metric-label">Score</span>
@@ -402,7 +427,10 @@ function App() {
                       </div>
                       <div className="result-copy-group">
                         <div className="result-copy">
-                          <p className="result-en">{result.en}</p>
+                          <div className="result-copy-line">
+                            <p className="result-en">{result.en}</p>
+                            <span className="result-char-count">{result.textLength} chars</span>
+                          </div>
                         </div>
                         <div className="result-copy">
                           <p className="result-zh">{result.zh}</p>
@@ -420,7 +448,16 @@ function App() {
             <section className="panel context-panel">
               <div className="panel-header">
                 <h2>Context</h2>
-                <span>±2 rows in the same video</span>
+                <label className="field compact-inline-field">
+                  <span>Radius</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={20}
+                    value={contextRadius}
+                    onChange={(event) => handleContextRadiusChange(event.target.value)}
+                  />
+                </label>
               </div>
 
               {contextItems.length === 0 ? (
