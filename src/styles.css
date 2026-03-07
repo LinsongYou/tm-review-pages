@@ -168,10 +168,6 @@ button {
   font-size: 1rem;
 }
 
-.small-field input {
-  text-align: center;
-}
-
 .search-button {
   flex: 0 0 148px;
   min-height: 48px;
@@ -247,6 +243,28 @@ button {
   margin: 0;
   font-family: "IBM Plex Serif", Georgia, serif;
   font-weight: 600;
+}
+
+.results-header {
+  align-items: end;
+  flex-wrap: wrap;
+}
+
+.results-heading {
+  display: grid;
+  gap: 4px;
+}
+
+.results-tools {
+  display: flex;
+  gap: 12px;
+  align-items: end;
+  flex-wrap: wrap;
+}
+
+.compact-field input {
+  width: 96px;
+  text-align: center;
 }
 
 .results-list,

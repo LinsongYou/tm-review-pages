@@ -157,8 +157,12 @@ function App() {
     }
   }
 
-  async function runSearch(): Promise<void> {
-    const trimmed = query.trim();
+  async function runSearch(
+    nextQuery = query,
+    nextTopK = topK,
+    nextMinLength = minLength,
+  ): Promise<void> {
+    const trimmed = nextQuery.trim();
 
     if (!trimmed || !bootStats) {
       setHasSearched(false);
@@ -183,8 +187,8 @@ function App() {
         query: trimmed,
         mode: 'semantic',
         language: 'en',
-        topK,
-        minLength,
+        topK: nextTopK,
+        minLength: nextMinLength,
       })) as Extract<WorkerResponse, { kind: 'search:ok' }>;
 
       if (latestSearchRef.current !== sequence) {
@@ -210,6 +214,24 @@ function App() {
   function handleSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
     void runSearch();
+  }
+
+  function handleTopKChange(value: string): void {
+    const nextTopK = Math.max(1, Number(value) || 1);
+    setTopK(nextTopK);
+
+    if (hasSearched && query.trim()) {
+      void runSearch(query, nextTopK, minLength);
+    }
+  }
+
+  function handleMinLengthChange(value: string): void {
+    const nextMinLength = Math.max(0, Number(value) || 0);
+    setMinLength(nextMinLength);
+
+    if (hasSearched && query.trim()) {
+      void runSearch(query, topK, nextMinLength);
+    }
   }
 
   const canSearch = !booting && !!query.trim();
@@ -244,28 +266,6 @@ function App() {
             />
           </label>
 
-          <label className="field small-field">
-            <span>Top K</span>
-            <input
-              type="number"
-              min={1}
-              max={100}
-              value={topK}
-              onChange={(event) => setTopK(Math.max(1, Number(event.target.value) || 1))}
-            />
-          </label>
-
-          <label className="field small-field">
-            <span>Min Chars</span>
-            <input
-              type="number"
-              min={0}
-              max={500}
-              value={minLength}
-              onChange={(event) => setMinLength(Math.max(0, Number(event.target.value) || 0))}
-            />
-          </label>
-
           <button className="search-button" type="submit" disabled={!canSearch || searching}>
             {searching ? 'Searching…' : 'Search'}
           </button>
@@ -289,9 +289,35 @@ function App() {
       {hasSearched ? (
         <section className="workspace">
           <div className="panel results-panel">
-            <div className="panel-header">
-              <h2>Results</h2>
-              <span>{results.length.toLocaleString()} shown</span>
+            <div className="panel-header results-header">
+              <div className="results-heading">
+                <h2>Results</h2>
+                <span>{results.length.toLocaleString()} shown</span>
+              </div>
+
+              <div className="results-tools">
+                <label className="field compact-field">
+                  <span>Top K</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={topK}
+                    onChange={(event) => handleTopKChange(event.target.value)}
+                  />
+                </label>
+
+                <label className="field compact-field">
+                  <span>Min Chars</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={500}
+                    value={minLength}
+                    onChange={(event) => handleMinLengthChange(event.target.value)}
+                  />
+                </label>
+              </div>
             </div>
 
             {results.length === 0 ? (
