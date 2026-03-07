@@ -269,14 +269,18 @@ function App() {
   return (
     <main className="app-shell">
       <section className="hero">
-        <h1 className="page-title">Translation Memory Review</h1>
+        <h1 className="page-title">Translation Memory</h1>
         <div className="hero-meta">
           <span className="hero-chip">
-            {bootStats
-              ? `${bootStats.totalEntries.toLocaleString()} EN/中文 pairs`
-              : 'Loading EN/中文 pairs'}
+            {bootStats ? (
+              <>
+                <strong className="hero-chip-value">{bootStats.totalEntries.toLocaleString()}</strong>
+                <span className="hero-chip-label">English/中文 Pairs</span>
+              </>
+            ) : (
+              <span className="hero-chip-label">Loading English/中文 Pairs</span>
+            )}
           </span>
-          <span className="hero-chip">{QUERY_MODEL_ID}</span>
           <button
             aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
             className={theme === 'dark' ? 'theme-toggle is-dark' : 'theme-toggle is-light'}
