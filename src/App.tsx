@@ -383,11 +383,20 @@ function App() {
                       onClick={() => setSelectedEntryId(result.entryId)}
                     >
                       <div className="result-meta">
-                        <span>{result.videoId}#{result.segIndex}</span>
-                        <span>{result.score.toFixed(4)}</span>
+                        <span className="result-metric">
+                          <span className="result-metric-label">YouTube</span>
+                          <strong>{result.videoId}</strong>
+                        </span>
+                        <span className="result-metric result-score">
+                          <span className="result-metric-label">Score</span>
+                          <strong>{result.score.toFixed(4)}</strong>
+                        </span>
                       </div>
                       <div className="result-flags">
-                        <span className="result-entry-id">{result.entryId}</span>
+                        <span className="result-metric">
+                          <span className="result-metric-label">Entry</span>
+                          <strong>{result.segIndex}</strong>
+                        </span>
                         <span>{result.textLength} chars</span>
                       </div>
                       <p className="result-block">{result.blockName || 'No block'}</p>

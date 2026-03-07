@@ -411,12 +411,31 @@ button {
 }
 
 .result-meta {
-  font-size: 0.9rem;
   color: var(--accent-strong);
 }
 
-.result-entry-id {
+.result-metric {
+  display: inline-grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.result-metric strong {
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 600;
   overflow-wrap: anywhere;
+}
+
+.result-metric-label {
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.result-score {
+  text-align: right;
 }
 
 .result-block {
