@@ -1024,31 +1024,82 @@ function App() {
                           </div>
                           <div className="transcript-entry-copy-line">
                             <p className="transcript-entry-line transcript-entry-line--en">{item.en}</p>
-                            <button
-                              aria-label={`Search using cue ${item.segIndex} English text`}
-                              className="transcript-entry-search"
-                              type="button"
-                              disabled={!item.en.trim()}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                searchFromTranscriptLine(item.en);
-                              }}
-                            >
-                              <svg
-                                aria-hidden="true"
-                                className="transcript-entry-search-icon"
-                                viewBox="0 0 16 16"
+                            <div className="transcript-entry-actions">
+                              <button
+                                aria-label={`Search using cue ${item.segIndex} English text`}
+                                className="transcript-entry-action"
+                                type="button"
+                                disabled={!item.en.trim()}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  searchFromTranscriptLine(item.en);
+                                }}
                               >
-                                <circle cx="7" cy="7" r="4.25" fill="none" stroke="currentColor" strokeWidth="1.5" />
-                                <path
-                                  d="M10.2 10.2L13.4 13.4"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeLinecap="round"
-                                  strokeWidth="1.5"
-                                />
-                              </svg>
-                            </button>
+                                <svg
+                                  aria-hidden="true"
+                                  className="transcript-entry-action-icon"
+                                  viewBox="0 0 16 16"
+                                >
+                                  <circle
+                                    cx="7"
+                                    cy="7"
+                                    r="4.25"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="1.5"
+                                  />
+                                  <path
+                                    d="M10.2 10.2L13.4 13.4"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeLinecap="round"
+                                    strokeWidth="1.5"
+                                  />
+                                </svg>
+                              </button>
+
+                              <span className="transcript-entry-action-shell" title="Editing is not supported yet">
+                                <button
+                                  aria-label="Editing is not supported yet"
+                                  className="transcript-entry-action transcript-entry-action--disabled"
+                                  type="button"
+                                  tabIndex={-1}
+                                  onClick={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                  }}
+                                >
+                                  <svg
+                                    aria-hidden="true"
+                                    className="transcript-entry-action-icon"
+                                    viewBox="0 0 16 16"
+                                  >
+                                    <path
+                                      d="M3 11.8L2.5 13.5L4.2 13L11.7 5.5L10.5 4.3L3 11.8Z"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeLinejoin="round"
+                                      strokeWidth="1.4"
+                                    />
+                                    <path
+                                      d="M9.9 4.9L11.1 6.1"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeLinecap="round"
+                                      strokeWidth="1.4"
+                                    />
+                                    <path
+                                      d="M10.9 3.9L12.1 2.7C12.4 2.4 12.9 2.4 13.2 2.7L13.3 2.8C13.6 3.1 13.6 3.6 13.3 3.9L12.1 5.1"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth="1.4"
+                                    />
+                                  </svg>
+                                </button>
+                              </span>
+                            </div>
                           </div>
                           <p className="transcript-entry-line transcript-entry-line--zh">{item.zh}</p>
                         </article>
