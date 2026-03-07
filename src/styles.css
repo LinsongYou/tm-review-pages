@@ -54,52 +54,51 @@ button {
 }
 
 .hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1.8fr) minmax(280px, 0.9fr);
-  gap: 20px;
-  align-items: start;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
   margin-bottom: 18px;
 }
 
-.hero-copy {
-  display: grid;
-  align-content: start;
-}
-
 .eyebrow {
-  margin: 0 0 10px;
+  margin: 0;
   color: var(--accent-strong);
   text-transform: uppercase;
   letter-spacing: 0.22em;
   font-size: 0.76rem;
 }
 
-.hero-status {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-  align-content: start;
+.hero-meta {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
-.panel,
-.status-card {
+.hero-chip {
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(246, 201, 154, 0.16);
+  background: rgba(19, 23, 30, 0.72);
+  color: var(--muted-strong);
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.panel {
   background: var(--panel);
   border: 1px solid var(--panel-border);
   box-shadow: var(--shadow);
   backdrop-filter: blur(14px);
 }
 
-.status-card {
-  padding: 16px 18px;
-  border-radius: 20px;
-}
-
-.status-card span,
 .detail-label,
 .field span,
 .panel-header span,
 .result-flags,
-.notes,
 .context-meta,
 .message strong {
   color: var(--muted);
@@ -107,18 +106,11 @@ button {
   letter-spacing: 0.02em;
 }
 
-.status-card strong,
 .detail-grid strong {
   display: block;
   margin-top: 6px;
   color: var(--text);
   font-size: 1rem;
-}
-
-.status-card small {
-  display: block;
-  margin-top: 10px;
-  color: var(--muted-strong);
 }
 
 .controls-panel,
@@ -344,7 +336,6 @@ button {
 }
 
 @media (max-width: 1180px) {
-  .hero,
   .workspace {
     grid-template-columns: 1fr;
   }
@@ -358,8 +349,8 @@ button {
 }
 
 @media (max-width: 560px) {
-  .hero-status {
-    grid-template-columns: 1fr;
+  .hero-meta {
+    width: 100%;
   }
 
   .panel-header,

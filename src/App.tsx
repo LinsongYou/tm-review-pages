@@ -2,7 +2,6 @@ import { FormEvent, startTransition, useEffect, useMemo, useRef, useState } from
 import type {
   BootStats,
   ContextItem,
-  ModelStatus,
   SearchResult,
   WorkerPayload,
   WorkerResponse,
@@ -17,23 +16,6 @@ const VECTOR_MODEL_ID = 'sentence-transformers/all-MiniLM-L6-v2';
 const QUERY_MODEL_ID = 'Xenova/all-MiniLM-L6-v2';
 const DB_ASSET = 'data/tm_misha_minilm.db';
 
-function formatBytes(bytes: number): string {
-  if (bytes === 0) {
-    return '0 B';
-  }
-
-  const units = ['B', 'KB', 'MB', 'GB'];
-  let value = bytes;
-  let unitIndex = 0;
-
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024;
-    unitIndex += 1;
-  }
-
-  return `${value.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
-}
-
 function App() {
   const workerRef = useRef<Worker | null>(null);
   const pendingRef = useRef(new Map<number, PendingRequest>());
@@ -44,8 +26,6 @@ function App() {
   const [bootStats, setBootStats] = useState<BootStats | null>(null);
   const [booting, setBooting] = useState(true);
   const [searching, setSearching] = useState(false);
-  const [statusText, setStatusText] = useState('Starting worker.');
-  const [modelStatus, setModelStatus] = useState<ModelStatus>('idle');
   const [errorText, setErrorText] = useState<string | null>(null);
   const [searchNote, setSearchNote] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -68,10 +48,6 @@ function App() {
       const message = event.data;
 
       if (message.kind === 'status') {
-        setStatusText(message.message);
-        if (message.modelStatus) {
-          setModelStatus(message.modelStatus);
-        }
         return;
       }
 
@@ -174,7 +150,6 @@ function App() {
       startTransition(() => {
         setBootStats(response.stats);
         setBooting(false);
-        setStatusText('TM database ready.');
       });
     } catch (error) {
       setBooting(false);
@@ -245,24 +220,12 @@ function App() {
   return (
     <main className="app-shell">
       <section className="hero">
-        <div className="hero-copy">
-          <p className="eyebrow">Translation Memory Review</p>
-        </div>
-        <div className="hero-status">
-          <div className="status-card">
-            <span>Semantic Model</span>
-            <strong>{modelStatus}</strong>
-            <small>{booting ? statusText : QUERY_MODEL_ID}</small>
-          </div>
-          <div className="status-card">
-            <span>Corpus</span>
-            <strong>
-              {bootStats ? `${bootStats.totalEntries.toLocaleString()} rows` : 'Loading'}
-            </strong>
-            <small>
-              {bootStats ? `${formatBytes(bootStats.dbSizeBytes)} static SQLite asset` : statusText}
-            </small>
-          </div>
+        <p className="eyebrow">Translation Memory Review</p>
+        <div className="hero-meta">
+          <span className="hero-chip">
+            {bootStats ? `${bootStats.totalEntries.toLocaleString()} rows` : 'Loading rows'}
+          </span>
+          <span className="hero-chip">{QUERY_MODEL_ID}</span>
         </div>
       </section>
 
