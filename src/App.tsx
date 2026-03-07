@@ -249,44 +249,10 @@ function App() {
         </div>
         <div className="hero-status">
           <div className="status-card">
-            <span>Data</span>
-            <strong>{booting ? 'Loading' : 'Ready'}</strong>
-            <small>{statusText}</small>
-          </div>
-          <div className="status-card">
             <span>Semantic Model</span>
             <strong>{modelStatus}</strong>
-            <small>{SEMANTIC_MODEL_ID}</small>
+            <small>{booting ? statusText : SEMANTIC_MODEL_ID}</small>
           </div>
-        </div>
-      </section>
-
-      <section className="panel stats-panel">
-        <div className="stat">
-          <span>SQLite asset</span>
-          <strong>{bootStats ? formatBytes(bootStats.dbSizeBytes) : '...'}</strong>
-        </div>
-        <div className="stat">
-          <span>TM rows</span>
-          <strong>{bootStats?.totalEntries.toLocaleString() ?? '...'}</strong>
-        </div>
-        <div className="stat">
-          <span>Vector rows</span>
-          <strong>{bootStats?.vectorEntries.toLocaleString() ?? '...'}</strong>
-        </div>
-        <div className="stat">
-          <span>Coverage</span>
-          <strong>
-            {bootStats ? `${(bootStats.vectorCoverage * 100).toFixed(1)}%` : '...'}
-          </strong>
-        </div>
-        <div className="stat">
-          <span>Vector dim</span>
-          <strong>{bootStats?.vectorDim ?? '...'}</strong>
-        </div>
-        <div className="stat">
-          <span>Cold load</span>
-          <strong>{bootStats ? `${bootStats.loadMs.toFixed(0)} ms` : '...'}</strong>
         </div>
       </section>
 
@@ -363,6 +329,12 @@ function App() {
             Chinese lexical search is supported now. Chinese semantic indexing can be
             added later as a separate artifact.
           </p>
+          {bootStats ? (
+            <p>
+              Loaded {bootStats.totalEntries.toLocaleString()} TM rows from{' '}
+              {formatBytes(bootStats.dbSizeBytes)} of static data.
+            </p>
+          ) : null}
         </div>
       </section>
 
