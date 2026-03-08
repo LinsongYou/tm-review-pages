@@ -16,9 +16,7 @@ import type {
   WorkerResponse,
 } from './search/protocol';
 import CueTimeDistributionPanel from './startup/CueTimeDistributionPanel';
-import SemanticFlowTimelinePanel from './startup/SemanticFlowTimelinePanel';
 import SemanticLandscapePanel from './startup/SemanticLandscapePanel';
-import VideoFingerprintWallPanel from './startup/VideoFingerprintWallPanel';
 import type { SemanticLandscapeData } from './startup/semantic-landscape';
 
 type PendingRequest = {
@@ -740,22 +738,10 @@ function App() {
             </section>
           ) : landscapeData ? (
             <>
+              {/* Optional startup panels remain implemented but are intentionally not rendered by default. */}
               <SemanticLandscapePanel
                 data={landscapeData}
                 theme={theme}
-                onOpenTranscript={(videoId, focusEntryId) => {
-                  void openTranscript(videoId, focusEntryId);
-                }}
-              />
-
-              <SemanticFlowTimelinePanel
-                timeline={landscapeData.semanticFlowTimeline}
-                clusters={landscapeData.clusters}
-              />
-
-              <VideoFingerprintWallPanel
-                data={landscapeData.videoFingerprintWall}
-                clusters={landscapeData.clusters}
                 onOpenTranscript={(videoId, focusEntryId) => {
                   void openTranscript(videoId, focusEntryId);
                 }}

@@ -22,6 +22,15 @@ Static GitHub Pages app for reviewing translation-memory data in the browser.
 
 The current UI intentionally keeps search to a single English semantic query path. Results still display both EN and ZH text for review.
 
+## Hidden Startup Panels
+
+Two additional startup panels are already implemented but intentionally not rendered by default:
+
+- `SemanticFlowTimelinePanel`
+- `VideoFingerprintWallPanel`
+
+Their precomputed data is already included in `public/data/semantic-landscape.json`. To enable them again, add the two component renders back into the `landscapeData` startup branch in `src/App.tsx`, directly below the existing `SemanticLandscapePanel`.
+
 ## Local Development
 
 ```bash
