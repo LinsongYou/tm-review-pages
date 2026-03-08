@@ -15,6 +15,8 @@ Static GitHub Pages app for reviewing translation-memory data in the browser.
 - Loads `public/data/tm_misha_minilm.db` directly in the browser.
 - Loads a precomputed `public/data/semantic-landscape.json` startup artifact for the home-page semantic visualization.
 - Uses a single English semantic search flow powered by the shipped `sentence-transformers/all-MiniLM-L6-v2` vectors.
+- Keeps the DB and startup JSON on stable URLs with asset-version query strings so repeat visits can reuse browser cache until the source data changes.
+- Defers MiniLM model initialization until the first semantic search instead of blocking the initial app boot.
 - Includes adjustable `Top K`, `Min Chars`, `Score`, and context-radius controls.
 - Shows result cards with YouTube ID, transcript entry number, score, block ID, and emphasized EN/ZH text.
 - Opens a full-video transcript modal when you click a YouTube ID, using the same context-style row presentation.

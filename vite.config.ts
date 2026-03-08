@@ -26,5 +26,6 @@ export default defineConfig({
   base: normalizeBase(process.env.VITE_BASE_PATH),
   define: {
     __TM_DB_VERSION__: JSON.stringify(getAssetVersion('public/data/tm_misha_minilm.db')),
+    __TM_LANDSCAPE_VERSION__: JSON.stringify(getAssetVersion('public/data/semantic-landscape.json')),
   },
 });

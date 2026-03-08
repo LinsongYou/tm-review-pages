@@ -4,7 +4,6 @@ import {
   startTransition,
   useEffect,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -26,8 +25,6 @@ type PendingRequest = {
 
 type Theme = 'dark' | 'light';
 
-const VECTOR_MODEL_ID = 'sentence-transformers/all-MiniLM-L6-v2';
-const QUERY_MODEL_ID = 'Xenova/all-MiniLM-L6-v2';
 const DB_ASSET = 'data/tm_misha_minilm.db';
 const LANDSCAPE_ASSET = 'data/semantic-landscape.json';
 const THEME_STORAGE_KEY = 'tm-review-theme';
@@ -87,6 +84,11 @@ function formatCueRange(startMs: number | null, endMs: number | null): string {
   return `${formatCueTimestamp(startMs)} - ${formatCueTimestamp(endMs)}`;
 }
 
+function clampNumericInput(value: string, minimum: number): number {
+  const parsed = Number(value);
+  return Math.max(minimum, Number.isFinite(parsed) ? parsed : minimum);
+}
+
 function App() {
   const workerRef = useRef<Worker | null>(null);
   const pendingRef = useRef(new Map<number, PendingRequest>());
@@ -124,11 +126,11 @@ function App() {
   const [startupRevealProgress, setStartupRevealProgress] = useState(0);
   const [startupFocusDismissed, setStartupFocusDismissed] = useState(false);
 
-  const dbUrl = useMemo(
-    () => `${import.meta.env.BASE_URL}${withAssetVersion(DB_ASSET, __TM_DB_VERSION__)}`,
-    [],
-  );
-  const landscapeUrl = useMemo(() => `${import.meta.env.BASE_URL}${LANDSCAPE_ASSET}`, []);
+  const dbUrl = `${import.meta.env.BASE_URL}${withAssetVersion(DB_ASSET, __TM_DB_VERSION__)}`;
+  const landscapeUrl = `${import.meta.env.BASE_URL}${withAssetVersion(
+    LANDSCAPE_ASSET,
+    __TM_LANDSCAPE_VERSION__,
+  )}`;
 
   useLayoutEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -144,10 +146,6 @@ function App() {
 
     worker.addEventListener('message', (event: MessageEvent<WorkerResponse>) => {
       const message = event.data;
-
-      if (message.kind === 'status') {
-        return;
-      }
 
       const pending = pendingRef.current.get(message.requestId);
       if (!pending) {
@@ -424,8 +422,6 @@ function App() {
       const response = (await callWorker({
         kind: 'boot',
         dbUrl,
-        vectorModelId: VECTOR_MODEL_ID,
-        queryModelId: QUERY_MODEL_ID,
       })) as Extract<WorkerResponse, { kind: 'boot:ok' }>;
 
       startTransition(() => {
@@ -443,7 +439,7 @@ function App() {
     setLandscapeErrorText(null);
 
     try {
-      const response = await fetch(landscapeUrl, { cache: 'no-cache', signal });
+      const response = await fetch(landscapeUrl, { signal });
       if (!response.ok) {
         throw new Error(`Failed to download ${landscapeUrl} (${response.status}).`);
       }
@@ -496,8 +492,6 @@ function App() {
       const response = (await callWorker({
         kind: 'search',
         query: trimmed,
-        mode: 'semantic',
-        language: 'en',
         topK: nextTopK,
         minLength: nextMinLength,
         minScore: nextMinScore,
@@ -529,7 +523,7 @@ function App() {
   }
 
   function handleTopKChange(value: string): void {
-    const nextTopK = Math.max(1, Number(value) || 1);
+    const nextTopK = clampNumericInput(value, 1);
     setTopK(nextTopK);
 
     if (hasSearched && query.trim()) {
@@ -538,7 +532,7 @@ function App() {
   }
 
   function handleMinLengthChange(value: string): void {
-    const nextMinLength = Math.max(0, Number(value) || 0);
+    const nextMinLength = clampNumericInput(value, 0);
     setMinLength(nextMinLength);
 
     if (hasSearched && query.trim()) {
@@ -547,7 +541,7 @@ function App() {
   }
 
   function handleMinScoreChange(value: string): void {
-    const nextMinScore = Math.max(0, Number(value) || 0);
+    const nextMinScore = clampNumericInput(value, 0);
     setMinScore(nextMinScore);
 
     if (hasSearched && query.trim()) {
@@ -556,8 +550,7 @@ function App() {
   }
 
   function handleContextRadiusChange(value: string): void {
-    const nextRadius = Math.max(0, Number(value) || 0);
-    setContextRadius(nextRadius);
+    setContextRadius(clampNumericInput(value, 0));
   }
 
   function handleTranscriptEntryKeyDown(
@@ -570,7 +563,7 @@ function App() {
 
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
-      selectTranscriptEntry(entryId);
+      setTranscriptSelection(entryId);
     }
   }
 
@@ -597,13 +590,7 @@ function App() {
     transcriptItemRefs.current.delete(entryId);
   }
 
-  function selectTranscriptEntry(entryId: string): void {
-    setSelectedEntryId(entryId);
-    setTranscriptFocusEntryId(entryId);
-    setActiveTranscriptEntryId(entryId);
-  }
-
-  function focusTranscriptEntry(entryId: string): void {
+  function setTranscriptSelection(entryId: string): void {
     setSelectedEntryId(entryId);
     setTranscriptFocusEntryId(entryId);
     setActiveTranscriptEntryId(entryId);
@@ -1062,7 +1049,7 @@ function App() {
                             .filter(Boolean)
                             .join(' ')}
                           type="button"
-                          onClick={() => focusTranscriptEntry(item.entryId)}
+                          onClick={() => setTranscriptSelection(item.entryId)}
                         >
                           <span className="transcript-timeline-index">#{item.segIndex}</span>
                           <span className="transcript-timeline-time">
@@ -1087,7 +1074,7 @@ function App() {
                             .join(' ')}
                           role="button"
                           tabIndex={0}
-                          onClick={() => selectTranscriptEntry(item.entryId)}
+                          onClick={() => setTranscriptSelection(item.entryId)}
                           onKeyDown={(event) => handleTranscriptEntryKeyDown(event, item.entryId)}
                         >
                           <div className="context-meta transcript-entry-meta">

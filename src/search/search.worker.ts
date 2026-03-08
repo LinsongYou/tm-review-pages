@@ -9,29 +9,24 @@ import type {
   ContextRequest,
   EntrySummary,
   ErrorResponse,
-  ModelStatus,
-  SearchLanguage,
   SearchRequest,
   SearchResult,
-  StatusResponse,
+  TranscriptRequest,
   WorkerRequest,
   WorkerResponse,
 } from './protocol';
 
 const workerScope = self as DedicatedWorkerGlobalScope;
-const TOKEN_RE = /[\p{Letter}\p{Number}_]+/gu;
 const DEFAULT_CONTEXT_RADIUS = 3;
-const MODEL_LANGUAGE_NOTE =
-  'The shipped semantic index is English-only in this prototype. Switch to English or use lexical search for Chinese.';
 const TIME_DISTRIBUTION_BIN_COUNT = 120;
+const VECTOR_MODEL_ID = 'sentence-transformers/all-MiniLM-L6-v2';
+const QUERY_MODEL_ID = 'Xenova/all-MiniLM-L6-v2';
 
 type SqlBlob = Uint8Array;
 type ExtractorOutput = { data: Float32Array | number[] };
 type Extractor = (input: string, options?: Record<string, unknown>) => Promise<ExtractorOutput>;
 
 interface Entry extends EntrySummary {
-  enNorm: string;
-  zhNorm: string;
   enLength: number;
   zhLength: number;
 }
@@ -48,13 +43,10 @@ interface LoadedState {
   semanticEntryIndexes: Int32Array;
   semanticVectors: Float32Array;
   vectorDim: number;
-  vectorModelId: string;
-  queryModelId: string;
 }
 
 let state: LoadedState | null = null;
 let extractor: Extractor | null = null;
-let modelStatus: ModelStatus = 'idle';
 
 env.allowLocalModels = false;
 env.useBrowserCache = true;
@@ -69,25 +61,6 @@ function post(message: WorkerResponse): void {
   workerScope.postMessage(message);
 }
 
-function postStatus(
-  requestId: number,
-  scope: StatusResponse['scope'],
-  message: string,
-  nextModelStatus?: ModelStatus,
-): void {
-  if (nextModelStatus) {
-    modelStatus = nextModelStatus;
-  }
-
-  post({
-    kind: 'status',
-    requestId,
-    scope,
-    message,
-    modelStatus,
-  });
-}
-
 function postError(requestId: number, error: unknown): void {
   const message = error instanceof Error ? error.message : String(error);
   post({
@@ -95,14 +68,6 @@ function postError(requestId: number, error: unknown): void {
     requestId,
     message,
   } satisfies ErrorResponse);
-}
-
-function normalizeText(text: string): string {
-  return text.normalize('NFKC').toLocaleLowerCase().replace(/\s+/g, ' ').trim();
-}
-
-function tokenize(text: string): string[] {
-  return normalizeText(text).match(TOKEN_RE) ?? [];
 }
 
 function toNullableNumber(value: string | number | null | undefined): number | null {
@@ -136,37 +101,6 @@ function ensureState(): LoadedState {
   }
 
   return state;
-}
-
-function scoreLexical(
-  query: string,
-  normalizedQuery: string,
-  text: string,
-  normalizedText: string,
-): number {
-  const queryTokens = tokenize(query);
-  let tokenScore = 0;
-
-  if (queryTokens.length > 0) {
-    let hits = 0;
-    for (const token of queryTokens) {
-      if (normalizedText.includes(token)) {
-        hits += 1;
-      }
-    }
-    tokenScore = hits / queryTokens.length;
-  }
-
-  if (!normalizedQuery) {
-    return tokenScore;
-  }
-
-  if (normalizedText.includes(normalizedQuery)) {
-    const spanBoost = normalizedQuery.length / Math.max(text.length, normalizedQuery.length);
-    return Math.max(tokenScore, 1 + spanBoost);
-  }
-
-  return tokenScore;
 }
 
 function compareRankedHits(left: RankedHit, right: RankedHit): number {
@@ -210,11 +144,11 @@ function summarize(entry: Entry): EntrySummary {
   };
 }
 
-function toSearchResult(entry: Entry, score: number, language: SearchLanguage): SearchResult {
+function toSearchResult(entry: Entry, score: number): SearchResult {
   return {
     ...summarize(entry),
     score,
-    textLength: language === 'zh' ? entry.zhLength : entry.enLength,
+    textLength: entry.enLength,
   };
 }
 
@@ -364,10 +298,7 @@ function buildCueTimeDistribution(
 }
 
 async function loadDatabase(request: BootRequest): Promise<BootStats> {
-  postStatus(request.requestId, 'boot', 'Downloading and opening the SQLite asset.');
-
-  const start = performance.now();
-  const response = await fetch(request.dbUrl, { cache: 'no-cache' });
+  const response = await fetch(request.dbUrl);
   if (!response.ok) {
     throw new Error(`Failed to download ${request.dbUrl} (${response.status}).`);
   }
@@ -418,8 +349,6 @@ async function loadDatabase(request: BootRequest): Promise<BootStats> {
       blockName,
       startMs,
       endMs,
-      enNorm: normalizeText(en),
-      zhNorm: normalizeText(zh),
       enLength: en.length,
       zhLength: zh.length,
     };
@@ -437,10 +366,9 @@ async function loadDatabase(request: BootRequest): Promise<BootStats> {
   }
 
   textStatement.free();
-  postStatus(request.requestId, 'boot', `Loaded ${entries.length.toLocaleString()} TM rows. Reading vector table.`);
 
   const semanticIndexes: number[] = [];
-  const vectors: number[] = [];
+  const vectorRows: Float32Array[] = [];
   let vectorDim = 0;
 
   const vectorStatement = db.prepare(`
@@ -451,7 +379,7 @@ async function loadDatabase(request: BootRequest): Promise<BootStats> {
     ORDER BY m.video_id, m.seg_index
   `);
 
-  vectorStatement.bind({ $vectorModelId: request.vectorModelId });
+  vectorStatement.bind({ $vectorModelId: VECTOR_MODEL_ID });
 
   while (vectorStatement.step()) {
     const row = vectorStatement.getAsObject() as Record<string, string | number | SqlBlob | null>;
@@ -486,70 +414,45 @@ async function loadDatabase(request: BootRequest): Promise<BootStats> {
     }
 
     semanticIndexes.push(sourceIndex);
-    vectors.push(...toFloat32(blob, dim));
+    vectorRows.push(toFloat32(blob, dim));
   }
 
   vectorStatement.free();
   db.close();
+
+  const semanticVectors = new Float32Array(vectorRows.length * vectorDim);
+  for (let rowIndex = 0; rowIndex < vectorRows.length; rowIndex += 1) {
+    semanticVectors.set(vectorRows[rowIndex]!, rowIndex * vectorDim);
+  }
 
   state = {
     entries,
     entryById,
     videoGroups,
     semanticEntryIndexes: Int32Array.from(semanticIndexes),
-    semanticVectors: Float32Array.from(vectors),
+    semanticVectors,
     vectorDim,
-    vectorModelId: request.vectorModelId,
-    queryModelId: request.queryModelId,
   };
 
-  const loadMs = performance.now() - start;
-  const rowCounts = Array.from(videoGroups.values(), (group) => group.length);
-  const enLengths = entries.map((entry) => entry.enLength);
-  const zhLengths = entries.map((entry) => entry.zhLength);
   const cueTimeDistribution = buildCueTimeDistribution(entries, videoGroups);
-  postStatus(request.requestId, 'boot', 'SQLite asset is ready.');
 
   return {
-    dbUrl: request.dbUrl,
-    dbSizeBytes: buffer.byteLength,
     totalEntries: entries.length,
-    vectorEntries: semanticIndexes.length,
-    vectorCoverage: entries.length === 0 ? 0 : semanticIndexes.length / entries.length,
-    vectorDim,
-    vectorModelId: request.vectorModelId,
-    queryModelId: request.queryModelId,
-    loadMs,
-    videoCount: rowCounts.length,
-    avgRowsPerVideo: average(rowCounts),
-    medianRowsPerVideo: median(rowCounts),
-    maxRowsPerVideo: rowCounts.length === 0 ? 0 : Math.max(...rowCounts),
-    medianEnLength: median(enLengths),
-    medianZhLength: median(zhLengths),
-    semanticLanguageSupport: 'en-only',
     cueTimeDistribution,
   };
 }
 
-async function ensureExtractor(modelId: string, requestId: number): Promise<Extractor> {
+async function ensureExtractor(): Promise<Extractor> {
   if (extractor) {
     return extractor;
   }
 
-  postStatus(requestId, 'model', `Loading semantic model ${modelId}.`, 'loading');
-
-  try {
-    extractor = (await pipeline('feature-extraction', modelId)) as unknown as Extractor;
-    postStatus(requestId, 'model', 'Semantic model is ready.', 'ready');
-    return extractor;
-  } catch (error) {
-    postStatus(requestId, 'model', 'Semantic model failed to load.', 'error');
-    throw error;
-  }
+  extractor = (await pipeline('feature-extraction', QUERY_MODEL_ID)) as unknown as Extractor;
+  return extractor;
 }
 
-async function embedQuery(modelId: string, requestId: number, query: string): Promise<Float32Array> {
-  const featureExtractor = await ensureExtractor(modelId, requestId);
+async function embedQuery(query: string): Promise<Float32Array> {
+  const featureExtractor = await ensureExtractor();
   const output = (await featureExtractor(query, {
     pooling: 'mean',
     normalize: true,
@@ -558,41 +461,11 @@ async function embedQuery(modelId: string, requestId: number, query: string): Pr
   return data instanceof Float32Array ? data : Float32Array.from(data);
 }
 
-async function warmSemanticModel(modelId: string, requestId: number): Promise<void> {
-  await embedQuery(modelId, requestId, 'Warm semantic search.');
-}
-
-function searchLexical(request: SearchRequest, loaded: LoadedState): SearchResult[] {
-  const query = request.query.trim();
-  const normalizedQuery = normalizeText(query);
-  const topHits: RankedHit[] = [];
-
-  for (let index = 0; index < loaded.entries.length; index += 1) {
-    const entry = loaded.entries[index];
-    if (!entry) {
-      continue;
-    }
-
-    const text = request.language === 'zh' ? entry.zh : entry.en;
-    const normalizedText = request.language === 'zh' ? entry.zhNorm : entry.enNorm;
-    const textLength = request.language === 'zh' ? entry.zhLength : entry.enLength;
-
-    if (request.minLength > 0 && textLength < request.minLength) {
-      continue;
-    }
-
-    const score = scoreLexical(query, normalizedQuery, text, normalizedText);
-    if (score > 0 && score >= request.minScore) {
-      pushRankedHit(topHits, { entryIndex: index, score }, request.topK);
-    }
-  }
-
-  return topHits.map(({ entryIndex, score }) =>
-    toSearchResult(loaded.entries[entryIndex]!, score, request.language),
-  );
-}
-
-function searchSemantic(request: SearchRequest, loaded: LoadedState, queryVector: Float32Array): SearchResult[] {
+function searchSemantic(
+  request: SearchRequest,
+  loaded: LoadedState,
+  queryVector: Float32Array,
+): SearchResult[] {
   const topHits: RankedHit[] = [];
 
   for (let row = 0; row < loaded.semanticEntryIndexes.length; row += 1) {
@@ -622,9 +495,7 @@ function searchSemantic(request: SearchRequest, loaded: LoadedState, queryVector
     }
   }
 
-  return topHits.map(({ entryIndex, score }) =>
-    toSearchResult(loaded.entries[entryIndex]!, score, 'en'),
-  );
+  return topHits.map(({ entryIndex, score }) => toSearchResult(loaded.entries[entryIndex]!, score));
 }
 
 async function handleSearch(request: SearchRequest): Promise<{ results: SearchResult[]; note?: string }> {
@@ -635,17 +506,6 @@ async function handleSearch(request: SearchRequest): Promise<{ results: SearchRe
     return { results: [] };
   }
 
-  if (request.mode === 'lexical') {
-    return { results: searchLexical(request, loaded) };
-  }
-
-  if (request.language !== 'en') {
-    return {
-      results: [],
-      note: MODEL_LANGUAGE_NOTE,
-    };
-  }
-
   if (loaded.vectorDim === 0 || loaded.semanticEntryIndexes.length === 0) {
     return {
       results: [],
@@ -653,7 +513,7 @@ async function handleSearch(request: SearchRequest): Promise<{ results: SearchRe
     };
   }
 
-  const queryVector = await embedQuery(loaded.queryModelId, request.requestId, query);
+  const queryVector = await embedQuery(query);
   if (queryVector.length !== loaded.vectorDim) {
     throw new Error(
       `Query vector dimension mismatch: expected ${loaded.vectorDim}, got ${queryVector.length}.`,
@@ -702,7 +562,7 @@ function handleContext(request: ContextRequest): ContextItem[] {
   return context;
 }
 
-function handleTranscript(request: { videoId: string; focusEntryId?: string }): ContextItem[] {
+function handleTranscript(request: TranscriptRequest): ContextItem[] {
   const loaded = ensureState();
   const group = loaded.videoGroups.get(request.videoId);
 
@@ -733,9 +593,6 @@ workerScope.addEventListener('message', async (event: MessageEvent<WorkerRequest
     switch (request.kind) {
       case 'boot': {
         const stats = await loadDatabase(request);
-        if (stats.vectorEntries > 0) {
-          await warmSemanticModel(request.queryModelId, request.requestId);
-        }
         post({
           kind: 'boot:ok',
           requestId: request.requestId,
