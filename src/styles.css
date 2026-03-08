@@ -277,6 +277,7 @@ button {
   z-index: 1;
   filter:
     blur(var(--startup-focus-blur))
+    grayscale(calc((1 - var(--startup-focus-progress)) * 0.96))
     saturate(calc(0.92 + (var(--startup-focus-progress) * 0.08)))
     brightness(calc(0.94 + (var(--startup-focus-progress) * 0.06)));
   transform: translateY(calc((1 - var(--startup-focus-progress)) * 10px));
