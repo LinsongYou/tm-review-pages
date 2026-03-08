@@ -122,6 +122,7 @@ function App() {
   const [landscapeLoading, setLandscapeLoading] = useState(true);
   const [landscapeErrorText, setLandscapeErrorText] = useState<string | null>(null);
   const [startupRevealProgress, setStartupRevealProgress] = useState(0);
+  const [startupFocusDismissed, setStartupFocusDismissed] = useState(false);
 
   const dbUrl = useMemo(
     () => `${import.meta.env.BASE_URL}${withAssetVersion(DB_ASSET, __TM_DB_VERSION__)}`,
@@ -192,7 +193,13 @@ function App() {
   }, [landscapeUrl]);
 
   useEffect(() => {
-    if (hasSearched) {
+    if (hasSearched && !startupFocusDismissed) {
+      setStartupFocusDismissed(true);
+    }
+  }, [hasSearched, startupFocusDismissed]);
+
+  useEffect(() => {
+    if (hasSearched || startupFocusDismissed) {
       setStartupRevealProgress(1);
       return;
     }
@@ -203,6 +210,12 @@ function App() {
       frameId = 0;
       const threshold = Math.max(160, Math.min(320, window.innerHeight * 0.32));
       const nextProgress = Math.min(1, Math.max(0, window.scrollY / threshold));
+
+      if (nextProgress >= 1) {
+        setStartupFocusDismissed(true);
+        setStartupRevealProgress(1);
+        return;
+      }
 
       setStartupRevealProgress((current) =>
         Math.abs(current - nextProgress) < 0.01 ? current : nextProgress,
@@ -229,7 +242,7 @@ function App() {
       window.removeEventListener('scroll', scheduleUpdate);
       window.removeEventListener('resize', scheduleUpdate);
     };
-  }, [hasSearched]);
+  }, [hasSearched, startupFocusDismissed]);
 
   useEffect(() => {
     if (!selectedEntryId || !bootStats) {
