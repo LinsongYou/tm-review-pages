@@ -558,6 +558,10 @@ async function embedQuery(modelId: string, requestId: number, query: string): Pr
   return data instanceof Float32Array ? data : Float32Array.from(data);
 }
 
+async function warmSemanticModel(modelId: string, requestId: number): Promise<void> {
+  await embedQuery(modelId, requestId, 'Warm semantic search.');
+}
+
 function searchLexical(request: SearchRequest, loaded: LoadedState): SearchResult[] {
   const query = request.query.trim();
   const normalizedQuery = normalizeText(query);
@@ -729,6 +733,9 @@ workerScope.addEventListener('message', async (event: MessageEvent<WorkerRequest
     switch (request.kind) {
       case 'boot': {
         const stats = await loadDatabase(request);
+        if (stats.vectorEntries > 0) {
+          await warmSemanticModel(request.queryModelId, request.requestId);
+        }
         post({
           kind: 'boot:ok',
           requestId: request.requestId,
