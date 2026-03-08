@@ -1363,6 +1363,10 @@ button {
     grid-template-columns: 1fr;
   }
 
+  .semantic-detail-card {
+    min-height: 0;
+  }
+
   .semantic-detail-card--all {
     max-height: none;
   }
