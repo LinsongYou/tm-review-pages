@@ -302,6 +302,10 @@ button {
   transition: opacity 180ms ease;
 }
 
+.startup-focus-veil.is-active {
+  pointer-events: auto;
+}
+
 :root[data-theme='light'] .startup-focus-veil {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.56), rgba(255, 255, 255, 0.26) 38%, rgba(255, 255, 255, 0.1) 74%, rgba(255, 255, 255, 0.025) 100%),

@@ -696,6 +696,7 @@ function App() {
   const transcriptHasTimestamps = transcriptItems.some(
     (item) => item.startMs !== null || item.endMs !== null,
   );
+  const startupFocusActive = !hasSearched && !startupFocusDismissed && startupRevealProgress < 0.999;
   const startupFocusStyle =
     hasSearched
       ? undefined
@@ -781,7 +782,10 @@ function App() {
 
       {!hasSearched ? (
         <div className="startup-focus-shell" style={startupFocusStyle}>
-          <div className="startup-focus-veil" aria-hidden="true" />
+          <div
+            className={startupFocusActive ? 'startup-focus-veil is-active' : 'startup-focus-veil'}
+            aria-hidden="true"
+          />
 
           <div className="startup-panels-stack">
             {landscapeErrorText ? (
