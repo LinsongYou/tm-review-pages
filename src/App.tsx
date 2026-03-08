@@ -689,7 +689,7 @@ function App() {
       : ({
           ['--startup-focus-progress' as string]: startupRevealProgress.toFixed(3),
           ['--startup-focus-opacity' as string]: (1 - startupRevealProgress).toFixed(3),
-          ['--startup-focus-blur' as string]: `${(10 - startupRevealProgress * 10).toFixed(2)}px`,
+          ['--startup-focus-blur' as string]: `${(5.4 - startupRevealProgress * 5.4).toFixed(2)}px`,
         } satisfies React.CSSProperties);
 
   return (
