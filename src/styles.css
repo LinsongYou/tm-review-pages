@@ -716,6 +716,380 @@ button {
   background: var(--cluster-color);
 }
 
+.semantic-flow-chart-shell {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid var(--field-border);
+  background: var(--field-bg);
+}
+
+.semantic-flow-chart-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.semantic-flow-chart-header strong,
+.video-fingerprint-wall-header strong {
+  color: var(--text);
+  font-size: 0.86rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.semantic-flow-chart-header span,
+.video-fingerprint-wall-header span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.semantic-flow-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.semantic-flow-grid-line {
+  stroke: var(--field-border);
+  stroke-width: 1;
+  stroke-dasharray: 4 8;
+}
+
+.semantic-flow-grid-line--center {
+  stroke: var(--accent-border);
+  stroke-dasharray: none;
+}
+
+.semantic-flow-peak-band {
+  fill: var(--accent-ring);
+}
+
+.semantic-flow-area,
+.semantic-flow-ridge {
+  vector-effect: non-scaling-stroke;
+}
+
+.semantic-flow-ridge {
+  fill: none;
+  opacity: 0.34;
+}
+
+.semantic-flow-axis,
+.video-fingerprint-axis {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.semantic-flow-axis span:nth-child(2),
+.semantic-flow-axis span:nth-child(3),
+.semantic-flow-axis span:nth-child(4),
+.video-fingerprint-axis span:nth-child(2),
+.video-fingerprint-axis span:nth-child(3),
+.video-fingerprint-axis span:nth-child(4) {
+  text-align: center;
+}
+
+.semantic-flow-axis span:last-child,
+.video-fingerprint-axis span:last-child {
+  text-align: right;
+}
+
+.semantic-flow-subnote {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+
+.semantic-flow-subnote strong {
+  color: var(--muted-strong);
+}
+
+.semantic-flow-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.semantic-flow-stat,
+.video-fingerprint-detail-card,
+.video-fingerprint-row {
+  border-radius: 16px;
+  border: 1px solid var(--card-border);
+  background: var(--card-bg);
+}
+
+.semantic-flow-stat {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+}
+
+.semantic-flow-stat span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.semantic-flow-stat strong {
+  color: var(--text);
+  font-family: "IBM Plex Serif", Georgia, serif;
+  font-size: 1.12rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.semantic-flow-legend {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.semantic-flow-legend-item {
+  --cluster-color: var(--accent);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--field-border);
+  background: var(--field-bg);
+}
+
+.semantic-flow-legend-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--cluster-color);
+}
+
+.semantic-flow-legend-name {
+  min-width: 0;
+  color: var(--muted-strong);
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
+.semantic-flow-legend-item strong {
+  color: var(--text);
+  font-size: 0.86rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.video-fingerprint-workspace {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.68fr) minmax(0, 1.32fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.video-fingerprint-detail-card {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  align-content: start;
+}
+
+.video-fingerprint-detail-header,
+.video-fingerprint-detail-title,
+.video-fingerprint-detail-stats,
+.video-fingerprint-top-clusters {
+  display: grid;
+  gap: 8px;
+}
+
+.video-fingerprint-detail-title span,
+.video-fingerprint-detail-stats span {
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.video-fingerprint-wall-shell {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid var(--field-border);
+  background: var(--field-bg);
+}
+
+.video-fingerprint-wall-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.video-fingerprint-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 10px;
+  max-height: min(72vh, 900px);
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
+}
+
+.video-fingerprint-row {
+  display: grid;
+  grid-template-columns: minmax(230px, 0.54fr) minmax(0, 1fr);
+  gap: 14px;
+  padding: 12px;
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease;
+}
+
+.video-fingerprint-row.is-active,
+.video-fingerprint-row:hover,
+.video-fingerprint-row:focus-visible {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+}
+
+.video-fingerprint-row:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.video-fingerprint-row-meta,
+.video-fingerprint-row-title,
+.video-fingerprint-row-labels,
+.video-fingerprint-top-row {
+  display: grid;
+  gap: 8px;
+}
+
+.video-fingerprint-row-title span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.video-fingerprint-row-labels {
+  gap: 6px;
+}
+
+.video-fingerprint-cluster-chip,
+.video-fingerprint-secondary-label {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  line-height: 1;
+}
+
+.video-fingerprint-cluster-chip {
+  --cluster-color: var(--accent);
+  border: 1px solid var(--cluster-color);
+  color: var(--cluster-color);
+  background: color-mix(in srgb, var(--cluster-color) 10%, transparent);
+}
+
+.video-fingerprint-secondary-label {
+  border: 1px solid var(--field-border);
+  color: var(--muted-strong);
+  background: var(--panel);
+}
+
+.video-fingerprint-row-visual {
+  display: grid;
+  align-items: center;
+  min-width: 0;
+}
+
+.video-fingerprint-strip {
+  --fingerprint-columns: 32;
+  display: grid;
+  grid-template-columns: repeat(var(--fingerprint-columns), minmax(0, 1fr));
+  gap: 3px;
+  align-items: center;
+}
+
+.video-fingerprint-strip--compact {
+  gap: 2px;
+}
+
+.video-fingerprint-cell {
+  display: block;
+  min-width: 0;
+  height: 14px;
+  border-radius: 999px;
+}
+
+.video-fingerprint-strip--compact .video-fingerprint-cell {
+  height: 12px;
+}
+
+.video-fingerprint-cell--empty {
+  border: 1px solid var(--field-border);
+}
+
+.video-fingerprint-top-row {
+  gap: 6px;
+}
+
+.video-fingerprint-top-meta {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.video-fingerprint-top-meta strong {
+  color: var(--text);
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
+.video-fingerprint-top-meta span:last-child {
+  color: var(--muted);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.video-fingerprint-top-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+}
+
+.video-fingerprint-top-bar-track {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--field-bg);
+}
+
+.video-fingerprint-top-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+}
+
 .time-distribution-chart-shell {
   display: grid;
   gap: 12px;
@@ -1359,6 +1733,7 @@ button {
 
 @media (max-width: 1180px) {
   .semantic-workspace,
+  .video-fingerprint-workspace,
   .workspace {
     grid-template-columns: 1fr;
   }
@@ -1372,6 +1747,12 @@ button {
   }
 
   .semantic-detail-card--all .cluster-ranking-list--embedded {
+    overflow-y: visible;
+    padding-right: 0;
+  }
+
+  .video-fingerprint-list {
+    max-height: none;
     overflow-y: visible;
     padding-right: 0;
   }
@@ -1442,6 +1823,10 @@ button {
   }
 
   .semantic-detail-result-header {
+    grid-template-columns: 1fr;
+  }
+
+  .video-fingerprint-row {
     grid-template-columns: 1fr;
   }
 
@@ -1531,6 +1916,11 @@ button {
     gap: 4px;
   }
 
+  .semantic-flow-stats,
+  .semantic-flow-legend {
+    grid-template-columns: 1fr;
+  }
+
   .semantic-cluster-strip {
     gap: 8px;
     padding-bottom: 4px;
@@ -1553,6 +1943,23 @@ button {
   .context-item,
   .result-copy {
     padding: 12px;
+  }
+
+  .video-fingerprint-detail-card,
+  .video-fingerprint-wall-shell {
+    padding: 14px;
+  }
+
+  .video-fingerprint-list {
+    gap: 8px;
+  }
+
+  .video-fingerprint-row {
+    padding: 10px;
+  }
+
+  .video-fingerprint-cell {
+    height: 12px;
   }
 
   .result-header {
@@ -1615,8 +2022,18 @@ button {
     align-items: start;
   }
 
+  .semantic-flow-chart-header,
+  .video-fingerprint-wall-header,
+  .video-fingerprint-top-meta {
+    align-items: start;
+  }
+
   .result-header,
   .cluster-ranking-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .video-fingerprint-top-meta {
     grid-template-columns: 1fr;
   }
 

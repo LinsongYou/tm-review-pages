@@ -17,125 +17,468 @@ CLUSTER_COUNT = 10
 PCA_ITERATIONS = 18
 RANDOM_SEED = 7
 PERCENTILE_CLIP = 0.02
+FLOW_BIN_COUNT = 24
+FINGERPRINT_BIN_COUNT = 32
 TOKEN_RE = re.compile(r"[A-Za-z0-9']+")
 STOPWORDS = {
-    "the",
     "a",
+    "about",
+    "actually",
+    "after",
+    "again",
+    "all",
+    "almost",
+    "also",
+    "am",
     "an",
     "and",
-    "or",
-    "but",
-    "if",
-    "so",
-    "to",
-    "of",
-    "in",
-    "on",
-    "for",
-    "with",
-    "at",
-    "by",
-    "from",
-    "up",
-    "out",
-    "off",
+    "any",
+    "anyway",
+    "are",
+    "around",
     "as",
+    "at",
+    "back",
+    "basically",
+    "be",
+    "because",
+    "been",
+    "being",
+    "best",
+    "bit",
+    "but",
+    "by",
+    "can",
+    "car",
+    "cars",
+    "come",
+    "could",
+    "day",
+    "did",
+    "do",
+    "does",
+    "doing",
+    "done",
+    "dont",
+    "down",
+    "drive",
+    "driving",
+    "even",
+    "every",
+    "first",
+    "for",
+    "from",
+    "get",
+    "getting",
+    "go",
+    "going",
+    "gone",
+    "gonna",
+    "good",
+    "got",
+    "great",
+    "had",
+    "has",
+    "have",
+    "having",
+    "he",
+    "hello",
+    "here",
+    "how",
+    "i",
+    "if",
+    "im",
+    "in",
+    "into",
     "is",
     "it",
     "its",
-    "this",
-    "that",
-    "these",
-    "those",
-    "i",
-    "you",
-    "we",
-    "they",
-    "he",
-    "she",
-    "me",
-    "my",
-    "our",
-    "their",
-    "be",
-    "am",
-    "are",
-    "was",
-    "were",
-    "been",
-    "being",
-    "do",
-    "does",
-    "did",
-    "done",
-    "have",
-    "has",
-    "had",
-    "will",
-    "would",
-    "can",
-    "could",
-    "should",
+    "ive",
     "just",
+    "kind",
+    "kinds",
+    "know",
+    "last",
+    "lets",
     "like",
-    "yeah",
-    "yes",
+    "little",
+    "look",
+    "lot",
+    "lots",
+    "made",
+    "many",
+    "maybe",
+    "me",
+    "mean",
+    "more",
+    "most",
+    "much",
+    "my",
+    "need",
+    "never",
+    "nice",
     "no",
     "not",
+    "now",
+    "of",
+    "off",
     "oh",
     "okay",
-    "all",
-    "right",
-    "really",
-    "very",
+    "on",
+    "one",
+    "only",
+    "or",
+    "other",
+    "our",
+    "out",
+    "over",
     "pretty",
-    "much",
+    "probably",
+    "quite",
+    "really",
+    "right",
+    "said",
+    "say",
+    "see",
+    "she",
+    "should",
+    "so",
+    "some",
+    "something",
+    "still",
+    "such",
+    "than",
+    "thank",
+    "thanks",
+    "that",
+    "thats",
+    "the",
+    "their",
+    "them",
+    "then",
     "there",
-    "here",
+    "these",
+    "they",
+    "thing",
+    "think",
+    "this",
+    "those",
+    "three",
+    "through",
+    "time",
+    "to",
+    "too",
+    "two",
+    "up",
+    "us",
+    "very",
+    "was",
+    "way",
+    "we",
+    "well",
+    "went",
+    "were",
     "what",
     "when",
     "where",
+    "which",
+    "while",
     "who",
-    "how",
     "why",
-    "one",
-    "two",
-    "three",
-    "got",
-    "get",
-    "going",
-    "go",
-    "come",
-    "now",
-    "well",
-    "also",
-    "because",
-    "know",
-    "think",
-    "some",
-    "more",
-    "see",
-    "bit",
-    "lets",
-    "then",
-    "maybe",
-    "need",
-    "something",
-    "still",
-    "about",
-    "even",
-    "gonna",
-    "too",
-    "first",
-    "say",
-    "dont",
-    "thats",
-    "good",
-    "nice",
-    "car",
-    "cars",
-    "time",
+    "will",
+    "with",
+    "would",
+    "yeah",
+    "yes",
+    "you",
+    "your",
+    "let",
+    "s",
 }
+GENERIC_LABEL_TOKENS = {
+    "awesome",
+    "book",
+    "books",
+    "cool",
+    "day",
+    "great",
+    "hello",
+    "loved",
+    "merino",
+    "nice",
+    "okay",
+    "russian",
+    "statesidesupercars",
+    "tuned",
+    "video",
+    "wool",
+    "write",
+}
+LABEL_CANONICAL = {
+    "batteries": "Battery",
+    "battery": "Battery",
+    "book": "Book",
+    "books": "Books",
+    "brake": "Brake",
+    "brakes": "Brakes",
+    "caliper": "Caliper",
+    "calipers": "Calipers",
+    "charging": "Charging",
+    "chassis": "Chassis",
+    "conditions": "Conditions",
+    "feedback": "Feedback",
+    "gearbox": "Gearbox",
+    "grip": "Grip",
+    "lap": "Lap",
+    "laps": "Laps",
+    "music": "Music",
+    "outro": "Outro",
+    "playlist": "Playlist",
+    "power": "Power",
+    "range": "Range",
+    "record": "Record",
+    "speed": "Speed",
+    "suspension": "Suspension",
+    "throttle": "Throttle",
+    "track": "Track",
+    "tyre": "Tyre",
+    "tyres": "Tyres",
+    "wheel": "Wheel",
+    "wheels": "Wheels",
+}
+THEME_RULES = [
+    (
+        "Brakes, Grip & Chassis",
+        {
+            "aero",
+            "brake",
+            "brakes",
+            "braking",
+            "caliper",
+            "calipers",
+            "carousel",
+            "chassis",
+            "compliance",
+            "cup tyres",
+            "grip",
+            "handling",
+            "pressure",
+            "suspension",
+            "traction",
+            "tyre",
+            "tyre pressure",
+            "tyres",
+            "wheel",
+            "wheelbase",
+            "wheels",
+        },
+    ),
+    (
+        "Suspension & Front-End Setup",
+        {
+            "camber",
+            "compression",
+            "dampers",
+            "front",
+            "front end",
+            "oil",
+            "setup",
+            "splitter",
+            "suspension",
+        },
+    ),
+    (
+        "Powertrain, Charging & Range",
+        {
+            "battery",
+            "charge",
+            "charging",
+            "electric",
+            "engine",
+            "engines",
+            "gearbox",
+            "horsepower",
+            "kilowatts",
+            "motor",
+            "power",
+            "range",
+            "rpm",
+            "torque",
+        },
+    ),
+    (
+        "Lap Times & Conditions",
+        {
+            "conditions",
+            "lap",
+            "lap time",
+            "laps",
+            "minutes",
+            "rain",
+            "record",
+            "seconds",
+            "speed",
+            "timing",
+            "track conditions",
+            "wet",
+        },
+    ),
+    (
+        "Track Access & Logistics",
+        {
+            "closed",
+            "entry",
+            "logistics",
+            "marshal",
+            "overtake",
+            "overtakes",
+            "parking",
+            "pass",
+            "passengers",
+            "rental",
+            "rent",
+            "road",
+            "roads",
+            "session",
+            "track",
+            "track day",
+            "traffic",
+        },
+    ),
+    (
+        "Road Speed & Usability",
+        {
+            "daily",
+            "highway",
+            "kilometers",
+            "license",
+            "license plate",
+            "per hour",
+            "plate",
+            "road",
+            "speed",
+            "street",
+        },
+    ),
+    (
+        "Driving Technique & Feedback",
+        {
+            "balance",
+            "bumps",
+            "corner",
+            "corners",
+            "feedback",
+            "full throttle",
+            "heel",
+            "line",
+            "rolling",
+            "speedometer",
+            "steer",
+            "steering",
+            "throttle",
+            "trail",
+            "transition",
+            "turn",
+            "turning",
+        },
+    ),
+    (
+        "Build Plans & Hardware",
+        {
+            "aero",
+            "build",
+            "carbon",
+            "cage",
+            "fiber",
+            "heavier",
+            "lighter",
+            "parts",
+            "strip",
+            "stripped",
+            "upgrade",
+            "weight",
+            "wing",
+        },
+    ),
+    (
+        "Mods, Styling & Materials",
+        {
+            "carpets",
+            "color",
+            "interior",
+            "looks",
+            "material",
+            "materials",
+            "merino",
+            "mods",
+            "rebuild",
+            "styling",
+            "wool",
+            "wrap",
+            "wrapped",
+        },
+    ),
+    (
+        "Video Production & Outro",
+        {
+            "book",
+            "books",
+            "filming",
+            "music",
+            "outro",
+            "playlist",
+            "recording",
+            "share",
+            "subscribe",
+            "tomorrow",
+            "video",
+            "youtube",
+        },
+    ),
+    (
+        "Positive Reactions & Thanks",
+        {
+            "alright",
+            "alrighty",
+            "amazing",
+            "enjoyed",
+            "hope enjoyed",
+            "welcome",
+        },
+    ),
+    (
+        "Short Reactions & Fillers",
+        {
+            "alright",
+            "amazing",
+            "awesome",
+            "banter",
+            "crazy",
+            "fun",
+            "insane",
+            "joke",
+            "laugh",
+            "loved",
+            "nice",
+            "welcome",
+            "wow",
+        },
+    ),
+    (
+        "Group Banter & Setups",
+        {
+            "follow",
+            "fun",
+            "line up",
+            "passenger",
+            "passengers",
+            "setup",
+            "show",
+            "take",
+            "try",
+        },
+    ),
+]
 PALETTE = [
     "#84a98c",
     "#f4a261",
@@ -147,30 +490,6 @@ PALETTE = [
     "#7fb069",
     "#6d597a",
     "#4d908e",
-]
-CLUSTER_LABEL_OVERRIDES = {
-    "tm_misha_minilm.db": {
-        0: "Track Access & Overtakes",
-        1: "Reactions & Appreciation",
-        2: "Trackside Logistics & Retakes",
-        3: "Powertrain & Performance Specs",
-        4: "Wheels, Brakes & Chassis",
-        5: "Build Plans & Weight",
-        6: "Track Feel & Compliance",
-        7: "Driver Commentary & Notes",
-        8: "Conversation & Outro Beats",
-        9: "Lap Times & Track Conditions",
-    }
-}
-LABEL_HINTS = [
-    ("Track Access & Logistics", {"track", "marshal", "closed", "overtake", "pass", "earplugs", "headlights"}),
-    ("Reactions & Appreciation", {"thank", "wow", "great", "nice", "loved", "happy", "feedback"}),
-    ("Powertrain & Performance Specs", {"engine", "engines", "gearbox", "horsepower", "power", "rpm", "torque"}),
-    ("Wheels, Brakes & Chassis", {"wheel", "wheels", "brake", "brakes", "calipers", "aerodynamics", "aero"}),
-    ("Build Plans & Weight", {"weight", "carbon", "fiber", "metal", "stripped", "build", "cage"}),
-    ("Track Feel & Driving Technique", {"bumps", "heel", "transition", "driving", "turning", "trail", "rolling"}),
-    ("Channel Talk & Outros", {"subscribe", "bye", "recording", "books", "code", "content", "tuned"}),
-    ("Lap Times & Conditions", {"laps", "lap", "rain", "wet", "parking", "trail", "conditions"}),
 ]
 
 
@@ -195,6 +514,49 @@ def scale_value(value: float, low: float, high: float) -> int:
 
     clamped = min(high, max(low, value))
     return round(((clamped - low) / (high - low)) * 1000)
+
+
+def normalize_token(token: str) -> str:
+    normalized = token.lower().strip("'")
+    for suffix in ("'s", "'re", "'ve", "'ll", "'m", "'d", "n't"):
+        if normalized.endswith(suffix) and len(normalized) > len(suffix):
+            normalized = normalized[: -len(suffix)]
+            break
+    return normalized
+
+
+def tokenize(text: str) -> list[str]:
+    tokens: list[str] = []
+    for token in TOKEN_RE.findall(text):
+        normalized = normalize_token(token)
+        if normalized:
+            tokens.append(normalized)
+    return tokens
+
+
+def content_tokens(text: str) -> list[str]:
+    return [
+        token
+        for token in tokenize(text)
+        if len(token) > 2 and token not in STOPWORDS and not token.isdigit()
+    ]
+
+
+def extract_keyphrases(text: str) -> list[str]:
+    tokens = content_tokens(text)
+    phrases: list[str] = []
+
+    for token in tokens:
+        phrases.append(token)
+
+    for index in range(len(tokens) - 1):
+        left = tokens[index]
+        right = tokens[index + 1]
+        if left == right:
+            continue
+        phrases.append(f"{left} {right}")
+
+    return phrases
 
 
 def kmeans_2d(points: list[tuple[float, float]], cluster_count: int) -> tuple[list[int], list[tuple[float, float]]]:
@@ -230,44 +592,340 @@ def kmeans_2d(points: list[tuple[float, float]], cluster_count: int) -> tuple[li
     return assignments, [(center[0], center[1]) for center in centers]
 
 
+def to_bin_index(value: float, bin_count: int) -> int:
+    clamped = min(0.999999, max(0.0, value))
+    return min(bin_count - 1, max(0, int(clamped * bin_count)))
+
+
+def format_progress_label(start: float, end: float) -> str:
+    start_percent = round(start * 100)
+    end_percent = round(end * 100)
+    if start_percent == end_percent:
+        return f"{start_percent}%"
+    return f"{start_percent}% - {end_percent}%"
+
+
 def titleize_keyword(keyword: str) -> str:
-    return keyword.replace("_", " ").replace("-", " ").title()
+    words = [LABEL_CANONICAL.get(word, word.title()) for word in keyword.split()]
+    return " ".join(words)
+
+
+def build_fallback_label(keywords: list[str], used_labels: set[str]) -> str:
+    parts: list[str] = []
+
+    for keyword in keywords:
+        if keyword in GENERIC_LABEL_TOKENS:
+            continue
+        titled = titleize_keyword(keyword)
+        if not titled or titled in parts:
+            continue
+        parts.append(titled)
+        if len(parts) == 2:
+            break
+
+    if len(parts) >= 2:
+        candidate = f"{parts[0]} & {parts[1]}"
+    elif parts:
+        candidate = parts[0]
+    else:
+        candidate = "Semantic Region"
+
+    if candidate not in used_labels:
+        return candidate
+
+    suffix = 2
+    while f"{candidate} {suffix}" in used_labels:
+        suffix += 1
+    return f"{candidate} {suffix}"
+
+
+def score_theme_labels(keywords: list[str], samples: list[dict[str, object]]) -> list[tuple[float, str]]:
+    weighted_terms: Counter[str] = Counter()
+
+    for rank, keyword in enumerate(keywords[:6]):
+        weight = max(1.0, 6.0 - rank)
+        weighted_terms[keyword] += weight * 1.4
+        for token in tokenize(keyword):
+            if token not in STOPWORDS:
+                weighted_terms[token] += weight
+
+    for sample in samples:
+        for token in content_tokens(str(sample["en"])):
+            weighted_terms[token] += 0.4
+
+    scored: list[tuple[float, str]] = []
+    for label, hints in THEME_RULES:
+        score = 0.0
+        for term, weight in weighted_terms.items():
+            if term in hints:
+                score += weight * (1.3 if " " in term else 1.0)
+                continue
+
+            token_overlap = len(set(term.split()).intersection(hints))
+            if token_overlap:
+                score += weight * token_overlap * 0.55
+
+        if score > 0:
+            scored.append((score, label))
+
+    scored.sort(key=lambda item: (-item[0], item[1]))
+    return scored
 
 
 def infer_cluster_label(
-    source_db: str,
-    cluster_id: int,
     keywords: list[str],
     samples: list[dict[str, object]],
+    used_labels: set[str],
 ) -> str:
-    override = CLUSTER_LABEL_OVERRIDES.get(source_db, {}).get(cluster_id)
-    if override:
-        return override
+    for score, label in score_theme_labels(keywords, samples):
+        if score >= 5.5 and label not in used_labels:
+            return label
 
-    observed = set(keywords)
-    for sample in samples:
-        for token in TOKEN_RE.findall(str(sample["en"]).lower()):
-            if len(token) > 2 and token not in STOPWORDS:
-                observed.add(token)
+    return build_fallback_label(keywords, used_labels)
 
-    best_label = ""
-    best_score = 0
-    for label, hints in LABEL_HINTS:
-        score = len(observed.intersection(hints))
-        if score > best_score:
-            best_label = label
-            best_score = score
 
-    if best_score > 0:
-        return best_label
+def build_cluster_keyword_scores(
+    metadata: list[dict[str, object]],
+    assignments: list[int],
+) -> dict[int, list[str]]:
+    global_counts: Counter[str] = Counter()
+    cluster_counts: dict[int, Counter[str]] = defaultdict(Counter)
+    global_video_support: defaultdict[str, set[str]] = defaultdict(set)
+    cluster_video_support: dict[int, defaultdict[str, set[str]]] = defaultdict(lambda: defaultdict(set))
 
-    if len(keywords) >= 2:
-        return f"{titleize_keyword(keywords[0])} & {titleize_keyword(keywords[1])}"
+    for index, item in enumerate(metadata):
+        cluster_id = assignments[index]
+        video_id = str(item["videoId"])
+        phrases = extract_keyphrases(str(item["en"]))
+        if not phrases:
+            continue
 
-    if keywords:
-        return titleize_keyword(keywords[0])
+        global_counts.update(phrases)
+        cluster_counts[cluster_id].update(phrases)
 
-    return f"Cluster {cluster_id + 1}"
+        for phrase in set(phrases):
+            global_video_support[phrase].add(video_id)
+            cluster_video_support[cluster_id][phrase].add(video_id)
+
+    cluster_keywords: dict[int, list[str]] = {}
+    for cluster_id in range(CLUSTER_COUNT):
+        ranked: list[tuple[float, str]] = []
+        counts = cluster_counts[cluster_id]
+        total_cluster_videos = max(1, len({str(metadata[index]["videoId"]) for index, assigned in enumerate(assignments) if assigned == cluster_id}))
+
+        for phrase, count in counts.items():
+            phrase_word_count = phrase.count(" ") + 1
+            min_count = 3 if phrase_word_count == 1 else 2
+            if count < min_count:
+                continue
+
+            global_count = global_counts[phrase]
+            if global_count <= 0:
+                continue
+
+            video_support = len(cluster_video_support[cluster_id][phrase])
+            global_video_count = len(global_video_support[phrase])
+            if video_support < 2 or global_video_count <= 0:
+                continue
+
+            if phrase in GENERIC_LABEL_TOKENS:
+                continue
+
+            specificity = count / global_count
+            video_specificity = video_support / global_video_count
+            coverage = video_support / total_cluster_videos
+            phrase_bonus = 1.18 if phrase_word_count > 1 else 1.0
+            score = (count ** 1.05) * specificity * (1 + video_specificity) * (1 + coverage) * phrase_bonus
+            ranked.append((score, phrase))
+
+        ranked.sort(key=lambda item: (-item[0], item[1]))
+        cluster_keywords[cluster_id] = [phrase for _, phrase in ranked[:6]]
+
+    return cluster_keywords
+
+
+def build_semantic_flow(
+    metadata: list[dict[str, object]],
+    assignments: list[int],
+) -> dict[str, object]:
+    grouped: dict[str, list[int]] = defaultdict(list)
+    for index, item in enumerate(metadata):
+        grouped[str(item["videoId"])].append(index)
+
+    cluster_counts = [[0 for _ in range(CLUSTER_COUNT)] for _ in range(FLOW_BIN_COUNT)]
+    totals = [0 for _ in range(FLOW_BIN_COUNT)]
+
+    for indexes in grouped.values():
+        starts = [
+            int(metadata[index]["startMs"])
+            for index in indexes
+            if metadata[index]["startMs"] is not None and metadata[index]["endMs"] is not None
+        ]
+        ends = [
+            int(metadata[index]["endMs"])
+            for index in indexes
+            if metadata[index]["startMs"] is not None and metadata[index]["endMs"] is not None
+        ]
+
+        if not starts or not ends:
+            continue
+
+        video_start = min(starts)
+        video_end = max(ends)
+        span = max(1, video_end - video_start)
+
+        for index in indexes:
+            start_ms = metadata[index]["startMs"]
+            end_ms = metadata[index]["endMs"]
+            if start_ms is None or end_ms is None or end_ms <= start_ms:
+                continue
+
+            midpoint = ((int(start_ms) + int(end_ms)) / 2 - video_start) / span
+            bin_index = to_bin_index(midpoint, FLOW_BIN_COUNT)
+            cluster_id = assignments[index]
+            cluster_counts[bin_index][cluster_id] += 1
+            totals[bin_index] += 1
+
+    peak_total = max(totals) if totals else 0
+    peak_bin_index = totals.index(peak_total) if peak_total else 0
+    bins: list[dict[str, object]] = []
+
+    leading_cluster_id = -1
+    trailing_cluster_id = -1
+    for bin_index, total in enumerate(totals):
+        dominant_cluster_id = -1
+        if total > 0:
+            dominant_cluster_id = max(
+                range(CLUSTER_COUNT),
+                key=lambda cluster_id: (cluster_counts[bin_index][cluster_id], -cluster_id),
+            )
+            if leading_cluster_id < 0:
+                leading_cluster_id = dominant_cluster_id
+            trailing_cluster_id = dominant_cluster_id
+
+        start = bin_index / FLOW_BIN_COUNT
+        end = (bin_index + 1) / FLOW_BIN_COUNT
+        bins.append(
+            {
+                "start": start,
+                "end": end,
+                "label": format_progress_label(start, end),
+                "total": total,
+                "clusterCounts": cluster_counts[bin_index],
+                "dominantClusterId": dominant_cluster_id,
+            }
+        )
+
+    return {
+        "binCount": FLOW_BIN_COUNT,
+        "peakBinIndex": peak_bin_index,
+        "peakTotal": peak_total,
+        "leadingClusterId": leading_cluster_id,
+        "trailingClusterId": trailing_cluster_id,
+        "bins": bins,
+    }
+
+
+def build_video_fingerprint_wall(
+    metadata: list[dict[str, object]],
+    assignments: list[int],
+    scaled_points: list[tuple[int, int]],
+) -> dict[str, object]:
+    grouped: dict[str, list[int]] = defaultdict(list)
+    for index, item in enumerate(metadata):
+        grouped[str(item["videoId"])].append(index)
+
+    videos: list[dict[str, object]] = []
+    for video_id, indexes in grouped.items():
+        starts = [
+            int(metadata[index]["startMs"])
+            for index in indexes
+            if metadata[index]["startMs"] is not None and metadata[index]["endMs"] is not None
+        ]
+        ends = [
+            int(metadata[index]["endMs"])
+            for index in indexes
+            if metadata[index]["startMs"] is not None and metadata[index]["endMs"] is not None
+        ]
+
+        if starts and ends:
+            video_start = min(starts)
+            video_end = max(ends)
+        else:
+            video_start = 0
+            video_end = max(1, len(indexes))
+
+        span = max(1, video_end - video_start)
+        density_counts = [0 for _ in range(FINGERPRINT_BIN_COUNT)]
+        cluster_bin_counts = [Counter() for _ in range(FINGERPRINT_BIN_COUNT)]
+        cluster_counts = [0 for _ in range(CLUSTER_COUNT)]
+        timed_entry_count = 0
+        x_total = 0
+        y_total = 0
+
+        ordered_indexes = sorted(indexes, key=lambda index: int(metadata[index]["segIndex"]))
+        first_entry_id = str(metadata[ordered_indexes[0]]["entryId"]) if ordered_indexes else ""
+
+        for index in ordered_indexes:
+            cluster_id = assignments[index]
+            cluster_counts[cluster_id] += 1
+            x_total += scaled_points[index][0]
+            y_total += scaled_points[index][1]
+
+            start_ms = metadata[index]["startMs"]
+            end_ms = metadata[index]["endMs"]
+            if start_ms is None or end_ms is None or end_ms <= start_ms:
+                continue
+
+            timed_entry_count += 1
+            midpoint = ((int(start_ms) + int(end_ms)) / 2 - video_start) / span
+            bin_index = to_bin_index(midpoint, FINGERPRINT_BIN_COUNT)
+            density_counts[bin_index] += 1
+            cluster_bin_counts[bin_index][cluster_id] += 1
+
+        max_density = max(density_counts) if density_counts else 0
+        densities: list[float] = []
+        bins: list[int] = []
+        for bin_index in range(FINGERPRINT_BIN_COUNT):
+            density = density_counts[bin_index]
+            densities.append(round(density / max_density, 4) if max_density else 0.0)
+            if density == 0:
+                bins.append(-1)
+                continue
+            dominant_cluster_id, _ = max(
+                cluster_bin_counts[bin_index].items(),
+                key=lambda item: (item[1], -item[0]),
+            )
+            bins.append(dominant_cluster_id)
+
+        dominant_cluster_id = max(
+            range(CLUSTER_COUNT),
+            key=lambda cluster_id: (cluster_counts[cluster_id], -cluster_id),
+        )
+        entry_count = len(ordered_indexes)
+        videos.append(
+            {
+                "videoId": video_id,
+                "firstEntryId": first_entry_id,
+                "entryCount": entry_count,
+                "timedEntryCount": timed_entry_count,
+                "dominantClusterId": dominant_cluster_id,
+                "dominantShare": round(cluster_counts[dominant_cluster_id] / entry_count, 4) if entry_count else 0.0,
+                "clusterCounts": cluster_counts,
+                "bins": bins,
+                "densities": densities,
+                "x": round(x_total / entry_count) if entry_count else 500,
+                "y": round(y_total / entry_count) if entry_count else 500,
+            }
+        )
+
+    videos.sort(key=lambda item: (int(item["x"]), int(item["y"]), -int(item["entryCount"]), str(item["videoId"])))
+
+    return {
+        "binCount": FINGERPRINT_BIN_COUNT,
+        "sort": "projection-x",
+        "videos": videos,
+    }
 
 
 def main() -> None:
@@ -280,7 +938,7 @@ def main() -> None:
     rows = list(
         cursor.execute(
             """
-            SELECT m.video_id, m.seg_index, m.en, m.zh, v.vector
+            SELECT m.video_id, m.seg_index, m.en, m.zh, m.start_ms, m.end_ms, v.vector
             FROM tm_main AS m
             JOIN tm_vectors AS v USING (content_sha)
             WHERE v.model_id = ?
@@ -294,12 +952,12 @@ def main() -> None:
     if not rows:
         raise SystemExit("No semantic rows found.")
 
-    vector_dim = len(rows[0][4]) // 4
+    vector_dim = len(rows[0][6]) // 4
     vectors = array("f")
     mean = [0.0] * vector_dim
     metadata: list[dict[str, object]] = []
 
-    for video_id, seg_index, en, zh, blob in rows:
+    for video_id, seg_index, en, zh, start_ms, end_ms, blob in rows:
         unpacked = struct.unpack(f"<{vector_dim}f", blob)
         vectors.extend(unpacked)
         metadata.append(
@@ -309,6 +967,8 @@ def main() -> None:
                 "segIndex": seg_index,
                 "en": en,
                 "zh": zh,
+                "startMs": start_ms,
+                "endMs": end_ms,
             }
         )
 
@@ -368,32 +1028,17 @@ def main() -> None:
         CLUSTER_COUNT,
     )
 
-    global_counts: Counter[str] = Counter()
-    cluster_counts: dict[int, Counter[str]] = defaultdict(Counter)
     cluster_members: dict[int, list[int]] = defaultdict(list)
-
-    for index, item in enumerate(metadata):
-        cluster_id = assignments[index]
+    for index, cluster_id in enumerate(assignments):
         cluster_members[cluster_id].append(index)
-        tokens = [
-            token
-            for token in TOKEN_RE.findall(str(item["en"]).lower())
-            if len(token) > 2 and token not in STOPWORDS
-        ]
-        global_counts.update(tokens)
-        cluster_counts[cluster_id].update(tokens)
 
-    clusters = []
-    for cluster_id in range(CLUSTER_COUNT):
+    cluster_keywords = build_cluster_keyword_scores(metadata, assignments)
+
+    clusters_by_id: dict[int, dict[str, object]] = {}
+    used_labels: set[str] = set()
+    cluster_order = sorted(range(CLUSTER_COUNT), key=lambda cluster_id: (-len(cluster_members[cluster_id]), cluster_id))
+    for cluster_id in cluster_order:
         members = cluster_members[cluster_id]
-        keyword_scores = []
-        for token, count in cluster_counts[cluster_id].items():
-            if count < 5:
-                continue
-            keyword_scores.append((count / max(1, global_counts[token]), count, token))
-        keyword_scores.sort(reverse=True)
-        keywords = [token for _, _, token in keyword_scores[:5]]
-
         center_x = cluster_centers[cluster_id][0] * 1000
         center_y = cluster_centers[cluster_id][1] * 1000
         representative = sorted(
@@ -418,23 +1063,25 @@ def main() -> None:
                     "zh": item["zh"],
                 }
             )
-            if len(samples) == 3:
+            if len(samples) == 4:
                 break
 
-        label = infer_cluster_label(DB_PATH.name, cluster_id, keywords, samples)
+        keywords = cluster_keywords.get(cluster_id, [])
+        label = infer_cluster_label(keywords, samples, used_labels)
+        used_labels.add(label)
 
-        clusters.append(
-            {
-                "id": cluster_id,
-                "label": label,
-                "color": PALETTE[cluster_id % len(PALETTE)],
-                "size": len(members),
-                "x": round(center_x),
-                "y": round(center_y),
-                "keywords": keywords,
-                "samples": samples,
-            }
-        )
+        clusters_by_id[cluster_id] = {
+            "id": cluster_id,
+            "label": label,
+            "color": PALETTE[cluster_id % len(PALETTE)],
+            "size": len(members),
+            "x": round(center_x),
+            "y": round(center_y),
+            "keywords": keywords,
+            "samples": samples,
+        }
+
+    clusters = [clusters_by_id[cluster_id] for cluster_id in range(CLUSTER_COUNT)]
 
     points = []
     for index, item in enumerate(metadata):
@@ -452,7 +1099,7 @@ def main() -> None:
         )
 
     payload = {
-        "version": 1,
+        "version": 2,
         "projection": "pca-2d",
         "clusterAlgorithm": "kmeans-2d",
         "generatedAt": datetime.now(timezone.utc).isoformat(),
@@ -462,6 +1109,8 @@ def main() -> None:
         "vectorDim": vector_dim,
         "clusters": clusters,
         "points": points,
+        "semanticFlowTimeline": build_semantic_flow(metadata, assignments),
+        "videoFingerprintWall": build_video_fingerprint_wall(metadata, assignments, scaled_points),
     }
 
     OUTPUT_PATH.write_text(
