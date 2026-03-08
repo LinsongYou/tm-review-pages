@@ -121,6 +121,7 @@ function App() {
   const [landscapeData, setLandscapeData] = useState<SemanticLandscapeData | null>(null);
   const [landscapeLoading, setLandscapeLoading] = useState(true);
   const [landscapeErrorText, setLandscapeErrorText] = useState<string | null>(null);
+  const [startupRevealProgress, setStartupRevealProgress] = useState(0);
 
   const dbUrl = useMemo(
     () => `${import.meta.env.BASE_URL}${withAssetVersion(DB_ASSET, __TM_DB_VERSION__)}`,
@@ -189,6 +190,46 @@ function App() {
       controller.abort();
     };
   }, [landscapeUrl]);
+
+  useEffect(() => {
+    if (hasSearched) {
+      setStartupRevealProgress(1);
+      return;
+    }
+
+    let frameId = 0;
+
+    const updateRevealProgress = () => {
+      frameId = 0;
+      const threshold = Math.max(160, Math.min(320, window.innerHeight * 0.32));
+      const nextProgress = Math.min(1, Math.max(0, window.scrollY / threshold));
+
+      setStartupRevealProgress((current) =>
+        Math.abs(current - nextProgress) < 0.01 ? current : nextProgress,
+      );
+    };
+
+    const scheduleUpdate = () => {
+      if (frameId !== 0) {
+        return;
+      }
+
+      frameId = window.requestAnimationFrame(updateRevealProgress);
+    };
+
+    updateRevealProgress();
+    window.addEventListener('scroll', scheduleUpdate, { passive: true });
+    window.addEventListener('resize', scheduleUpdate);
+
+    return () => {
+      if (frameId !== 0) {
+        window.cancelAnimationFrame(frameId);
+      }
+
+      window.removeEventListener('scroll', scheduleUpdate);
+      window.removeEventListener('resize', scheduleUpdate);
+    };
+  }, [hasSearched]);
 
   useEffect(() => {
     if (!selectedEntryId || !bootStats) {
@@ -642,6 +683,14 @@ function App() {
   const transcriptHasTimestamps = transcriptItems.some(
     (item) => item.startMs !== null || item.endMs !== null,
   );
+  const startupFocusStyle =
+    hasSearched
+      ? undefined
+      : ({
+          ['--startup-focus-progress' as string]: startupRevealProgress.toFixed(3),
+          ['--startup-focus-opacity' as string]: (1 - startupRevealProgress).toFixed(3),
+          ['--startup-focus-blur' as string]: `${(10 - startupRevealProgress * 10).toFixed(2)}px`,
+        } satisfies React.CSSProperties);
 
   return (
     <main className="app-shell">
@@ -718,66 +767,69 @@ function App() {
       ) : null}
 
       {!hasSearched ? (
-        <>
-          {landscapeErrorText ? (
-            <section className="panel message error-message">
-              <strong>Semantic Landscape</strong>
-              <p>{landscapeErrorText}</p>
-            </section>
-          ) : landscapeLoading ? (
-            <section className="panel startup-panel semantic-panel semantic-panel--loading">
-              <div className="panel-header semantic-panel-header">
-                <div className="results-heading">
-                  <h2>Semantic Landscape</h2>
-                  <span>Preparing the precomputed startup distribution…</span>
-                </div>
-              </div>
-              <div className="empty-state">
-                <p>Loading all-entry semantic coordinates…</p>
-              </div>
-            </section>
-          ) : landscapeData ? (
-            <>
-              {/* Optional startup panels remain implemented but are intentionally not rendered by default. */}
-              <SemanticLandscapePanel
-                data={landscapeData}
-                theme={theme}
-                onOpenTranscript={(videoId, focusEntryId) => {
-                  void openTranscript(videoId, focusEntryId);
-                }}
-              />
-            </>
-          ) : null}
+        <div className="startup-focus-shell" style={startupFocusStyle}>
+          <div className="startup-focus-veil" aria-hidden="true" />
 
-          {booting ? (
-            <section className="panel semantic-panel time-distribution-panel time-distribution-panel--loading">
-              <div className="panel-header semantic-panel-header">
-                <div className="results-heading">
-                  <h2>Time Distribution</h2>
-                  <span>Preparing the normalized subtitle-timing distribution…</span>
+          <div className="startup-panels-stack">
+            {landscapeErrorText ? (
+              <section className="panel message error-message">
+                <strong>Semantic Landscape</strong>
+                <p>{landscapeErrorText}</p>
+              </section>
+            ) : landscapeLoading ? (
+              <section className="panel startup-panel semantic-panel semantic-panel--loading">
+                <div className="panel-header semantic-panel-header">
+                  <div className="results-heading">
+                    <h2>Semantic Landscape</h2>
+                    <span>Preparing the precomputed startup distribution…</span>
+                  </div>
                 </div>
-              </div>
-              <div className="empty-state">
-                <p>Aggregating cue coverage from subtitle timestamps…</p>
-              </div>
-            </section>
-          ) : bootStats?.cueTimeDistribution ? (
-            <CueTimeDistributionPanel data={bootStats.cueTimeDistribution} />
-          ) : bootStats ? (
-            <section className="panel semantic-panel time-distribution-panel">
-              <div className="panel-header semantic-panel-header">
-                <div className="results-heading">
-                  <h2>Time Distribution</h2>
-                  <span>No complete subtitle timing spans were found in this TM snapshot.</span>
+                <div className="empty-state">
+                  <p>Loading all-entry semantic coordinates…</p>
                 </div>
-              </div>
-              <div className="empty-state">
-                <p>Load a database with cue-level `start_ms` and `end_ms` values to populate this view.</p>
-              </div>
-            </section>
-          ) : null}
+              </section>
+            ) : landscapeData ? (
+              <>
+                {/* Optional startup panels remain implemented but are intentionally not rendered by default. */}
+                <SemanticLandscapePanel
+                  data={landscapeData}
+                  theme={theme}
+                  onOpenTranscript={(videoId, focusEntryId) => {
+                    void openTranscript(videoId, focusEntryId);
+                  }}
+                />
+              </>
+            ) : null}
 
-        </>
+            {booting ? (
+              <section className="panel semantic-panel time-distribution-panel time-distribution-panel--loading">
+                <div className="panel-header semantic-panel-header">
+                  <div className="results-heading">
+                    <h2>Time Distribution</h2>
+                    <span>Preparing the normalized subtitle-timing distribution…</span>
+                  </div>
+                </div>
+                <div className="empty-state">
+                  <p>Aggregating cue coverage from subtitle timestamps…</p>
+                </div>
+              </section>
+            ) : bootStats?.cueTimeDistribution ? (
+              <CueTimeDistributionPanel data={bootStats.cueTimeDistribution} />
+            ) : bootStats ? (
+              <section className="panel semantic-panel time-distribution-panel">
+                <div className="panel-header semantic-panel-header">
+                  <div className="results-heading">
+                    <h2>Time Distribution</h2>
+                    <span>No complete subtitle timing spans were found in this TM snapshot.</span>
+                  </div>
+                </div>
+                <div className="empty-state">
+                  <p>Load a database with cue-level `start_ms` and `end_ms` values to populate this view.</p>
+                </div>
+              </section>
+            ) : null}
+          </div>
+        </div>
       ) : null}
 
       {hasSearched ? (
