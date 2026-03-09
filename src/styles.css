@@ -1908,18 +1908,19 @@ button {
   }
 
   .search-form {
-    flex-wrap: wrap;
-    align-items: stretch;
+    flex-wrap: nowrap;
+    align-items: end;
     min-width: 0;
   }
 
   .query-field {
-    flex: 1 1 100%;
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
   .search-button {
-    flex: 0 0 auto;
-    width: min(220px, 100%);
+    flex: 0 0 132px;
+    width: 132px;
   }
 
   .semantic-detail-result-header {
@@ -1994,7 +1995,8 @@ button {
   }
 
   .search-button {
-    width: 100%;
+    flex-basis: 120px;
+    width: 120px;
   }
 
   .results-header {
