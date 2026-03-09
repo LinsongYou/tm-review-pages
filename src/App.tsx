@@ -18,6 +18,7 @@ import type {
 import CueTimeDistributionPanel from './startup/CueTimeDistributionPanel';
 import SemanticLandscapePanel from './startup/SemanticLandscapePanel';
 import type { SemanticLandscapeData } from './startup/semantic-landscape';
+import NordschleifeMark from './icons/NordschleifeMark';
 
 type PendingRequest = {
   resolve: (value: WorkerResponse) => void;
@@ -780,7 +781,10 @@ function App() {
       <section className="hero">
         <h1 className="page-title">
           <button className="title-home" type="button" onClick={goHome}>
-            Translation Memory
+            <span className="title-home-track" aria-hidden="true">
+              <NordschleifeMark />
+            </span>
+            <span className="title-home-text">Translation Memory</span>
           </button>
         </h1>
         <div className="hero-meta">
