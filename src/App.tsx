@@ -31,6 +31,8 @@ const DB_ASSET = 'data/tm_misha_minilm.db';
 const LANDSCAPE_ASSET = 'data/semantic-landscape.json';
 const THEME_STORAGE_KEY = 'tm-review-theme';
 const DEFAULT_CONTEXT_RADIUS = 3;
+const PAIRS_CHIP_LABEL = 'English/中文 Pairs';
+const MODEL_CHIP_LABEL = 'Embedding Model';
 
 function withAssetVersion(path: string, version: string): string {
   return `${path}?v=${encodeURIComponent(version)}`;
@@ -95,7 +97,7 @@ function createInitialBootProgressState(): HeaderLoadState {
   return {
     pairs: {
       target: 'pairs',
-      name: 'English/中文 Pairs',
+      name: PAIRS_CHIP_LABEL,
       progress: 0,
       statusText: 'Preparing TM snapshot',
     },
@@ -473,7 +475,7 @@ function App() {
         setBootProgress((current) => ({
           pairs: {
             ...current.pairs,
-            name: 'English/中文 Pairs',
+            name: PAIRS_CHIP_LABEL,
             progress: 1,
             statusText: 'Ready',
             detail: `${response.stats.totalEntries.toLocaleString()} pairs loaded`,
@@ -746,7 +748,7 @@ function App() {
   const pairsChipValue = bootStats
     ? bootStats.totalEntries.toLocaleString()
     : formatProgressPercent(bootProgress.pairs.progress);
-  const pairsChipLabel = booting ? bootProgress.pairs.statusText : 'English/中文 Pairs';
+  const pairsChipLabel = PAIRS_CHIP_LABEL;
   const pairsChipTitle = buildChipTitle(
     bootStats
       ? `${bootStats.totalEntries.toLocaleString()} English/中文 pairs`
@@ -757,7 +759,7 @@ function App() {
   const modelChipValue = bootStats
     ? getDisplayModelName(bootStats.embeddingModelId)
     : bootProgress.model.name;
-  const modelChipLabel = booting ? bootProgress.model.statusText : 'Embedding Model';
+  const modelChipLabel = MODEL_CHIP_LABEL;
   const modelChipTitle = buildChipTitle(
     bootStats?.embeddingModelId ?? bootProgress.model.name,
     bootProgress.model.statusText,
@@ -783,7 +785,11 @@ function App() {
         </h1>
         <div className="hero-meta">
           <span
-            className={booting ? 'hero-chip hero-chip--progress is-loading' : 'hero-chip hero-chip--progress is-ready'}
+            className={
+              booting
+                ? 'hero-chip hero-chip--pairs hero-chip--progress is-loading'
+                : 'hero-chip hero-chip--pairs hero-chip--progress is-ready'
+            }
             style={
               {
                 ['--hero-chip-progress' as string]: bootProgress.pairs.progress.toFixed(3),
