@@ -184,8 +184,7 @@ button {
 }
 
 .hero-chip.is-ready::before {
-  background:
-    linear-gradient(90deg, rgba(106, 157, 120, 0.4), rgba(197, 228, 203, 0.2));
+  background: var(--accent-soft);
 }
 
 .hero-chip-content {
