@@ -2,6 +2,8 @@ import initSqlJs from 'sql.js';
 import sqlWasmUrl from 'sql.js/dist/sql-wasm.wasm?url';
 import { env, pipeline } from '@huggingface/transformers';
 import type {
+  BootProgressResponse,
+  BootProgressSnapshot,
   BootRequest,
   BootStats,
   CueTimeDistribution,
@@ -21,10 +23,33 @@ const DEFAULT_CONTEXT_RADIUS = 3;
 const TIME_DISTRIBUTION_BIN_COUNT = 120;
 const VECTOR_MODEL_ID = 'sentence-transformers/all-MiniLM-L6-v2';
 const QUERY_MODEL_ID = 'Xenova/all-MiniLM-L6-v2';
+const PAIRS_LABEL = 'English/中文 Pairs';
+const ENTRY_PROGRESS_BATCH_SIZE = 2_000;
+const VECTOR_PROGRESS_BATCH_SIZE = 2_000;
 
 type SqlBlob = Uint8Array;
 type ExtractorOutput = { data: Float32Array | number[] };
 type Extractor = (input: string, options?: Record<string, unknown>) => Promise<ExtractorOutput>;
+type ProgressReporter = (progress: Omit<BootProgressSnapshot, 'target'>) => void;
+type ModelProgressInfo =
+  | {
+      status: 'initiate' | 'download' | 'done';
+      name: string;
+      file: string;
+    }
+  | {
+      status: 'progress';
+      name: string;
+      file: string;
+      progress: number;
+      loaded: number;
+      total: number;
+    }
+  | {
+      status: 'ready';
+      task: string;
+      model: string;
+    };
 
 interface Entry extends EntrySummary {
   enLength: number;
@@ -47,6 +72,7 @@ interface LoadedState {
 
 let state: LoadedState | null = null;
 let extractor: Extractor | null = null;
+let extractorPromise: Promise<Extractor> | null = null;
 
 env.allowLocalModels = false;
 env.useBrowserCache = true;
@@ -70,6 +96,57 @@ function postError(requestId: number, error: unknown): void {
   } satisfies ErrorResponse);
 }
 
+function postBootProgress(requestId: number, progress: BootProgressSnapshot): void {
+  post({
+    kind: 'boot:progress',
+    requestId,
+    progress: {
+      ...progress,
+      progress: clamp01(progress.progress),
+    },
+  } satisfies BootProgressResponse);
+}
+
+function createProgressReporter(
+  requestId: number,
+  target: BootProgressSnapshot['target'],
+  initialName: string,
+): ProgressReporter {
+  let lastProgress = -1;
+  let lastStatusText = '';
+  let lastDetail = '';
+  let lastName = initialName;
+
+  return (progress) => {
+    const nextProgress = clamp01(progress.progress);
+    const nextName = progress.name || lastName;
+    const nextStatusText = progress.statusText;
+    const nextDetail = progress.detail ?? '';
+    const shouldSkip =
+      nextProgress < 1 &&
+      Math.abs(nextProgress - lastProgress) < 0.01 &&
+      nextStatusText === lastStatusText &&
+      nextDetail === lastDetail &&
+      nextName === lastName;
+
+    if (shouldSkip) {
+      return;
+    }
+
+    lastProgress = nextProgress;
+    lastStatusText = nextStatusText;
+    lastDetail = nextDetail;
+    lastName = nextName;
+
+    postBootProgress(requestId, {
+      ...progress,
+      target,
+      name: nextName,
+      progress: nextProgress,
+    });
+  };
+}
+
 function toNullableNumber(value: string | number | null | undefined): number | null {
   if (value === null || value === undefined || value === '') {
     return null;
@@ -85,6 +162,87 @@ function toEntryId(videoId: string, segIndex: number): string {
 
 function clamp01(value: number): number {
   return Math.min(1, Math.max(0, value));
+}
+
+function scaleProgress(start: number, end: number, progress: number): number {
+  return start + (end - start) * clamp01(progress);
+}
+
+function getDisplayModelName(modelId: string): string {
+  return modelId.split('/').at(-1) ?? modelId;
+}
+
+function formatByteCount(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return '0 B';
+  }
+
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let value = bytes;
+  let unitIndex = 0;
+
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+
+  const digits = value >= 100 || unitIndex === 0 ? 0 : value >= 10 ? 1 : 2;
+  return `${value.toFixed(digits)} ${units[unitIndex]}`;
+}
+
+function formatCount(value: number): string {
+  return value.toLocaleString('en-US');
+}
+
+async function downloadAsset(
+  url: string,
+  onProgress?: (loaded: number, total: number | null) => void,
+): Promise<Uint8Array> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to download ${url} (${response.status}).`);
+  }
+
+  const contentLengthHeader = response.headers.get('Content-Length');
+  const total =
+    contentLengthHeader !== null && contentLengthHeader !== ''
+      ? Number(contentLengthHeader)
+      : null;
+
+  if (!response.body) {
+    const buffer = new Uint8Array(await response.arrayBuffer());
+    onProgress?.(buffer.byteLength, total ?? buffer.byteLength);
+    return buffer;
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let loaded = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+
+    if (!value) {
+      continue;
+    }
+
+    chunks.push(value);
+    loaded += value.byteLength;
+    onProgress?.(loaded, total);
+  }
+
+  const buffer = new Uint8Array(loaded);
+  let offset = 0;
+  for (const chunk of chunks) {
+    buffer.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  onProgress?.(loaded, total ?? loaded);
+  return buffer;
 }
 
 function toStartBinIndex(value: number, binCount: number): number {
@@ -297,158 +455,400 @@ function buildCueTimeDistribution(
   };
 }
 
-async function loadDatabase(request: BootRequest): Promise<BootStats> {
-  const response = await fetch(request.dbUrl);
-  if (!response.ok) {
-    throw new Error(`Failed to download ${request.dbUrl} (${response.status}).`);
-  }
+async function loadDatabase(request: BootRequest, reportProgress: ProgressReporter): Promise<BootStats> {
+  reportProgress({
+    name: PAIRS_LABEL,
+    progress: 0,
+    statusText: 'Downloading TM snapshot',
+    detail: 'Starting download',
+  });
 
-  const buffer = await response.arrayBuffer();
+  const buffer = await downloadAsset(request.dbUrl, (loaded, total) => {
+    const progress = total && total > 0 ? scaleProgress(0, 0.5, loaded / total) : 0.12;
+    const detail =
+      total && total > 0
+        ? `${formatByteCount(loaded)} / ${formatByteCount(total)}`
+        : `${formatByteCount(loaded)} downloaded`;
+
+    reportProgress({
+      name: PAIRS_LABEL,
+      progress,
+      statusText: 'Downloading TM snapshot',
+      detail,
+    });
+  });
+
+  reportProgress({
+    name: PAIRS_LABEL,
+    progress: 0.54,
+    statusText: 'Initializing SQLite runtime',
+    detail: 'Opening the browser-side snapshot',
+  });
+
   const SQL = await initSqlJs({
     locateFile: () => sqlWasmUrl,
   });
-  const db = new SQL.Database(new Uint8Array(buffer));
 
-  const entries: Entry[] = [];
-  const entryById = new Map<string, number>();
-  const videoGroups = new Map<string, number[]>();
-  const tmMainColumns = new Set<string>();
+  reportProgress({
+    name: PAIRS_LABEL,
+    progress: 0.58,
+    statusText: 'Reading English/中文 pairs',
+    detail: 'Scanning tm_main',
+  });
 
-  const tableInfoStatement = db.prepare(`PRAGMA table_info(tm_main)`);
-  while (tableInfoStatement.step()) {
-    const row = tableInfoStatement.getAsObject() as Record<string, string | number | null>;
-    tmMainColumns.add(String(row.name ?? ''));
-  }
-  tableInfoStatement.free();
+  const db = new SQL.Database(buffer);
 
-  const hasCueTiming = tmMainColumns.has('start_ms') && tmMainColumns.has('end_ms');
+  try {
+    const readCount = (statementSql: string, bindValues?: Record<string, string>): number => {
+      const statement = db.prepare(statementSql);
 
-  const textStatement = db.prepare(`
-    SELECT video_id, seg_index, en, zh, block_name${hasCueTiming ? ', start_ms, end_ms' : ''}
-    FROM tm_main
-    ORDER BY video_id, seg_index
-  `);
+      try {
+        if (bindValues) {
+          statement.bind(bindValues);
+        }
 
-  while (textStatement.step()) {
-    const row = textStatement.getAsObject() as Record<string, string | number | null>;
-    const videoId = String(row.video_id ?? '');
-    const segIndex = Number(row.seg_index ?? 0);
-    const en = String(row.en ?? '');
-    const zh = String(row.zh ?? '');
-    const blockName = String(row.block_name ?? '');
-    const startMs = hasCueTiming ? toNullableNumber(row.start_ms) : null;
-    const endMs = hasCueTiming ? toNullableNumber(row.end_ms) : null;
-    const id = toEntryId(videoId, segIndex);
+        if (!statement.step()) {
+          return 0;
+        }
 
-    const entry: Entry = {
-      entryId: id,
-      videoId,
-      segIndex,
-      en,
-      zh,
-      blockName,
-      startMs,
-      endMs,
-      enLength: en.length,
-      zhLength: zh.length,
+        const row = statement.getAsObject() as Record<string, string | number | null>;
+        return Number(row.count ?? 0);
+      } finally {
+        statement.free();
+      }
     };
 
-    const nextIndex = entries.length;
-    entries.push(entry);
-    entryById.set(id, nextIndex);
+    const entries: Entry[] = [];
+    const entryById = new Map<string, number>();
+    const videoGroups = new Map<string, number[]>();
+    const tmMainColumns = new Set<string>();
 
-    const group = videoGroups.get(videoId);
-    if (group) {
-      group.push(nextIndex);
-    } else {
-      videoGroups.set(videoId, [nextIndex]);
+    const tableInfoStatement = db.prepare(`PRAGMA table_info(tm_main)`);
+    while (tableInfoStatement.step()) {
+      const row = tableInfoStatement.getAsObject() as Record<string, string | number | null>;
+      tmMainColumns.add(String(row.name ?? ''));
     }
+    tableInfoStatement.free();
+
+    const totalEntryCount = readCount(`SELECT COUNT(*) AS count FROM tm_main`);
+    const hasCueTiming = tmMainColumns.has('start_ms') && tmMainColumns.has('end_ms');
+
+    const textStatement = db.prepare(`
+      SELECT video_id, seg_index, en, zh, block_name${hasCueTiming ? ', start_ms, end_ms' : ''}
+      FROM tm_main
+      ORDER BY video_id, seg_index
+    `);
+
+    while (textStatement.step()) {
+      const row = textStatement.getAsObject() as Record<string, string | number | null>;
+      const videoId = String(row.video_id ?? '');
+      const segIndex = Number(row.seg_index ?? 0);
+      const en = String(row.en ?? '');
+      const zh = String(row.zh ?? '');
+      const blockName = String(row.block_name ?? '');
+      const startMs = hasCueTiming ? toNullableNumber(row.start_ms) : null;
+      const endMs = hasCueTiming ? toNullableNumber(row.end_ms) : null;
+      const id = toEntryId(videoId, segIndex);
+
+      const entry: Entry = {
+        entryId: id,
+        videoId,
+        segIndex,
+        en,
+        zh,
+        blockName,
+        startMs,
+        endMs,
+        enLength: en.length,
+        zhLength: zh.length,
+      };
+
+      const nextIndex = entries.length;
+      entries.push(entry);
+      entryById.set(id, nextIndex);
+
+      const group = videoGroups.get(videoId);
+      if (group) {
+        group.push(nextIndex);
+      } else {
+        videoGroups.set(videoId, [nextIndex]);
+      }
+
+      if (
+        entries.length === 1 ||
+        entries.length % ENTRY_PROGRESS_BATCH_SIZE === 0 ||
+        entries.length === totalEntryCount
+      ) {
+        const entryProgress = totalEntryCount > 0 ? entries.length / totalEntryCount : 1;
+        reportProgress({
+          name: PAIRS_LABEL,
+          progress: scaleProgress(0.58, 0.8, entryProgress),
+          statusText: 'Reading English/中文 pairs',
+          detail: `${formatCount(entries.length)} / ${formatCount(totalEntryCount)}`,
+        });
+      }
+    }
+
+    textStatement.free();
+
+    reportProgress({
+      name: PAIRS_LABEL,
+      progress: 0.82,
+      statusText: 'Loading semantic vectors',
+      detail: `Preparing ${getDisplayModelName(VECTOR_MODEL_ID)} vectors`,
+    });
+
+    const semanticIndexes: number[] = [];
+    const vectorRows: Float32Array[] = [];
+    let vectorDim = 0;
+    const totalVectorCount = readCount(
+      `
+        SELECT COUNT(*) AS count
+        FROM tm_vectors AS v
+        JOIN tm_main AS m USING (content_sha)
+        WHERE v.model_id = $vectorModelId
+      `,
+      { $vectorModelId: VECTOR_MODEL_ID },
+    );
+
+    const vectorStatement = db.prepare(`
+      SELECT m.video_id, m.seg_index, v.vector
+      FROM tm_vectors AS v
+      JOIN tm_main AS m USING (content_sha)
+      WHERE v.model_id = $vectorModelId
+      ORDER BY m.video_id, m.seg_index
+    `);
+
+    vectorStatement.bind({ $vectorModelId: VECTOR_MODEL_ID });
+
+    while (vectorStatement.step()) {
+      const row = vectorStatement.getAsObject() as Record<string, string | number | SqlBlob | null>;
+      const videoId = String(row.video_id ?? '');
+      const segIndex = Number(row.seg_index ?? 0);
+      const blob = row.vector;
+
+      if (!(blob instanceof Uint8Array)) {
+        continue;
+      }
+
+      const id = toEntryId(videoId, segIndex);
+      const sourceIndex = entryById.get(id);
+      if (sourceIndex === undefined) {
+        continue;
+      }
+
+      const dim = blob.byteLength / 4;
+      if (!Number.isInteger(dim) || dim <= 0) {
+        continue;
+      }
+
+      if (vectorDim === 0) {
+        vectorDim = dim;
+      } else if (vectorDim !== dim) {
+        throw new Error(`Vector dimension mismatch: expected ${vectorDim}, got ${dim}.`);
+      }
+
+      const sourceEntry = entries[sourceIndex];
+      if (!sourceEntry) {
+        continue;
+      }
+
+      semanticIndexes.push(sourceIndex);
+      vectorRows.push(toFloat32(blob, dim));
+
+      if (
+        vectorRows.length === 1 ||
+        vectorRows.length % VECTOR_PROGRESS_BATCH_SIZE === 0 ||
+        vectorRows.length === totalVectorCount
+      ) {
+        const vectorProgress = totalVectorCount > 0 ? vectorRows.length / totalVectorCount : 1;
+        reportProgress({
+          name: PAIRS_LABEL,
+          progress: scaleProgress(0.82, 0.96, vectorProgress),
+          statusText: 'Loading semantic vectors',
+          detail: `${formatCount(vectorRows.length)} / ${formatCount(totalVectorCount)}`,
+        });
+      }
+    }
+
+    vectorStatement.free();
+
+    reportProgress({
+      name: PAIRS_LABEL,
+      progress: 0.98,
+      statusText: 'Finalizing cue indexes',
+      detail: `${formatCount(entries.length)} pairs cached in memory`,
+    });
+
+    const semanticVectors = new Float32Array(vectorRows.length * vectorDim);
+    for (let rowIndex = 0; rowIndex < vectorRows.length; rowIndex += 1) {
+      semanticVectors.set(vectorRows[rowIndex]!, rowIndex * vectorDim);
+    }
+
+    state = {
+      entries,
+      entryById,
+      videoGroups,
+      semanticEntryIndexes: Int32Array.from(semanticIndexes),
+      semanticVectors,
+      vectorDim,
+    };
+
+    const cueTimeDistribution = buildCueTimeDistribution(entries, videoGroups);
+
+    reportProgress({
+      name: PAIRS_LABEL,
+      progress: 1,
+      statusText: 'Ready',
+      detail: `${formatCount(entries.length)} pairs loaded`,
+    });
+
+    return {
+      totalEntries: entries.length,
+      cueTimeDistribution,
+      embeddingModelId: QUERY_MODEL_ID,
+    };
+  } finally {
+    db.close();
   }
+}
 
-  textStatement.free();
+function createModelProgressCallback(reportProgress: ProgressReporter): (info: ModelProgressInfo) => void {
+  const files = new Map<string, { loaded: number; total: number | null; done: boolean }>();
 
-  const semanticIndexes: number[] = [];
-  const vectorRows: Float32Array[] = [];
-  let vectorDim = 0;
+  const emit = (statusText: string, detail: string, modelId = QUERY_MODEL_ID): void => {
+    let totalBytes = 0;
+    let loadedBytes = 0;
+    let completedFiles = 0;
 
-  const vectorStatement = db.prepare(`
-    SELECT m.video_id, m.seg_index, v.vector
-    FROM tm_vectors AS v
-    JOIN tm_main AS m USING (content_sha)
-    WHERE v.model_id = $vectorModelId
-    ORDER BY m.video_id, m.seg_index
-  `);
+    for (const file of files.values()) {
+      if (file.total !== null) {
+        totalBytes += file.total;
+        loadedBytes += Math.min(file.loaded, file.total);
+      } else if (file.done) {
+        totalBytes += 1;
+        loadedBytes += 1;
+      }
 
-  vectorStatement.bind({ $vectorModelId: VECTOR_MODEL_ID });
-
-  while (vectorStatement.step()) {
-    const row = vectorStatement.getAsObject() as Record<string, string | number | SqlBlob | null>;
-    const videoId = String(row.video_id ?? '');
-    const segIndex = Number(row.seg_index ?? 0);
-    const blob = row.vector;
-
-    if (!(blob instanceof Uint8Array)) {
-      continue;
+      if (file.done) {
+        completedFiles += 1;
+      }
     }
 
-    const id = toEntryId(videoId, segIndex);
-    const sourceIndex = entryById.get(id);
-    if (sourceIndex === undefined) {
-      continue;
-    }
+    const progress =
+      totalBytes > 0
+        ? loadedBytes / totalBytes
+        : files.size > 0
+          ? completedFiles / files.size
+          : 0;
 
-    const dim = blob.byteLength / 4;
-    if (!Number.isInteger(dim) || dim <= 0) {
-      continue;
-    }
-
-    if (vectorDim === 0) {
-      vectorDim = dim;
-    } else if (vectorDim !== dim) {
-      throw new Error(`Vector dimension mismatch: expected ${vectorDim}, got ${dim}.`);
-    }
-
-    const sourceEntry = entries[sourceIndex];
-    if (!sourceEntry) {
-      continue;
-    }
-
-    semanticIndexes.push(sourceIndex);
-    vectorRows.push(toFloat32(blob, dim));
-  }
-
-  vectorStatement.free();
-  db.close();
-
-  const semanticVectors = new Float32Array(vectorRows.length * vectorDim);
-  for (let rowIndex = 0; rowIndex < vectorRows.length; rowIndex += 1) {
-    semanticVectors.set(vectorRows[rowIndex]!, rowIndex * vectorDim);
-  }
-
-  state = {
-    entries,
-    entryById,
-    videoGroups,
-    semanticEntryIndexes: Int32Array.from(semanticIndexes),
-    semanticVectors,
-    vectorDim,
+    reportProgress({
+      name: getDisplayModelName(modelId),
+      progress,
+      statusText,
+      detail,
+    });
   };
 
-  const cueTimeDistribution = buildCueTimeDistribution(entries, videoGroups);
+  return (info) => {
+    if (info.status === 'ready') {
+      reportProgress({
+        name: getDisplayModelName(info.model),
+        progress: 1,
+        statusText: 'Ready',
+        detail: info.model,
+      });
+      return;
+    }
 
-  return {
-    totalEntries: entries.length,
-    cueTimeDistribution,
+    const key = `${info.name}:${info.file}`;
+    const current = files.get(key) ?? { loaded: 0, total: null, done: false };
+    const fileName = info.file.split('/').at(-1) ?? info.file;
+
+    switch (info.status) {
+      case 'initiate': {
+        files.set(key, current);
+        emit('Checking model files', `${files.size} file${files.size === 1 ? '' : 's'} queued`, info.name);
+        return;
+      }
+
+      case 'download': {
+        files.set(key, current);
+        emit('Downloading model files', `Fetching ${fileName}`, info.name);
+        return;
+      }
+
+      case 'progress': {
+        current.loaded = info.loaded;
+        current.total = info.total;
+        current.done = false;
+        files.set(key, current);
+        emit(
+          'Downloading model files',
+          `${fileName} - ${formatByteCount(info.loaded)} / ${formatByteCount(info.total)}`,
+          info.name,
+        );
+        return;
+      }
+
+      case 'done': {
+        current.done = true;
+        current.loaded = current.total ?? 1;
+        current.total = current.total ?? 1;
+        files.set(key, current);
+        const completedFiles = Array.from(files.values()).filter((file) => file.done).length;
+        emit(
+          completedFiles === files.size ? 'Finalizing embedding model' : 'Downloading model files',
+          `${completedFiles} / ${files.size} files ready`,
+          info.name,
+        );
+        return;
+      }
+    }
   };
 }
 
-async function ensureExtractor(): Promise<Extractor> {
+async function ensureExtractor(reportProgress?: ProgressReporter): Promise<Extractor> {
   if (extractor) {
+    reportProgress?.({
+      name: getDisplayModelName(QUERY_MODEL_ID),
+      progress: 1,
+      statusText: 'Ready',
+      detail: QUERY_MODEL_ID,
+    });
     return extractor;
   }
 
-  extractor = (await pipeline('feature-extraction', QUERY_MODEL_ID)) as unknown as Extractor;
-  return extractor;
+  if (!extractorPromise) {
+    reportProgress?.({
+      name: getDisplayModelName(QUERY_MODEL_ID),
+      progress: 0,
+      statusText: 'Preparing embedding model',
+      detail: QUERY_MODEL_ID,
+    });
+
+    const progressCallback = reportProgress ? createModelProgressCallback(reportProgress) : undefined;
+
+    extractorPromise = pipeline('feature-extraction', QUERY_MODEL_ID, {
+      progress_callback: progressCallback,
+    })
+      .then((loadedExtractor) => {
+        extractor = loadedExtractor as unknown as Extractor;
+        return extractor;
+      })
+      .finally(() => {
+        extractorPromise = null;
+      });
+  }
+
+  const loadedExtractor = await extractorPromise;
+  reportProgress?.({
+    name: getDisplayModelName(QUERY_MODEL_ID),
+    progress: 1,
+    statusText: 'Ready',
+    detail: QUERY_MODEL_ID,
+  });
+  return loadedExtractor;
 }
 
 async function embedQuery(query: string): Promise<Float32Array> {
@@ -592,7 +992,17 @@ workerScope.addEventListener('message', async (event: MessageEvent<WorkerRequest
   try {
     switch (request.kind) {
       case 'boot': {
-        const stats = await loadDatabase(request);
+        const pairsProgress = createProgressReporter(request.requestId, 'pairs', PAIRS_LABEL);
+        const modelProgress = createProgressReporter(
+          request.requestId,
+          'model',
+          getDisplayModelName(QUERY_MODEL_ID),
+        );
+
+        const [stats] = await Promise.all([
+          loadDatabase(request, pairsProgress),
+          ensureExtractor(modelProgress),
+        ]);
         post({
           kind: 'boot:ok',
           requestId: request.requestId,

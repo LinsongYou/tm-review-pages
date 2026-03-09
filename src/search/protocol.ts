@@ -33,9 +33,20 @@ export interface CueTimeDistribution {
   peakRangeEnd: number;
 }
 
+export type BootProgressTarget = 'pairs' | 'model';
+
+export interface BootProgressSnapshot {
+  target: BootProgressTarget;
+  name: string;
+  progress: number;
+  statusText: string;
+  detail?: string;
+}
+
 export interface BootStats {
   totalEntries: number;
   cueTimeDistribution: CueTimeDistribution | null;
+  embeddingModelId: string;
 }
 
 export interface BootRequest {
@@ -80,6 +91,12 @@ export interface BootOkResponse {
   stats: BootStats;
 }
 
+export interface BootProgressResponse {
+  kind: 'boot:progress';
+  requestId: number;
+  progress: BootProgressSnapshot;
+}
+
 export interface SearchOkResponse {
   kind: 'search:ok';
   requestId: number;
@@ -108,6 +125,7 @@ export interface ErrorResponse {
 
 export type WorkerResponse =
   | BootOkResponse
+  | BootProgressResponse
   | SearchOkResponse
   | ContextOkResponse
   | TranscriptOkResponse

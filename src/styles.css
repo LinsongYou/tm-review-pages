@@ -155,9 +155,11 @@ button {
 }
 
 .hero-chip {
+  --hero-chip-progress: 0;
   display: inline-flex;
+  position: relative;
+  isolation: isolate;
   align-items: center;
-  gap: 6px;
   height: var(--hero-item-height);
   padding: 0 14px;
   border-radius: 999px;
@@ -167,6 +169,35 @@ button {
   font-size: 0.82rem;
   letter-spacing: 0.02em;
   white-space: nowrap;
+  overflow: hidden;
+}
+
+.hero-chip::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: calc(var(--hero-chip-progress) * 100%);
+  background:
+    linear-gradient(90deg, rgba(106, 157, 120, 0.3), rgba(197, 228, 203, 0.14));
+  transition: width 180ms ease, background-color 180ms ease, opacity 180ms ease;
+  z-index: 0;
+}
+
+.hero-chip.is-ready::before {
+  background:
+    linear-gradient(90deg, rgba(106, 157, 120, 0.4), rgba(197, 228, 203, 0.2));
+}
+
+.hero-chip-content {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hero-chip--model .hero-chip-value {
+  font-size: 0.83rem;
 }
 
 .hero-chip-value {

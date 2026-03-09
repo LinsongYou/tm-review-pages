@@ -8,6 +8,7 @@ import {
   useState,
 } from 'react';
 import type {
+  BootProgressSnapshot,
   BootStats,
   ContextItem,
   SearchResult,
@@ -24,6 +25,7 @@ type PendingRequest = {
 };
 
 type Theme = 'dark' | 'light';
+type HeaderLoadState = Record<BootProgressSnapshot['target'], BootProgressSnapshot>;
 
 const DB_ASSET = 'data/tm_misha_minilm.db';
 const LANDSCAPE_ASSET = 'data/semantic-landscape.json';
@@ -89,6 +91,36 @@ function clampNumericInput(value: string, minimum: number): number {
   return Math.max(minimum, Number.isFinite(parsed) ? parsed : minimum);
 }
 
+function createInitialBootProgressState(): HeaderLoadState {
+  return {
+    pairs: {
+      target: 'pairs',
+      name: 'English/中文 Pairs',
+      progress: 0,
+      statusText: 'Preparing TM snapshot',
+    },
+    model: {
+      target: 'model',
+      name: 'Embedding Model',
+      progress: 0,
+      statusText: 'Preparing embedding model',
+    },
+  };
+}
+
+function formatProgressPercent(progress: number): string {
+  const bounded = Math.min(1, Math.max(0, progress));
+  return `${Math.round(bounded * 100)}%`;
+}
+
+function getDisplayModelName(modelId: string): string {
+  return modelId.split('/').at(-1) ?? modelId;
+}
+
+function buildChipTitle(primary: string, statusText: string, detail?: string): string {
+  return [primary, statusText, detail].filter(Boolean).join(' | ');
+}
+
 function App() {
   const workerRef = useRef<Worker | null>(null);
   const pendingRef = useRef(new Map<number, PendingRequest>());
@@ -100,6 +132,7 @@ function App() {
   const transcriptItemRefs = useRef(new Map<string, HTMLLIElement>());
 
   const [bootStats, setBootStats] = useState<BootStats | null>(null);
+  const [bootProgress, setBootProgress] = useState<HeaderLoadState>(createInitialBootProgressState);
   const [booting, setBooting] = useState(true);
   const [searching, setSearching] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
@@ -146,6 +179,16 @@ function App() {
 
     worker.addEventListener('message', (event: MessageEvent<WorkerResponse>) => {
       const message = event.data;
+
+      if (message.kind === 'boot:progress') {
+        startTransition(() => {
+          setBootProgress((current) => ({
+            ...current,
+            [message.progress.target]: message.progress,
+          }));
+        });
+        return;
+      }
 
       const pending = pendingRef.current.get(message.requestId);
       if (!pending) {
@@ -417,6 +460,7 @@ function App() {
   async function boot(): Promise<void> {
     setBooting(true);
     setErrorText(null);
+    setBootProgress(createInitialBootProgressState());
 
     try {
       const response = (await callWorker({
@@ -426,6 +470,22 @@ function App() {
 
       startTransition(() => {
         setBootStats(response.stats);
+        setBootProgress((current) => ({
+          pairs: {
+            ...current.pairs,
+            name: 'English/中文 Pairs',
+            progress: 1,
+            statusText: 'Ready',
+            detail: `${response.stats.totalEntries.toLocaleString()} pairs loaded`,
+          },
+          model: {
+            ...current.model,
+            name: getDisplayModelName(response.stats.embeddingModelId),
+            progress: 1,
+            statusText: 'Ready',
+            detail: response.stats.embeddingModelId,
+          },
+        }));
         setBooting(false);
       });
     } catch (error) {
@@ -683,6 +743,26 @@ function App() {
   const transcriptHasTimestamps = transcriptItems.some(
     (item) => item.startMs !== null || item.endMs !== null,
   );
+  const pairsChipValue = bootStats
+    ? bootStats.totalEntries.toLocaleString()
+    : formatProgressPercent(bootProgress.pairs.progress);
+  const pairsChipLabel = booting ? bootProgress.pairs.statusText : 'English/中文 Pairs';
+  const pairsChipTitle = buildChipTitle(
+    bootStats
+      ? `${bootStats.totalEntries.toLocaleString()} English/中文 pairs`
+      : bootProgress.pairs.name,
+    bootProgress.pairs.statusText,
+    bootProgress.pairs.detail,
+  );
+  const modelChipValue = bootStats
+    ? getDisplayModelName(bootStats.embeddingModelId)
+    : bootProgress.model.name;
+  const modelChipLabel = booting ? bootProgress.model.statusText : 'Embedding Model';
+  const modelChipTitle = buildChipTitle(
+    bootStats?.embeddingModelId ?? bootProgress.model.name,
+    bootProgress.model.statusText,
+    bootProgress.model.detail,
+  );
   const startupFocusActive = !hasSearched && !startupFocusDismissed && startupRevealProgress < 0.999;
   const startupFocusStyle =
     hasSearched
@@ -702,15 +782,37 @@ function App() {
           </button>
         </h1>
         <div className="hero-meta">
-          <span className="hero-chip">
-            {bootStats ? (
-              <>
-                <strong className="hero-chip-value">{bootStats.totalEntries.toLocaleString()}</strong>
-                <span className="hero-chip-label">English/中文 Pairs</span>
-              </>
-            ) : (
-              <span className="hero-chip-label">Loading English/中文 Pairs</span>
-            )}
+          <span
+            className={booting ? 'hero-chip hero-chip--progress is-loading' : 'hero-chip hero-chip--progress is-ready'}
+            style={
+              {
+                ['--hero-chip-progress' as string]: bootProgress.pairs.progress.toFixed(3),
+              } satisfies React.CSSProperties
+            }
+            title={pairsChipTitle}
+          >
+            <span className="hero-chip-content">
+              <strong className="hero-chip-value">{pairsChipValue}</strong>
+              <span className="hero-chip-label">{pairsChipLabel}</span>
+            </span>
+          </span>
+          <span
+            className={
+              booting
+                ? 'hero-chip hero-chip--progress hero-chip--model is-loading'
+                : 'hero-chip hero-chip--progress hero-chip--model is-ready'
+            }
+            style={
+              {
+                ['--hero-chip-progress' as string]: bootProgress.model.progress.toFixed(3),
+              } satisfies React.CSSProperties
+            }
+            title={modelChipTitle}
+          >
+            <span className="hero-chip-content">
+              <strong className="hero-chip-value">{modelChipValue}</strong>
+              <span className="hero-chip-label">{modelChipLabel}</span>
+            </span>
           </span>
           <button
             aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
@@ -814,7 +916,7 @@ function App() {
                   </div>
                 </div>
                 <div className="empty-state">
-                  <p>Aggregating cue coverage from subtitle timestamps…</p>
+                  <p>Loading subtitle cues and warming the embedding model…</p>
                 </div>
               </section>
             ) : bootStats?.cueTimeDistribution ? (
