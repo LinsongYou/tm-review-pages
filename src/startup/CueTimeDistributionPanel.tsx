@@ -1,3 +1,4 @@
+import { PointerEvent as ReactPointerEvent, useRef, useState } from 'react';
 import type { CueTimeDistribution } from '../search/protocol';
 
 const CHART_WIDTH = 920;
@@ -9,6 +10,12 @@ const CHART_PADDING_LEFT = 16;
 
 interface CueTimeDistributionPanelProps {
   data: CueTimeDistribution;
+}
+
+interface HoveredBinState {
+  index: number;
+  x: number;
+  y: number;
 }
 
 function formatPercent(value: number): string {
@@ -60,6 +67,8 @@ function formatDuration(ms: number): string {
 }
 
 export default function CueTimeDistributionPanel({ data }: CueTimeDistributionPanelProps) {
+  const chartShellRef = useRef<HTMLDivElement | null>(null);
+  const [hoveredBin, setHoveredBin] = useState<HoveredBinState | null>(null);
   const plotWidth = CHART_WIDTH - CHART_PADDING_LEFT - CHART_PADDING_RIGHT;
   const plotHeight = CHART_HEIGHT - CHART_PADDING_TOP - CHART_PADDING_BOTTOM;
   const stepWidth = plotWidth / Math.max(1, data.bins.length);
@@ -72,6 +81,39 @@ export default function CueTimeDistributionPanel({ data }: CueTimeDistributionPa
   const peakWindow = formatPercentRange(data.peakRangeStart, data.peakRangeEnd);
   const meanCueLength = formatDuration(data.averageCueDurationMs);
   const medianSpan = formatDuration(data.medianVideoSpanMs);
+  const hoveredBinIndex = hoveredBin?.index ?? -1;
+  const hoveredCoverage =
+    hoveredBinIndex >= 0 ? formatPercent(data.bins[hoveredBinIndex] ?? 0) : null;
+  const hoveredWindow =
+    hoveredBinIndex >= 0
+      ? formatPercentRange(hoveredBinIndex / data.binCount, (hoveredBinIndex + 1) / data.binCount)
+      : null;
+  const hoveredTopLine = hoveredBinIndex >= 0 ? data.binTopLines[hoveredBinIndex] ?? null : null;
+  const tooltipWidth = hoveredTopLine?.zh ? 332 : 300;
+  const tooltipHeight = hoveredTopLine ? (hoveredTopLine.zh ? 164 : 138) : 100;
+  const shellWidth = chartShellRef.current?.clientWidth ?? CHART_WIDTH;
+  const shellHeight = chartShellRef.current?.clientHeight ?? CHART_HEIGHT;
+  const tooltipLeft =
+    hoveredBin === null
+      ? 0
+      : Math.min(Math.max(hoveredBin.x + 16, 12), Math.max(12, shellWidth - tooltipWidth - 12));
+  const tooltipTop =
+    hoveredBin === null
+      ? 0
+      : Math.min(Math.max(hoveredBin.y + 16, 12), Math.max(12, shellHeight - tooltipHeight - 12));
+
+  const updateHoveredBin = (event: ReactPointerEvent<SVGRectElement>, index: number): void => {
+    const bounds = chartShellRef.current?.getBoundingClientRect();
+    if (!bounds) {
+      return;
+    }
+
+    setHoveredBin({
+      index,
+      x: event.clientX - bounds.left,
+      y: event.clientY - bounds.top,
+    });
+  };
 
   return (
     <section className="panel semantic-panel time-distribution-panel" aria-label="Cue time distribution">
@@ -85,7 +127,7 @@ export default function CueTimeDistributionPanel({ data }: CueTimeDistributionPa
         </div>
       </div>
 
-      <div className="time-distribution-chart-shell">
+      <div ref={chartShellRef} className="time-distribution-chart-shell">
         <div className="time-distribution-chart-header">
           <strong>Share of aligned videos carrying cues</strong>
           <span>Normalized from 0% to 100% of each video span</span>
@@ -135,24 +177,65 @@ export default function CueTimeDistributionPanel({ data }: CueTimeDistributionPa
             const x = CHART_PADDING_LEFT + index * stepWidth;
             const y = CHART_PADDING_TOP + plotHeight - barHeight;
             const width = Math.max(1.5, stepWidth - 1.25);
+            const binTopLine = data.binTopLines[index] ?? null;
+            const binWindow = formatPercentRange(index / data.binCount, (index + 1) / data.binCount);
+            const barTitle = binTopLine
+              ? `${binWindow} | ${formatPercent(value)} coverage | ${binTopLine.en}`
+              : `${binWindow} | ${formatPercent(value)} coverage`;
 
             return (
               <rect
                 key={index}
                 className={
-                  index === peakBinIndex
-                    ? 'time-distribution-bar time-distribution-bar--peak'
-                    : 'time-distribution-bar'
+                  [
+                    'time-distribution-bar',
+                    index === peakBinIndex ? 'time-distribution-bar--peak' : '',
+                    index === hoveredBinIndex ? 'time-distribution-bar--active' : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')
                 }
                 x={x}
                 y={y}
                 width={width}
                 height={barHeight}
                 rx={Math.min(3, width / 2)}
-              />
+                onPointerEnter={(event) => updateHoveredBin(event, index)}
+                onPointerMove={(event) => updateHoveredBin(event, index)}
+                onPointerLeave={() => setHoveredBin((current) => (current?.index === index ? null : current))}
+              >
+                <title>{barTitle}</title>
+              </rect>
             );
           })}
         </svg>
+
+        {hoveredBin && hoveredWindow && hoveredCoverage ? (
+          <div
+            className="semantic-tooltip time-distribution-tooltip"
+            style={{
+              left: `${tooltipLeft}px`,
+              top: `${tooltipTop}px`,
+            }}
+          >
+            <strong>{hoveredWindow}</strong>
+            <p className="time-distribution-tooltip-meta">{hoveredCoverage} coverage across aligned videos</p>
+            {hoveredTopLine ? (
+              <>
+                <p>{hoveredTopLine.en}</p>
+                {hoveredTopLine.zh ? (
+                  <p className="time-distribution-tooltip-translation">{hoveredTopLine.zh}</p>
+                ) : null}
+                <p className="time-distribution-tooltip-meta">
+                  Most frequent exact line pair in this slice, seen{' '}
+                  {hoveredTopLine.count.toLocaleString()} time{hoveredTopLine.count === 1 ? '' : 's'}.
+                </p>
+              </>
+            ) : (
+              <p className="time-distribution-tooltip-meta">No timed cues intersect this slice.</p>
+            )}
+          </div>
+        ) : null}
 
         <div className="time-distribution-axis" aria-hidden="true">
           <span>0%</span>

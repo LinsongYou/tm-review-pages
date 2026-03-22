@@ -7,6 +7,7 @@ import type {
   BootRequest,
   BootStats,
   CueTimeDistribution,
+  CueTimeDistributionTopLine,
   ContextItem,
   ContextRequest,
   EntrySummary,
@@ -52,6 +53,7 @@ type ModelProgressInfo =
     };
 
 interface Entry extends EntrySummary {
+  contentSha: string;
   enLength: number;
   zhLength: number;
 }
@@ -59,6 +61,12 @@ interface Entry extends EntrySummary {
 interface RankedHit {
   entryIndex: number;
   score: number;
+}
+
+interface CueLineFrequency {
+  count: number;
+  overlap: number;
+  sampleEntryIndex: number;
 }
 
 interface LoadedState {
@@ -348,6 +356,7 @@ function buildCueTimeDistribution(
 ): CueTimeDistribution | null {
   const binCount = TIME_DISTRIBUTION_BIN_COUNT;
   const coverageTotals = new Float64Array(binCount);
+  const lineFrequencyByBin = Array.from({ length: binCount }, () => new Map<string, CueLineFrequency>());
   const cueDurations: number[] = [];
   const videoSpans: number[] = [];
   const binWidth = 1 / binCount;
@@ -405,6 +414,7 @@ function buildCueTimeDistribution(
 
       const startBinIndex = toStartBinIndex(startRatio, binCount);
       const endBinIndex = toEndBinIndex(endRatio, binCount);
+      const contentKey = entry.contentSha || entry.entryId;
 
       for (let binIndex = startBinIndex; binIndex <= endBinIndex; binIndex += 1) {
         const binStart = binIndex * binWidth;
@@ -412,6 +422,18 @@ function buildCueTimeDistribution(
         const overlap = Math.min(endRatio, binEnd) - Math.max(startRatio, binStart);
         if (overlap > 0) {
           videoCoverage[binIndex] = (videoCoverage[binIndex] ?? 0) + overlap / binWidth;
+
+          const lineFrequency = lineFrequencyByBin[binIndex]!.get(contentKey);
+          if (lineFrequency) {
+            lineFrequency.count += 1;
+            lineFrequency.overlap += overlap;
+          } else {
+            lineFrequencyByBin[binIndex]!.set(contentKey, {
+              count: 1,
+              overlap,
+              sampleEntryIndex: entryIndex,
+            });
+          }
         }
       }
     }
@@ -426,6 +448,37 @@ function buildCueTimeDistribution(
   }
 
   const bins = Array.from(coverageTotals, (value) => value / timedVideoCount);
+  const binTopLines = lineFrequencyByBin.map((lineFrequency): CueTimeDistributionTopLine | null => {
+    let bestMatch: CueLineFrequency | null = null;
+
+    for (const candidate of lineFrequency.values()) {
+      if (
+        !bestMatch ||
+        candidate.count > bestMatch.count ||
+        (candidate.count === bestMatch.count && candidate.overlap > bestMatch.overlap) ||
+        (candidate.count === bestMatch.count &&
+          candidate.overlap === bestMatch.overlap &&
+          candidate.sampleEntryIndex < bestMatch.sampleEntryIndex)
+      ) {
+        bestMatch = candidate;
+      }
+    }
+
+    if (!bestMatch) {
+      return null;
+    }
+
+    const sampleEntry = entries[bestMatch.sampleEntryIndex];
+    if (!sampleEntry) {
+      return null;
+    }
+
+    return {
+      en: sampleEntry.en,
+      zh: sampleEntry.zh,
+      count: bestMatch.count,
+    };
+  });
   let peakCoverage = 0;
   let peakBinIndex = 0;
   let coverageTotal = 0;
@@ -442,6 +495,7 @@ function buildCueTimeDistribution(
   return {
     binCount,
     bins,
+    binTopLines,
     timedEntryCount,
     totalEntryCount: entries.length,
     timedVideoCount,
@@ -534,7 +588,7 @@ async function loadDatabase(request: BootRequest, reportProgress: ProgressReport
     const hasCueTiming = tmMainColumns.has('start_ms') && tmMainColumns.has('end_ms');
 
     const textStatement = db.prepare(`
-      SELECT video_id, seg_index, en, zh, block_name${hasCueTiming ? ', start_ms, end_ms' : ''}
+      SELECT video_id, seg_index, content_sha, en, zh, block_name${hasCueTiming ? ', start_ms, end_ms' : ''}
       FROM tm_main
       ORDER BY video_id, seg_index
     `);
@@ -543,6 +597,7 @@ async function loadDatabase(request: BootRequest, reportProgress: ProgressReport
       const row = textStatement.getAsObject() as Record<string, string | number | null>;
       const videoId = String(row.video_id ?? '');
       const segIndex = Number(row.seg_index ?? 0);
+      const contentSha = String(row.content_sha ?? '');
       const en = String(row.en ?? '');
       const zh = String(row.zh ?? '');
       const blockName = String(row.block_name ?? '');
@@ -554,6 +609,7 @@ async function loadDatabase(request: BootRequest, reportProgress: ProgressReport
         entryId: id,
         videoId,
         segIndex,
+        contentSha,
         en,
         zh,
         blockName,

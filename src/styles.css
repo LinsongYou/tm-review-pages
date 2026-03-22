@@ -1245,6 +1245,7 @@ button {
 }
 
 .time-distribution-chart-shell {
+  position: relative;
   display: grid;
   gap: 12px;
   padding: 16px;
@@ -1303,10 +1304,36 @@ button {
 .time-distribution-bar {
   fill: var(--accent);
   opacity: 0.42;
+  cursor: pointer;
+  transition:
+    opacity 160ms ease,
+    stroke 160ms ease,
+    fill 160ms ease;
 }
 
 .time-distribution-bar--peak {
   opacity: 0.9;
+}
+
+.time-distribution-bar--active {
+  opacity: 1;
+  stroke: color-mix(in srgb, var(--text) 30%, transparent);
+  stroke-width: 1;
+}
+
+.time-distribution-tooltip {
+  z-index: 3;
+  max-width: 320px;
+}
+
+.time-distribution-tooltip-translation {
+  color: var(--muted-strong);
+}
+
+.time-distribution-tooltip-meta {
+  color: var(--muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
 }
 
 .time-distribution-axis {
