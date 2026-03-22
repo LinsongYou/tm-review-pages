@@ -64,7 +64,7 @@ interface RankedHit {
 
 interface SemanticBinCandidate {
   entryIndex: number;
-  overlap: number;
+  overlapShare: number;
 }
 
 interface LoadedState {
@@ -411,12 +411,17 @@ function buildCueTimeDistribution(
         continue;
       }
 
+      const cueSpan = endRatio - startRatio;
       timedEntryCount += 1;
       cueDurations.push(endMs - startMs);
 
       const startBinIndex = toStartBinIndex(startRatio, binCount);
       const endBinIndex = toEndBinIndex(endRatio, binCount);
       const vectorRow = entryVectorRows[entryIndex] ?? -1;
+      const cueMidpoint = startRatio + cueSpan / 2;
+      let dominantBinIndex = -1;
+      let dominantOverlap = 0;
+      let dominantCenterDistance = Number.POSITIVE_INFINITY;
 
       for (let binIndex = startBinIndex; binIndex <= endBinIndex; binIndex += 1) {
         const binStart = binIndex * binWidth;
@@ -425,19 +430,38 @@ function buildCueTimeDistribution(
         if (overlap > 0) {
           videoCoverage[binIndex] = (videoCoverage[binIndex] ?? 0) + overlap / binWidth;
           if (vectorDim > 0 && vectorRow >= 0) {
-            semanticCandidates[binIndex]!.push({
-              entryIndex,
-              overlap,
-            });
+            const binCenter = binStart + binWidth / 2;
+            const centerDistance = Math.abs(binCenter - cueMidpoint);
+            const overlapDelta = overlap - dominantOverlap;
+            const distanceDelta = dominantCenterDistance - centerDistance;
 
-            const semanticOffset = binIndex * vectorDim;
-            const vectorOffset = vectorRow * vectorDim;
-            for (let dim = 0; dim < vectorDim; dim += 1) {
-              semanticSums[semanticOffset + dim] =
-                (semanticSums[semanticOffset + dim] ?? 0) +
-                semanticVectors[vectorOffset + dim]! * overlap;
+            if (
+              dominantBinIndex < 0 ||
+              overlapDelta > 1e-9 ||
+              (Math.abs(overlapDelta) <= 1e-9 && distanceDelta > 1e-9) ||
+              (Math.abs(overlapDelta) <= 1e-9 &&
+                Math.abs(distanceDelta) <= 1e-9 &&
+                binIndex < dominantBinIndex)
+            ) {
+              dominantBinIndex = binIndex;
+              dominantOverlap = overlap;
+              dominantCenterDistance = centerDistance;
             }
           }
+        }
+      }
+
+      if (vectorDim > 0 && vectorRow >= 0 && dominantBinIndex >= 0) {
+        const semanticOffset = dominantBinIndex * vectorDim;
+        const vectorOffset = vectorRow * vectorDim;
+        semanticCandidates[dominantBinIndex]!.push({
+          entryIndex,
+          overlapShare: dominantOverlap / cueSpan,
+        });
+
+        for (let dim = 0; dim < vectorDim; dim += 1) {
+          semanticSums[semanticOffset + dim] =
+            (semanticSums[semanticOffset + dim] ?? 0) + semanticVectors[vectorOffset + dim]!;
         }
       }
     }
@@ -477,9 +501,9 @@ function buildCueTimeDistribution(
         if (
           !bestCandidate ||
           score > bestScore ||
-          (score === bestScore && candidate.overlap > bestCandidate.overlap) ||
+          (score === bestScore && candidate.overlapShare > bestCandidate.overlapShare) ||
           (score === bestScore &&
-            candidate.overlap === bestCandidate.overlap &&
+            candidate.overlapShare === bestCandidate.overlapShare &&
             candidate.entryIndex < bestCandidate.entryIndex)
         ) {
           bestCandidate = candidate;

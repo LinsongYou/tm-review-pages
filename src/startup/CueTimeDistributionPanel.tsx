@@ -230,7 +230,8 @@ export default function CueTimeDistributionPanel({ data }: CueTimeDistributionPa
                 <p className="time-distribution-tooltip-meta">
                   Representative line chosen from the densest semantic neighborhood among{' '}
                   {hoveredRepresentativeLine.candidateCount.toLocaleString()} semantically indexed
-                  cue{hoveredRepresentativeLine.candidateCount === 1 ? '' : 's'} in this slice.
+                  cue{hoveredRepresentativeLine.candidateCount === 1 ? '' : 's'} assigned to this
+                  slice.
                 </p>
               </>
             ) : (
