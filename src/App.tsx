@@ -154,7 +154,6 @@ function App() {
   const [transcriptVideoId, setTranscriptVideoId] = useState<string | null>(null);
   const [transcriptItems, setTranscriptItems] = useState<ContextItem[]>([]);
   const [transcriptFocusEntryId, setTranscriptFocusEntryId] = useState<string | null>(null);
-  const [activeTranscriptEntryId, setActiveTranscriptEntryId] = useState<string | null>(null);
   const [transcriptLoading, setTranscriptLoading] = useState(false);
   const [transcriptErrorText, setTranscriptErrorText] = useState<string | null>(null);
   const [landscapeData, setLandscapeData] = useState<SemanticLandscapeData | null>(null);
@@ -374,75 +373,12 @@ function App() {
         top: Math.max(0, top),
         behavior: 'auto',
       });
-      setActiveTranscriptEntryId(nextEntryId);
     });
 
     return () => {
       window.cancelAnimationFrame(frameId);
     };
   }, [selectedEntryId, transcriptFocusEntryId, transcriptItems, transcriptVideoId]);
-
-  useEffect(() => {
-    if (!transcriptVideoId || transcriptItems.length === 0) {
-      return;
-    }
-
-    const container = transcriptBodyRef.current;
-    if (!container) {
-      return;
-    }
-
-    let frameId = 0;
-
-    const updateActiveEntry = () => {
-      frameId = 0;
-
-      const containerBounds = container.getBoundingClientRect();
-      const anchorY = containerBounds.top + 32;
-      let closestEntryId = transcriptItems[0]?.entryId ?? null;
-      let closestDistance = Number.POSITIVE_INFINITY;
-
-      for (const item of transcriptItems) {
-        const element = transcriptItemRefs.current.get(item.entryId);
-        if (!element) {
-          continue;
-        }
-
-        const distance = Math.abs(element.getBoundingClientRect().top - anchorY);
-        if (distance < closestDistance) {
-          closestDistance = distance;
-          closestEntryId = item.entryId;
-        }
-      }
-
-      if (closestEntryId) {
-        setActiveTranscriptEntryId((current) =>
-          current === closestEntryId ? current : closestEntryId,
-        );
-      }
-    };
-
-    const scheduleUpdate = () => {
-      if (frameId !== 0) {
-        return;
-      }
-
-      frameId = window.requestAnimationFrame(updateActiveEntry);
-    };
-
-    updateActiveEntry();
-    container.addEventListener('scroll', scheduleUpdate, { passive: true });
-    window.addEventListener('resize', scheduleUpdate);
-
-    return () => {
-      if (frameId !== 0) {
-        window.cancelAnimationFrame(frameId);
-      }
-
-      container.removeEventListener('scroll', scheduleUpdate);
-      window.removeEventListener('resize', scheduleUpdate);
-    };
-  }, [transcriptItems, transcriptVideoId]);
 
   async function callWorker(payload: WorkerPayload): Promise<WorkerResponse> {
     const worker = workerRef.current;
@@ -657,7 +593,6 @@ function App() {
   function setTranscriptSelection(entryId: string): void {
     setSelectedEntryId(entryId);
     setTranscriptFocusEntryId(entryId);
-    setActiveTranscriptEntryId(entryId);
   }
 
   function searchFromTranscriptLine(text: string): void {
@@ -680,7 +615,6 @@ function App() {
     setTranscriptVideoId(videoId);
     setTranscriptItems([]);
     setTranscriptFocusEntryId(focusEntryId);
-    setActiveTranscriptEntryId(focusEntryId);
     setTranscriptLoading(true);
     setTranscriptErrorText(null);
 
@@ -715,7 +649,6 @@ function App() {
     setTranscriptVideoId(null);
     setTranscriptItems([]);
     setTranscriptFocusEntryId(null);
-    setActiveTranscriptEntryId(null);
     setTranscriptLoading(false);
     setTranscriptErrorText(null);
   }
@@ -1144,32 +1077,23 @@ function App() {
                 <ol className="transcript-row-list">
                   {transcriptItems.map((item) => {
                     const isSelected = item.entryId === selectedEntryId;
-                    const isActive = item.entryId === activeTranscriptEntryId;
 
                     return (
                       <li
                         key={item.entryId}
                         ref={(element) => setTranscriptItemRef(item.entryId, element)}
-                        className={[
-                          'transcript-row',
-                          isActive ? 'is-active' : '',
-                          isSelected ? 'is-selected' : '',
-                        ]
-                          .filter(Boolean)
-                          .join(' ')}
+                        className="transcript-row"
                       >
                         <button
                           aria-label={`Jump to ${item.videoId} cue ${item.segIndex}. ${formatCueRange(
                             item.startMs,
                             item.endMs,
                           )}.`}
-                          className={[
-                            'transcript-timeline-button',
-                            isActive ? 'is-active' : '',
-                            isSelected ? 'is-selected' : '',
-                          ]
-                            .filter(Boolean)
-                            .join(' ')}
+                          className={
+                            isSelected
+                              ? 'transcript-timeline-button is-selected'
+                              : 'transcript-timeline-button'
+                          }
                           type="button"
                           onClick={() => setTranscriptSelection(item.entryId)}
                         >
@@ -1189,7 +1113,6 @@ function App() {
                           className={[
                             'context-item',
                             'transcript-entry',
-                            isActive ? 'is-active' : '',
                             isSelected ? 'is-selected' : '',
                           ]
                             .filter(Boolean)

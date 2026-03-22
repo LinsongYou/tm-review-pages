@@ -1648,8 +1648,14 @@ button {
   color: var(--accent-strong);
 }
 
+.transcript-row:hover .transcript-timeline-button,
+.transcript-row:focus-within .transcript-timeline-button {
+  color: var(--accent-strong);
+}
+
 .transcript-timeline-button.is-selected::before,
-.transcript-timeline-button.is-active::before {
+.transcript-row:hover .transcript-timeline-button::before,
+.transcript-row:focus-within .transcript-timeline-button::before {
   background: linear-gradient(180deg, var(--field-border), var(--accent), var(--field-border));
 }
 
@@ -1658,7 +1664,8 @@ button {
   background: var(--accent);
 }
 
-.transcript-timeline-button.is-active::after {
+.transcript-row:hover .transcript-timeline-button::after,
+.transcript-row:focus-within .transcript-timeline-button::after {
   border-color: var(--accent);
   box-shadow: 0 0 0 6px var(--accent-ring);
 }
@@ -1700,7 +1707,8 @@ button {
   background: var(--accent-soft);
 }
 
-.transcript-entry.is-active {
+.transcript-row:hover .transcript-entry,
+.transcript-row:focus-within .transcript-entry {
   box-shadow: inset 0 0 0 1px var(--accent-ring);
 }
 
