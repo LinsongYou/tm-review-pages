@@ -18,16 +18,16 @@ export interface ContextItem extends EntrySummary {
   isFocus: boolean;
 }
 
-export interface CueTimeDistributionTopLine {
+export interface CueTimeDistributionRepresentativeLine {
   en: string;
   zh: string;
-  count: number;
+  candidateCount: number;
 }
 
 export interface CueTimeDistribution {
   binCount: number;
   bins: number[];
-  binTopLines: Array<CueTimeDistributionTopLine | null>;
+  binRepresentativeLines: Array<CueTimeDistributionRepresentativeLine | null>;
   timedEntryCount: number;
   totalEntryCount: number;
   timedVideoCount: number;

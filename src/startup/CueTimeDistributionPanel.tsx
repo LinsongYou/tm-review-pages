@@ -88,9 +88,10 @@ export default function CueTimeDistributionPanel({ data }: CueTimeDistributionPa
     hoveredBinIndex >= 0
       ? formatPercentRange(hoveredBinIndex / data.binCount, (hoveredBinIndex + 1) / data.binCount)
       : null;
-  const hoveredTopLine = hoveredBinIndex >= 0 ? data.binTopLines[hoveredBinIndex] ?? null : null;
-  const tooltipWidth = hoveredTopLine?.zh ? 332 : 300;
-  const tooltipHeight = hoveredTopLine ? (hoveredTopLine.zh ? 164 : 138) : 100;
+  const hoveredRepresentativeLine =
+    hoveredBinIndex >= 0 ? data.binRepresentativeLines[hoveredBinIndex] ?? null : null;
+  const tooltipWidth = hoveredRepresentativeLine?.zh ? 332 : 300;
+  const tooltipHeight = hoveredRepresentativeLine ? (hoveredRepresentativeLine.zh ? 164 : 142) : 100;
   const shellWidth = chartShellRef.current?.clientWidth ?? CHART_WIDTH;
   const shellHeight = chartShellRef.current?.clientHeight ?? CHART_HEIGHT;
   const tooltipLeft =
@@ -177,10 +178,10 @@ export default function CueTimeDistributionPanel({ data }: CueTimeDistributionPa
             const x = CHART_PADDING_LEFT + index * stepWidth;
             const y = CHART_PADDING_TOP + plotHeight - barHeight;
             const width = Math.max(1.5, stepWidth - 1.25);
-            const binTopLine = data.binTopLines[index] ?? null;
+            const binRepresentativeLine = data.binRepresentativeLines[index] ?? null;
             const binWindow = formatPercentRange(index / data.binCount, (index + 1) / data.binCount);
-            const barTitle = binTopLine
-              ? `${binWindow} | ${formatPercent(value)} coverage | ${binTopLine.en}`
+            const barTitle = binRepresentativeLine
+              ? `${binWindow} | ${formatPercent(value)} coverage | ${binRepresentativeLine.en}`
               : `${binWindow} | ${formatPercent(value)} coverage`;
 
             return (
@@ -220,19 +221,22 @@ export default function CueTimeDistributionPanel({ data }: CueTimeDistributionPa
           >
             <strong>{hoveredWindow}</strong>
             <p className="time-distribution-tooltip-meta">{hoveredCoverage} coverage across aligned videos</p>
-            {hoveredTopLine ? (
+            {hoveredRepresentativeLine ? (
               <>
-                <p>{hoveredTopLine.en}</p>
-                {hoveredTopLine.zh ? (
-                  <p className="time-distribution-tooltip-translation">{hoveredTopLine.zh}</p>
+                <p>{hoveredRepresentativeLine.en}</p>
+                {hoveredRepresentativeLine.zh ? (
+                  <p className="time-distribution-tooltip-translation">{hoveredRepresentativeLine.zh}</p>
                 ) : null}
                 <p className="time-distribution-tooltip-meta">
-                  Most frequent exact line pair in this slice, seen{' '}
-                  {hoveredTopLine.count.toLocaleString()} time{hoveredTopLine.count === 1 ? '' : 's'}.
+                  Representative line chosen from the densest semantic neighborhood among{' '}
+                  {hoveredRepresentativeLine.candidateCount.toLocaleString()} semantically indexed
+                  cue{hoveredRepresentativeLine.candidateCount === 1 ? '' : 's'} in this slice.
                 </p>
               </>
             ) : (
-              <p className="time-distribution-tooltip-meta">No timed cues intersect this slice.</p>
+              <p className="time-distribution-tooltip-meta">
+                No semantic vectors are available for cues in this slice.
+              </p>
             )}
           </div>
         ) : null}

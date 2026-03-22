@@ -7,7 +7,7 @@ import type {
   BootRequest,
   BootStats,
   CueTimeDistribution,
-  CueTimeDistributionTopLine,
+  CueTimeDistributionRepresentativeLine,
   ContextItem,
   ContextRequest,
   EntrySummary,
@@ -53,7 +53,6 @@ type ModelProgressInfo =
     };
 
 interface Entry extends EntrySummary {
-  contentSha: string;
   enLength: number;
   zhLength: number;
 }
@@ -63,10 +62,9 @@ interface RankedHit {
   score: number;
 }
 
-interface CueLineFrequency {
-  count: number;
+interface SemanticBinCandidate {
+  entryIndex: number;
   overlap: number;
-  sampleEntryIndex: number;
 }
 
 interface LoadedState {
@@ -353,13 +351,17 @@ function median(values: number[]): number {
 function buildCueTimeDistribution(
   entries: Entry[],
   videoGroups: Map<string, number[]>,
+  semanticVectors: Float32Array,
+  vectorDim: number,
+  entryVectorRows: Int32Array,
 ): CueTimeDistribution | null {
   const binCount = TIME_DISTRIBUTION_BIN_COUNT;
   const coverageTotals = new Float64Array(binCount);
-  const lineFrequencyByBin = Array.from({ length: binCount }, () => new Map<string, CueLineFrequency>());
   const cueDurations: number[] = [];
   const videoSpans: number[] = [];
   const binWidth = 1 / binCount;
+  const semanticSums = vectorDim > 0 ? new Float64Array(binCount * vectorDim) : new Float64Array(0);
+  const semanticCandidates = Array.from({ length: binCount }, () => [] as SemanticBinCandidate[]);
   let timedEntryCount = 0;
   let timedVideoCount = 0;
 
@@ -414,7 +416,7 @@ function buildCueTimeDistribution(
 
       const startBinIndex = toStartBinIndex(startRatio, binCount);
       const endBinIndex = toEndBinIndex(endRatio, binCount);
-      const contentKey = entry.contentSha || entry.entryId;
+      const vectorRow = entryVectorRows[entryIndex] ?? -1;
 
       for (let binIndex = startBinIndex; binIndex <= endBinIndex; binIndex += 1) {
         const binStart = binIndex * binWidth;
@@ -422,17 +424,19 @@ function buildCueTimeDistribution(
         const overlap = Math.min(endRatio, binEnd) - Math.max(startRatio, binStart);
         if (overlap > 0) {
           videoCoverage[binIndex] = (videoCoverage[binIndex] ?? 0) + overlap / binWidth;
-
-          const lineFrequency = lineFrequencyByBin[binIndex]!.get(contentKey);
-          if (lineFrequency) {
-            lineFrequency.count += 1;
-            lineFrequency.overlap += overlap;
-          } else {
-            lineFrequencyByBin[binIndex]!.set(contentKey, {
-              count: 1,
+          if (vectorDim > 0 && vectorRow >= 0) {
+            semanticCandidates[binIndex]!.push({
+              entryIndex,
               overlap,
-              sampleEntryIndex: entryIndex,
             });
+
+            const semanticOffset = binIndex * vectorDim;
+            const vectorOffset = vectorRow * vectorDim;
+            for (let dim = 0; dim < vectorDim; dim += 1) {
+              semanticSums[semanticOffset + dim] =
+                (semanticSums[semanticOffset + dim] ?? 0) +
+                semanticVectors[vectorOffset + dim]! * overlap;
+            }
           }
         }
       }
@@ -448,37 +452,57 @@ function buildCueTimeDistribution(
   }
 
   const bins = Array.from(coverageTotals, (value) => value / timedVideoCount);
-  const binTopLines = lineFrequencyByBin.map((lineFrequency): CueTimeDistributionTopLine | null => {
-    let bestMatch: CueLineFrequency | null = null;
-
-    for (const candidate of lineFrequency.values()) {
-      if (
-        !bestMatch ||
-        candidate.count > bestMatch.count ||
-        (candidate.count === bestMatch.count && candidate.overlap > bestMatch.overlap) ||
-        (candidate.count === bestMatch.count &&
-          candidate.overlap === bestMatch.overlap &&
-          candidate.sampleEntryIndex < bestMatch.sampleEntryIndex)
-      ) {
-        bestMatch = candidate;
+  const binRepresentativeLines = semanticCandidates.map(
+    (candidates, binIndex): CueTimeDistributionRepresentativeLine | null => {
+      if (vectorDim === 0 || candidates.length === 0) {
+        return null;
       }
-    }
 
-    if (!bestMatch) {
-      return null;
-    }
+      let bestCandidate = candidates[0] ?? null;
+      let bestScore = Number.NEGATIVE_INFINITY;
+      const semanticOffset = binIndex * vectorDim;
 
-    const sampleEntry = entries[bestMatch.sampleEntryIndex];
-    if (!sampleEntry) {
-      return null;
-    }
+      for (const candidate of candidates) {
+        const vectorRow = entryVectorRows[candidate.entryIndex] ?? -1;
+        if (vectorRow < 0) {
+          continue;
+        }
 
-    return {
-      en: sampleEntry.en,
-      zh: sampleEntry.zh,
-      count: bestMatch.count,
-    };
-  });
+        const vectorOffset = vectorRow * vectorDim;
+        let score = 0;
+        for (let dim = 0; dim < vectorDim; dim += 1) {
+          score += semanticVectors[vectorOffset + dim]! * semanticSums[semanticOffset + dim]!;
+        }
+
+        if (
+          !bestCandidate ||
+          score > bestScore ||
+          (score === bestScore && candidate.overlap > bestCandidate.overlap) ||
+          (score === bestScore &&
+            candidate.overlap === bestCandidate.overlap &&
+            candidate.entryIndex < bestCandidate.entryIndex)
+        ) {
+          bestCandidate = candidate;
+          bestScore = score;
+        }
+      }
+
+      if (!bestCandidate) {
+        return null;
+      }
+
+      const sampleEntry = entries[bestCandidate.entryIndex];
+      if (!sampleEntry) {
+        return null;
+      }
+
+      return {
+        en: sampleEntry.en,
+        zh: sampleEntry.zh,
+        candidateCount: candidates.length,
+      };
+    },
+  );
   let peakCoverage = 0;
   let peakBinIndex = 0;
   let coverageTotal = 0;
@@ -495,7 +519,7 @@ function buildCueTimeDistribution(
   return {
     binCount,
     bins,
-    binTopLines,
+    binRepresentativeLines,
     timedEntryCount,
     totalEntryCount: entries.length,
     timedVideoCount,
@@ -588,7 +612,7 @@ async function loadDatabase(request: BootRequest, reportProgress: ProgressReport
     const hasCueTiming = tmMainColumns.has('start_ms') && tmMainColumns.has('end_ms');
 
     const textStatement = db.prepare(`
-      SELECT video_id, seg_index, content_sha, en, zh, block_name${hasCueTiming ? ', start_ms, end_ms' : ''}
+      SELECT video_id, seg_index, en, zh, block_name${hasCueTiming ? ', start_ms, end_ms' : ''}
       FROM tm_main
       ORDER BY video_id, seg_index
     `);
@@ -597,7 +621,6 @@ async function loadDatabase(request: BootRequest, reportProgress: ProgressReport
       const row = textStatement.getAsObject() as Record<string, string | number | null>;
       const videoId = String(row.video_id ?? '');
       const segIndex = Number(row.seg_index ?? 0);
-      const contentSha = String(row.content_sha ?? '');
       const en = String(row.en ?? '');
       const zh = String(row.zh ?? '');
       const blockName = String(row.block_name ?? '');
@@ -609,7 +632,6 @@ async function loadDatabase(request: BootRequest, reportProgress: ProgressReport
         entryId: id,
         videoId,
         segIndex,
-        contentSha,
         en,
         zh,
         blockName,
@@ -657,6 +679,8 @@ async function loadDatabase(request: BootRequest, reportProgress: ProgressReport
     const semanticIndexes: number[] = [];
     const vectorRows: Float32Array[] = [];
     let vectorDim = 0;
+    const entryVectorRows = new Int32Array(entries.length);
+    entryVectorRows.fill(-1);
     const totalVectorCount = readCount(
       `
         SELECT COUNT(*) AS count
@@ -709,6 +733,7 @@ async function loadDatabase(request: BootRequest, reportProgress: ProgressReport
         continue;
       }
 
+      entryVectorRows[sourceIndex] = vectorRows.length;
       semanticIndexes.push(sourceIndex);
       vectorRows.push(toFloat32(blob, dim));
 
@@ -750,7 +775,13 @@ async function loadDatabase(request: BootRequest, reportProgress: ProgressReport
       vectorDim,
     };
 
-    const cueTimeDistribution = buildCueTimeDistribution(entries, videoGroups);
+    const cueTimeDistribution = buildCueTimeDistribution(
+      entries,
+      videoGroups,
+      semanticVectors,
+      vectorDim,
+      entryVectorRows,
+    );
 
     reportProgress({
       name: PAIRS_LABEL,
