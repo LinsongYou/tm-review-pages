@@ -368,7 +368,10 @@ function App() {
 
       const containerBounds = container.getBoundingClientRect();
       const entryBounds = entry.getBoundingClientRect();
-      const top = container.scrollTop + (entryBounds.top - containerBounds.top) - 24;
+      const top =
+        container.scrollTop +
+        (entryBounds.top - containerBounds.top) -
+        (container.clientHeight - entryBounds.height) / 2;
       container.scrollTo({
         top: Math.max(0, top),
         behavior: 'auto',
