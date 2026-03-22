@@ -17,7 +17,6 @@ CLUSTER_COUNT = 10
 PCA_ITERATIONS = 18
 RANDOM_SEED = 7
 PERCENTILE_CLIP = 0.02
-FLOW_BIN_COUNT = 24
 FINGERPRINT_BIN_COUNT = 32
 TOKEN_RE = re.compile(r"[A-Za-z0-9']+")
 STOPWORDS = {
@@ -597,14 +596,6 @@ def to_bin_index(value: float, bin_count: int) -> int:
     return min(bin_count - 1, max(0, int(clamped * bin_count)))
 
 
-def format_progress_label(start: float, end: float) -> str:
-    start_percent = round(start * 100)
-    end_percent = round(end * 100)
-    if start_percent == end_percent:
-        return f"{start_percent}%"
-    return f"{start_percent}% - {end_percent}%"
-
-
 def titleize_keyword(keyword: str) -> str:
     words = [LABEL_CANONICAL.get(word, word.title()) for word in keyword.split()]
     return " ".join(words)
@@ -742,88 +733,6 @@ def build_cluster_keyword_scores(
         cluster_keywords[cluster_id] = [phrase for _, phrase in ranked[:6]]
 
     return cluster_keywords
-
-
-def build_semantic_flow(
-    metadata: list[dict[str, object]],
-    assignments: list[int],
-) -> dict[str, object]:
-    grouped: dict[str, list[int]] = defaultdict(list)
-    for index, item in enumerate(metadata):
-        grouped[str(item["videoId"])].append(index)
-
-    cluster_counts = [[0 for _ in range(CLUSTER_COUNT)] for _ in range(FLOW_BIN_COUNT)]
-    totals = [0 for _ in range(FLOW_BIN_COUNT)]
-
-    for indexes in grouped.values():
-        starts = [
-            int(metadata[index]["startMs"])
-            for index in indexes
-            if metadata[index]["startMs"] is not None and metadata[index]["endMs"] is not None
-        ]
-        ends = [
-            int(metadata[index]["endMs"])
-            for index in indexes
-            if metadata[index]["startMs"] is not None and metadata[index]["endMs"] is not None
-        ]
-
-        if not starts or not ends:
-            continue
-
-        video_start = min(starts)
-        video_end = max(ends)
-        span = max(1, video_end - video_start)
-
-        for index in indexes:
-            start_ms = metadata[index]["startMs"]
-            end_ms = metadata[index]["endMs"]
-            if start_ms is None or end_ms is None or end_ms <= start_ms:
-                continue
-
-            midpoint = ((int(start_ms) + int(end_ms)) / 2 - video_start) / span
-            bin_index = to_bin_index(midpoint, FLOW_BIN_COUNT)
-            cluster_id = assignments[index]
-            cluster_counts[bin_index][cluster_id] += 1
-            totals[bin_index] += 1
-
-    peak_total = max(totals) if totals else 0
-    peak_bin_index = totals.index(peak_total) if peak_total else 0
-    bins: list[dict[str, object]] = []
-
-    leading_cluster_id = -1
-    trailing_cluster_id = -1
-    for bin_index, total in enumerate(totals):
-        dominant_cluster_id = -1
-        if total > 0:
-            dominant_cluster_id = max(
-                range(CLUSTER_COUNT),
-                key=lambda cluster_id: (cluster_counts[bin_index][cluster_id], -cluster_id),
-            )
-            if leading_cluster_id < 0:
-                leading_cluster_id = dominant_cluster_id
-            trailing_cluster_id = dominant_cluster_id
-
-        start = bin_index / FLOW_BIN_COUNT
-        end = (bin_index + 1) / FLOW_BIN_COUNT
-        bins.append(
-            {
-                "start": start,
-                "end": end,
-                "label": format_progress_label(start, end),
-                "total": total,
-                "clusterCounts": cluster_counts[bin_index],
-                "dominantClusterId": dominant_cluster_id,
-            }
-        )
-
-    return {
-        "binCount": FLOW_BIN_COUNT,
-        "peakBinIndex": peak_bin_index,
-        "peakTotal": peak_total,
-        "leadingClusterId": leading_cluster_id,
-        "trailingClusterId": trailing_cluster_id,
-        "bins": bins,
-    }
 
 
 def build_video_fingerprint_wall(
@@ -1099,7 +1008,7 @@ def main() -> None:
         )
 
     payload = {
-        "version": 2,
+        "version": 3,
         "projection": "pca-2d",
         "clusterAlgorithm": "kmeans-2d",
         "generatedAt": datetime.now(timezone.utc).isoformat(),
@@ -1109,7 +1018,6 @@ def main() -> None:
         "vectorDim": vector_dim,
         "clusters": clusters,
         "points": points,
-        "semanticFlowTimeline": build_semantic_flow(metadata, assignments),
         "videoFingerprintWall": build_video_fingerprint_wall(metadata, assignments, scaled_points),
     }
 

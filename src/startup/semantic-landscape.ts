@@ -28,24 +28,6 @@ export interface SemanticLandscapePoint {
   clusterId: number;
 }
 
-export interface SemanticFlowTimelineBin {
-  start: number;
-  end: number;
-  label: string;
-  total: number;
-  clusterCounts: number[];
-  dominantClusterId: number;
-}
-
-export interface SemanticFlowTimeline {
-  binCount: number;
-  peakBinIndex: number;
-  peakTotal: number;
-  leadingClusterId: number;
-  trailingClusterId: number;
-  bins: SemanticFlowTimelineBin[];
-}
-
 export interface VideoFingerprintVideo {
   videoId: string;
   firstEntryId: string;
@@ -77,6 +59,5 @@ export interface SemanticLandscapeData {
   vectorDim: number;
   clusters: SemanticLandscapeCluster[];
   points: SemanticLandscapePoint[];
-  semanticFlowTimeline: SemanticFlowTimeline;
   videoFingerprintWall: VideoFingerprintWall;
 }

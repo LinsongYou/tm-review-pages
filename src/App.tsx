@@ -17,6 +17,7 @@ import type {
 } from './search/protocol';
 import CueTimeDistributionPanel from './startup/CueTimeDistributionPanel';
 import SemanticLandscapePanel from './startup/SemanticLandscapePanel';
+import VideoFingerprintWallPanel from './startup/VideoFingerprintWallPanel';
 import type { SemanticLandscapeData } from './startup/semantic-landscape';
 import NordschleifeMark from './icons/NordschleifeMark';
 
@@ -906,7 +907,6 @@ function App() {
               </section>
             ) : landscapeData ? (
               <>
-                {/* Optional startup panels remain implemented but are intentionally not rendered by default. */}
                 <SemanticLandscapePanel
                   data={landscapeData}
                   theme={theme}
@@ -943,6 +943,16 @@ function App() {
                   <p>Load a database with cue-level `start_ms` and `end_ms` values to populate this view.</p>
                 </div>
               </section>
+            ) : null}
+
+            {landscapeData ? (
+              <VideoFingerprintWallPanel
+                data={landscapeData.videoFingerprintWall}
+                clusters={landscapeData.clusters}
+                onOpenTranscript={(videoId, focusEntryId) => {
+                  void openTranscript(videoId, focusEntryId);
+                }}
+              />
             ) : null}
           </div>
         </div>
