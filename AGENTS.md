@@ -9,7 +9,7 @@
 - The app is already scaffolded, built, and deployed through GitHub Pages.
 - Stack: Vite, React, TypeScript, `sql.js`, `@huggingface/transformers`.
 - `public/data/tm_misha_minilm.db` is shipped directly as a static asset and opened in the browser.
-- `public/data/semantic-landscape.json` is a generated startup artifact used for the landing-page visualizations.
+- `public/data/startup-visualizations.json` is a generated startup artifact used for the landing-page visualizations.
 - A Web Worker handles DB loading, query-model loading, semantic search, context lookup, and full-transcript lookup.
 - Search is English semantic search only.
 - The current search flow embeds queries with `Xenova/all-MiniLM-L6-v2` and matches against stored `sentence-transformers/all-MiniLM-L6-v2` vectors from the TM DB.
@@ -30,7 +30,7 @@
 
 ## Data Contract
 - Treat TM assets in this repo as generated input, not hand-edited source.
-- When refreshing data, update `public/data/tm_misha_minilm.db` from the pipeline repo and regenerate `public/data/semantic-landscape.json`.
+- When refreshing data, update `public/data/tm_misha_minilm.db` from the pipeline repo and regenerate `public/data/startup-visualizations.json`.
 - If raw SQLite becomes too heavy for Pages, prefer slimmer exported read-only artifacts from the pipeline repo rather than adding server infrastructure.
 
 ## Key Files

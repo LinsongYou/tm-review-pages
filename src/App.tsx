@@ -30,7 +30,7 @@ type Theme = 'dark' | 'light';
 type HeaderLoadState = Record<BootProgressSnapshot['target'], BootProgressSnapshot>;
 
 const DB_ASSET = 'data/tm_misha_minilm.db';
-const LANDSCAPE_ASSET = 'data/semantic-landscape.json';
+const STARTUP_DATA_ASSET = 'data/startup-visualizations.json';
 const THEME_STORAGE_KEY = 'tm-review-theme';
 const DEFAULT_CONTEXT_RADIUS = 3;
 const PAIRS_CHIP_LABEL = 'English/中文 Pairs';
@@ -156,16 +156,16 @@ function App() {
   const [transcriptFocusEntryId, setTranscriptFocusEntryId] = useState<string | null>(null);
   const [transcriptLoading, setTranscriptLoading] = useState(false);
   const [transcriptErrorText, setTranscriptErrorText] = useState<string | null>(null);
-  const [landscapeData, setLandscapeData] = useState<SemanticLandscapeData | null>(null);
-  const [landscapeLoading, setLandscapeLoading] = useState(true);
-  const [landscapeErrorText, setLandscapeErrorText] = useState<string | null>(null);
+  const [startupData, setStartupData] = useState<SemanticLandscapeData | null>(null);
+  const [startupDataLoading, setStartupDataLoading] = useState(true);
+  const [startupDataErrorText, setStartupDataErrorText] = useState<string | null>(null);
   const [startupRevealProgress, setStartupRevealProgress] = useState(0);
   const [startupFocusDismissed, setStartupFocusDismissed] = useState(false);
 
   const dbUrl = `${import.meta.env.BASE_URL}${withAssetVersion(DB_ASSET, __TM_DB_VERSION__)}`;
-  const landscapeUrl = `${import.meta.env.BASE_URL}${withAssetVersion(
-    LANDSCAPE_ASSET,
-    __TM_LANDSCAPE_VERSION__,
+  const startupDataUrl = `${import.meta.env.BASE_URL}${withAssetVersion(
+    STARTUP_DATA_ASSET,
+    __TM_STARTUP_DATA_VERSION__,
   )}`;
 
   useLayoutEffect(() => {
@@ -229,12 +229,12 @@ function App() {
   useEffect(() => {
     const controller = new AbortController();
 
-    void loadSemanticLandscape(controller.signal);
+    void loadStartupData(controller.signal);
 
     return () => {
       controller.abort();
     };
-  }, [landscapeUrl]);
+  }, [startupDataUrl]);
 
   useEffect(() => {
     if (hasSearched && !startupFocusDismissed) {
@@ -437,14 +437,14 @@ function App() {
     }
   }
 
-  async function loadSemanticLandscape(signal: AbortSignal): Promise<void> {
-    setLandscapeLoading(true);
-    setLandscapeErrorText(null);
+  async function loadStartupData(signal: AbortSignal): Promise<void> {
+    setStartupDataLoading(true);
+    setStartupDataErrorText(null);
 
     try {
-      const response = await fetch(landscapeUrl, { signal });
+      const response = await fetch(startupDataUrl, { signal });
       if (!response.ok) {
-        throw new Error(`Failed to download ${landscapeUrl} (${response.status}).`);
+        throw new Error(`Failed to download ${startupDataUrl} (${response.status}).`);
       }
 
       const payload = (await response.json()) as SemanticLandscapeData;
@@ -453,16 +453,16 @@ function App() {
       }
 
       startTransition(() => {
-        setLandscapeData(payload);
-        setLandscapeLoading(false);
+        setStartupData(payload);
+        setStartupDataLoading(false);
       });
     } catch (error) {
       if (signal.aborted) {
         return;
       }
 
-      setLandscapeLoading(false);
-      setLandscapeErrorText(error instanceof Error ? error.message : String(error));
+      setStartupDataLoading(false);
+      setStartupDataErrorText(error instanceof Error ? error.message : String(error));
     }
   }
 
@@ -824,27 +824,27 @@ function App() {
           />
 
           <div className="startup-panels-stack">
-            {landscapeErrorText ? (
+            {startupDataErrorText ? (
               <section className="panel message error-message">
-                <strong>Semantic Landscape</strong>
-                <p>{landscapeErrorText}</p>
+                <strong>Startup Visualizations</strong>
+                <p>{startupDataErrorText}</p>
               </section>
-            ) : landscapeLoading ? (
+            ) : startupDataLoading ? (
               <section className="panel startup-panel semantic-panel semantic-panel--loading">
                 <div className="panel-header semantic-panel-header">
                   <div className="results-heading">
-                    <h2>Semantic Landscape</h2>
-                    <span>Preparing the precomputed startup distribution…</span>
+                    <h2>Startup Visualizations</h2>
+                    <span>Preparing the precomputed startup panels…</span>
                   </div>
                 </div>
                 <div className="empty-state">
-                  <p>Loading all-entry semantic coordinates…</p>
+                  <p>Loading semantic coordinates and video fingerprints…</p>
                 </div>
               </section>
-            ) : landscapeData ? (
+            ) : startupData ? (
               <>
                 <SemanticLandscapePanel
-                  data={landscapeData}
+                  data={startupData}
                   theme={theme}
                   onOpenTranscript={(videoId, focusEntryId) => {
                     void openTranscript(videoId, focusEntryId);
@@ -881,10 +881,10 @@ function App() {
               </section>
             ) : null}
 
-            {landscapeData ? (
+            {startupData ? (
               <VideoFingerprintWallPanel
-                data={landscapeData.videoFingerprintWall}
-                clusters={landscapeData.clusters}
+                data={startupData.videoFingerprintWall}
+                clusters={startupData.clusters}
                 onOpenTranscript={(videoId, focusEntryId) => {
                   void openTranscript(videoId, focusEntryId);
                 }}

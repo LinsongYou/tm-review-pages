@@ -11,7 +11,7 @@ from pathlib import Path
 
 
 DB_PATH = Path(__file__).resolve().parent.parent / "public" / "data" / "tm_misha_minilm.db"
-OUTPUT_PATH = Path(__file__).resolve().parent.parent / "public" / "data" / "semantic-landscape.json"
+OUTPUT_PATH = Path(__file__).resolve().parent.parent / "public" / "data" / "startup-visualizations.json"
 MODEL_ID = "sentence-transformers/all-MiniLM-L6-v2"
 CLUSTER_COUNT = 10
 PCA_ITERATIONS = 18

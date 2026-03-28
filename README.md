@@ -13,7 +13,7 @@ Static GitHub Pages app for reviewing translation-memory data in the browser.
 ## Current Prototype
 
 - Loads `public/data/tm_misha_minilm.db` directly in the browser.
-- Loads a precomputed `public/data/semantic-landscape.json` startup artifact for the home-page semantic visualization.
+- Loads a precomputed `public/data/startup-visualizations.json` startup artifact for the home-page startup visualizations.
 - Uses a single English semantic search flow powered by the shipped `sentence-transformers/all-MiniLM-L6-v2` vectors.
 - Keeps the DB and startup JSON on stable URLs with asset-version query strings so repeat visits can reuse browser cache until the source data changes.
 - Defers MiniLM model initialization until the first semantic search instead of blocking the initial app boot.
@@ -31,7 +31,7 @@ Two additional startup panels are already implemented but intentionally not rend
 - `SemanticFlowTimelinePanel`
 - `VideoFingerprintWallPanel`
 
-Their precomputed data is already included in `public/data/semantic-landscape.json`. To enable them again, add the two component renders back into the `landscapeData` startup branch in `src/App.tsx`, directly below the existing `SemanticLandscapePanel`.
+Their precomputed data is already included in `public/data/startup-visualizations.json`. To enable them again, add the two component renders back into the `startupData` startup branch in `src/App.tsx`, directly below the existing `SemanticLandscapePanel`.
 
 ## Local Development
 
@@ -64,10 +64,10 @@ New-Item -ItemType Directory -Force .\public\data
 Copy-Item D:\subtitle-workflow-pipeline\tm_tools\tm_misha_minilm.db .\public\data\tm_misha_minilm.db -Force
 ```
 
-Then regenerate the startup semantic map:
+Then regenerate the startup visualization payload:
 
 ```powershell
-npm run generate:semantic-landscape
+npm run generate:startup-visualizations
 ```
 
 If the data changes shape or raw SQLite becomes awkward on Pages, the next step is to export slimmer read-only artifacts from the pipeline repo and keep this app unchanged at the UI layer.

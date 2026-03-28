@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "generate:semantic-landscape": "python scripts/generate_semantic_landscape.py",
+    "generate:startup-visualizations": "python scripts/generate_semantic_landscape.py",
+    "generate:semantic-landscape": "npm run generate:startup-visualizations",
     "build": "tsc -b && vite build",
     "preview": "vite preview"
   },
