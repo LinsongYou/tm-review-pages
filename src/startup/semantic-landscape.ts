@@ -6,14 +6,22 @@ export interface SemanticLandscapeSample {
   zh: string;
 }
 
+export type SemanticLandscapeLabelMode = 'theme' | 'provisional' | 'descriptive';
+
 export interface SemanticLandscapeCluster {
   id: number;
   label: string;
+  labelMode: SemanticLandscapeLabelMode;
+  labelConfidence: number;
   color: string;
   size: number;
+  videoCount: number;
   x: number;
   y: number;
   keywords: string[];
+  topPhrases: string[];
+  medoidEntryId: string;
+  representativeEntryIds: string[];
   samples: SemanticLandscapeSample[];
 }
 

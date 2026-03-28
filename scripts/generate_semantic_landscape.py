@@ -15,9 +15,19 @@ OUTPUT_PATH = Path(__file__).resolve().parent.parent / "public" / "data" / "star
 MODEL_ID = "sentence-transformers/all-MiniLM-L6-v2"
 CLUSTER_COUNT = 10
 PCA_ITERATIONS = 18
+CLUSTER_ITERATIONS = 14
 RANDOM_SEED = 7
 PERCENTILE_CLIP = 0.02
 FINGERPRINT_BIN_COUNT = 32
+MEDOID_CANDIDATE_COUNT = 12
+REPRESENTATIVE_POOL_COUNT = 48
+REPRESENTATIVE_SAMPLE_COUNT = 4
+THEME_SCORE_THRESHOLD = 8.0
+THEME_MARGIN_THRESHOLD = 2.4
+PROVISIONAL_THEME_SCORE_THRESHOLD = 4.5
+PROVISIONAL_THEME_MARGIN_THRESHOLD = 0.35
+HIGH_CONFIDENCE_LABEL_THRESHOLD = 0.84
+HIGH_CONFIDENCE_VIDEO_MIN = 3
 TOKEN_RE = re.compile(r"[A-Za-z0-9']+")
 STOPWORDS = {
     "a",
@@ -198,71 +208,86 @@ GENERIC_LABEL_TOKENS = {
     "awesome",
     "book",
     "books",
+    "bye",
+    "code",
+    "construction",
     "cool",
+    "couple mods",
+    "curb",
     "day",
+    "definitely",
+    "enjoy",
+    "enjoy lap",
+    "everything",
+    "flat",
     "great",
+    "guys",
+    "guys enjoy",
+    "happen",
     "hello",
+    "hope enjoyed",
+    "interesting",
+    "licensed",
+    "licensed products",
     "loved",
+    "man",
     "merino",
     "nice",
     "okay",
+    "rburgring licensed",
     "russian",
+    "sad",
+    "second lap",
     "statesidesupercars",
+    "stock",
+    "talk",
     "tuned",
+    "use code",
     "video",
     "wool",
     "write",
+    "yellow",
 }
 LABEL_CANONICAL = {
-    "batteries": "Battery",
-    "battery": "Battery",
-    "book": "Book",
-    "books": "Books",
+    "abs": "ABS",
     "brake": "Brake",
     "brakes": "Brakes",
-    "caliper": "Caliper",
-    "calipers": "Calipers",
-    "charging": "Charging",
     "chassis": "Chassis",
-    "conditions": "Conditions",
-    "feedback": "Feedback",
+    "corner": "Corners",
+    "corners": "Corners",
+    "engine": "Engine",
+    "euros": "Euros",
+    "flag": "Flags",
+    "flags": "Flags",
     "gearbox": "Gearbox",
     "grip": "Grip",
+    "gt3": "GT3",
+    "hour": "Hour",
+    "kilometers": "Kilometers",
+    "kilos": "Kilos",
     "lap": "Lap",
     "laps": "Laps",
-    "music": "Music",
-    "outro": "Outro",
-    "playlist": "Playlist",
-    "power": "Power",
-    "range": "Range",
-    "record": "Record",
+    "people": "People",
+    "price": "Price",
+    "prices": "Prices",
     "speed": "Speed",
     "suspension": "Suspension",
-    "throttle": "Throttle",
-    "track": "Track",
-    "tyre": "Tyre",
-    "tyres": "Tyres",
-    "wheel": "Wheel",
-    "wheels": "Wheels",
+    "turbo": "Turbo",
+    "wet": "Wet",
+    "yep": "Short Replies",
 }
 THEME_RULES = [
     (
         "Brakes, Grip & Chassis",
         {
-            "aero",
             "brake",
             "brakes",
             "braking",
             "caliper",
             "calipers",
-            "carousel",
             "chassis",
-            "compliance",
             "cup tyres",
             "grip",
-            "handling",
-            "pressure",
-            "suspension",
             "traction",
             "tyre",
             "tyre pressure",
@@ -278,23 +303,21 @@ THEME_RULES = [
             "camber",
             "compression",
             "dampers",
-            "front",
             "front end",
-            "oil",
-            "setup",
+            "ride height",
             "splitter",
             "suspension",
         },
     ),
     (
-        "Powertrain, Charging & Range",
+        "Powertrain & Performance",
         {
             "battery",
-            "charge",
             "charging",
             "electric",
             "engine",
             "engines",
+            "ethanol",
             "gearbox",
             "horsepower",
             "kilowatts",
@@ -303,6 +326,7 @@ THEME_RULES = [
             "range",
             "rpm",
             "torque",
+            "turbo",
         },
     ),
     (
@@ -316,7 +340,6 @@ THEME_RULES = [
             "rain",
             "record",
             "seconds",
-            "speed",
             "timing",
             "track conditions",
             "wet",
@@ -327,36 +350,13 @@ THEME_RULES = [
         {
             "closed",
             "entry",
-            "logistics",
             "marshal",
-            "overtake",
-            "overtakes",
             "parking",
-            "pass",
+            "passenger",
             "passengers",
-            "rental",
-            "rent",
-            "road",
-            "roads",
             "session",
-            "track",
             "track day",
             "traffic",
-        },
-    ),
-    (
-        "Road Speed & Usability",
-        {
-            "daily",
-            "highway",
-            "kilometers",
-            "license",
-            "license plate",
-            "per hour",
-            "plate",
-            "road",
-            "speed",
-            "street",
         },
     ),
     (
@@ -370,9 +370,6 @@ THEME_RULES = [
             "full throttle",
             "heel",
             "line",
-            "rolling",
-            "speedometer",
-            "steer",
             "steering",
             "throttle",
             "trail",
@@ -382,12 +379,37 @@ THEME_RULES = [
         },
     ),
     (
+        "Suspension, Grip & Speed",
+        {
+            "abs",
+            "downforce",
+            "front",
+            "grip",
+            "high speed",
+            "speed",
+            "suspension",
+            "weight",
+        },
+    ),
+    (
+        "Corners, Flags & Wet Conditions",
+        {
+            "corner",
+            "corners",
+            "flag",
+            "left",
+            "umbrella",
+            "wet",
+            "yellow flag",
+        },
+    ),
+    (
         "Build Plans & Hardware",
         {
             "aero",
             "build",
-            "carbon",
             "cage",
+            "carbon",
             "fiber",
             "heavier",
             "lighter",
@@ -400,7 +422,7 @@ THEME_RULES = [
         },
     ),
     (
-        "Mods, Styling & Materials",
+        "Styling & Interior Materials",
         {
             "carpets",
             "color",
@@ -409,8 +431,6 @@ THEME_RULES = [
             "material",
             "materials",
             "merino",
-            "mods",
-            "rebuild",
             "styling",
             "wool",
             "wrap",
@@ -420,8 +440,6 @@ THEME_RULES = [
     (
         "Video Production & Outro",
         {
-            "book",
-            "books",
             "filming",
             "music",
             "outro",
@@ -429,7 +447,6 @@ THEME_RULES = [
             "recording",
             "share",
             "subscribe",
-            "tomorrow",
             "video",
             "youtube",
         },
@@ -437,47 +454,77 @@ THEME_RULES = [
     (
         "Positive Reactions & Thanks",
         {
-            "alright",
-            "alrighty",
             "amazing",
+            "appreciate",
             "enjoyed",
-            "hope enjoyed",
+            "loved",
+            "thank",
+            "thanks",
             "welcome",
         },
     ),
     (
-        "Short Reactions & Fillers",
+        "Short Reactions & Acknowledgements",
         {
             "alright",
-            "amazing",
-            "awesome",
-            "banter",
-            "crazy",
-            "fun",
-            "insane",
-            "joke",
-            "laugh",
-            "loved",
-            "nice",
-            "welcome",
-            "wow",
+            "alrighty",
+            "nein",
+            "worries",
+            "yep",
+        },
+    ),
+    (
+        "Starts, Passes & Next Moves",
+        {
+            "ahead",
+            "go",
+            "hopefully",
+            "next",
+            "pass",
+            "take",
+            "take easy",
+            "watch",
+        },
+    ),
+    (
+        "People, Comments & Mentions",
+        {
+            "comments",
+            "else",
+            "mention",
+            "mods",
+            "people",
+            "reason",
+            "things",
+            "years",
+        },
+    ),
+    (
+        "Speeds, Prices & Numbers",
+        {
+            "euros",
+            "hour",
+            "kilometers",
+            "kilometers per",
+            "kilos",
+            "per hour",
+            "price",
         },
     ),
     (
         "Group Banter & Setups",
         {
+            "banter",
             "follow",
-            "fun",
             "line up",
             "passenger",
             "passengers",
             "setup",
-            "show",
-            "take",
             "try",
         },
     ),
 ]
+THEME_HINTS_BY_LABEL = {label: hints for label, hints in THEME_RULES}
 PALETTE = [
     "#84a98c",
     "#f4a261",
@@ -492,7 +539,7 @@ PALETTE = [
 ]
 
 
-def normalize(vector: list[float]) -> list[float]:
+def normalize(vector: list[float] | tuple[float, ...]) -> list[float]:
     magnitude = math.sqrt(sum(value * value for value in vector)) or 1.0
     return [value / magnitude for value in vector]
 
@@ -558,37 +605,137 @@ def extract_keyphrases(text: str) -> list[str]:
     return phrases
 
 
-def kmeans_2d(points: list[tuple[float, float]], cluster_count: int) -> tuple[list[int], list[tuple[float, float]]]:
-    random.seed(RANDOM_SEED)
-    centers = [list(points[index]) for index in random.sample(range(len(points)), cluster_count)]
-    assignments = [0] * len(points)
+def row_offset(row_index: int, vector_dim: int) -> int:
+    return row_index * vector_dim
 
-    for _ in range(14):
+
+def copy_row(vectors: array, row_index: int, vector_dim: int) -> list[float]:
+    offset = row_offset(row_index, vector_dim)
+    return [vectors[offset + dimension] for dimension in range(vector_dim)]
+
+
+def dot_row_to_vector(vectors: array, row_index: int, vector_dim: int, other: list[float]) -> float:
+    total = 0.0
+    offset = row_offset(row_index, vector_dim)
+    for dimension in range(vector_dim):
+        total += vectors[offset + dimension] * other[dimension]
+    return total
+
+
+def dot_rows(vectors: array, left_index: int, right_index: int, vector_dim: int) -> float:
+    total = 0.0
+    left_offset = row_offset(left_index, vector_dim)
+    right_offset = row_offset(right_index, vector_dim)
+    for dimension in range(vector_dim):
+        total += vectors[left_offset + dimension] * vectors[right_offset + dimension]
+    return total
+
+
+def add_row(target: list[float], vectors: array, row_index: int, vector_dim: int) -> None:
+    offset = row_offset(row_index, vector_dim)
+    for dimension in range(vector_dim):
+        target[dimension] += vectors[offset + dimension]
+
+
+def initialize_cluster_centers(
+    vectors: array,
+    entry_count: int,
+    vector_dim: int,
+    cluster_count: int,
+) -> list[list[float]]:
+    random_generator = random.Random(RANDOM_SEED)
+    first_index = random_generator.randrange(entry_count)
+    centers = [copy_row(vectors, first_index, vector_dim)]
+    nearest_distances = [0.0 for _ in range(entry_count)]
+
+    for row_index in range(entry_count):
+        similarity = dot_row_to_vector(vectors, row_index, vector_dim, centers[0])
+        nearest_distances[row_index] = max(0.0, 1.0 - similarity)
+
+    while len(centers) < cluster_count:
+        total_distance = sum(nearest_distances)
+        if total_distance <= 1e-9:
+            fallback_index = len(centers) % entry_count
+            centers.append(copy_row(vectors, fallback_index, vector_dim))
+            continue
+
+        threshold = random_generator.random() * total_distance
+        running = 0.0
+        next_index = entry_count - 1
+        for row_index, distance in enumerate(nearest_distances):
+            running += distance
+            if running >= threshold:
+                next_index = row_index
+                break
+
+        centers.append(copy_row(vectors, next_index, vector_dim))
+        latest_center = centers[-1]
+        for row_index in range(entry_count):
+            similarity = dot_row_to_vector(vectors, row_index, vector_dim, latest_center)
+            distance = max(0.0, 1.0 - similarity)
+            if distance < nearest_distances[row_index]:
+                nearest_distances[row_index] = distance
+
+    return centers
+
+
+def spherical_kmeans(
+    vectors: array,
+    entry_count: int,
+    vector_dim: int,
+    cluster_count: int,
+) -> tuple[list[int], list[list[float]]]:
+    centers = initialize_cluster_centers(vectors, entry_count, vector_dim, cluster_count)
+    assignments = [-1] * entry_count
+
+    for _ in range(CLUSTER_ITERATIONS):
+        cluster_sums = [[0.0] * vector_dim for _ in range(cluster_count)]
+        cluster_counts = [0] * cluster_count
+        best_scores = [-1.0] * entry_count
         changed = False
-        for index, (x_value, y_value) in enumerate(points):
-            best_cluster = min(
-                range(cluster_count),
-                key=lambda cluster_index: (x_value - centers[cluster_index][0]) ** 2
-                + (y_value - centers[cluster_index][1]) ** 2,
-            )
-            if assignments[index] != best_cluster:
-                assignments[index] = best_cluster
+
+        for row_index in range(entry_count):
+            best_cluster = 0
+            best_score = -float("inf")
+
+            for cluster_id, center in enumerate(centers):
+                score = dot_row_to_vector(vectors, row_index, vector_dim, center)
+                if score > best_score + 1e-12 or (
+                    abs(score - best_score) <= 1e-12 and cluster_id < best_cluster
+                ):
+                    best_cluster = cluster_id
+                    best_score = score
+
+            if assignments[row_index] != best_cluster:
+                assignments[row_index] = best_cluster
                 changed = True
 
-        totals = [[0.0, 0.0, 0] for _ in range(cluster_count)]
-        for (x_value, y_value), cluster_index in zip(points, assignments):
-            totals[cluster_index][0] += x_value
-            totals[cluster_index][1] += y_value
-            totals[cluster_index][2] += 1
+            best_scores[row_index] = best_score
+            cluster_counts[best_cluster] += 1
+            add_row(cluster_sums[best_cluster], vectors, row_index, vector_dim)
 
-        for cluster_index, (x_total, y_total, count) in enumerate(totals):
-            if count:
-                centers[cluster_index] = [x_total / count, y_total / count]
+        empty_clusters = [cluster_id for cluster_id, count in enumerate(cluster_counts) if count == 0]
+        if empty_clusters:
+            farthest_rows = sorted(
+                range(entry_count),
+                key=lambda row_index: (best_scores[row_index], row_index),
+            )
+            used_rows: set[int] = set()
+            for cluster_id, row_index in zip(empty_clusters, farthest_rows):
+                while row_index in used_rows:
+                    row_index += 1
+                    if row_index >= entry_count:
+                        row_index = 0
+                centers[cluster_id] = copy_row(vectors, row_index, vector_dim)
+                used_rows.add(row_index)
+        else:
+            for cluster_id in range(cluster_count):
+                centers[cluster_id] = normalize(cluster_sums[cluster_id])
 
-        if not changed:
+        if not changed and not empty_clusters:
             break
 
-    return assignments, [(center[0], center[1]) for center in centers]
+    return assignments, centers
 
 
 def to_bin_index(value: float, bin_count: int) -> int:
@@ -596,89 +743,10 @@ def to_bin_index(value: float, bin_count: int) -> int:
     return min(bin_count - 1, max(0, int(clamped * bin_count)))
 
 
-def titleize_keyword(keyword: str) -> str:
-    words = [LABEL_CANONICAL.get(word, word.title()) for word in keyword.split()]
-    return " ".join(words)
-
-
-def build_fallback_label(keywords: list[str], used_labels: set[str]) -> str:
-    parts: list[str] = []
-
-    for keyword in keywords:
-        if keyword in GENERIC_LABEL_TOKENS:
-            continue
-        titled = titleize_keyword(keyword)
-        if not titled or titled in parts:
-            continue
-        parts.append(titled)
-        if len(parts) == 2:
-            break
-
-    if len(parts) >= 2:
-        candidate = f"{parts[0]} & {parts[1]}"
-    elif parts:
-        candidate = parts[0]
-    else:
-        candidate = "Semantic Region"
-
-    if candidate not in used_labels:
-        return candidate
-
-    suffix = 2
-    while f"{candidate} {suffix}" in used_labels:
-        suffix += 1
-    return f"{candidate} {suffix}"
-
-
-def score_theme_labels(keywords: list[str], samples: list[dict[str, object]]) -> list[tuple[float, str]]:
-    weighted_terms: Counter[str] = Counter()
-
-    for rank, keyword in enumerate(keywords[:6]):
-        weight = max(1.0, 6.0 - rank)
-        weighted_terms[keyword] += weight * 1.4
-        for token in tokenize(keyword):
-            if token not in STOPWORDS:
-                weighted_terms[token] += weight
-
-    for sample in samples:
-        for token in content_tokens(str(sample["en"])):
-            weighted_terms[token] += 0.4
-
-    scored: list[tuple[float, str]] = []
-    for label, hints in THEME_RULES:
-        score = 0.0
-        for term, weight in weighted_terms.items():
-            if term in hints:
-                score += weight * (1.3 if " " in term else 1.0)
-                continue
-
-            token_overlap = len(set(term.split()).intersection(hints))
-            if token_overlap:
-                score += weight * token_overlap * 0.55
-
-        if score > 0:
-            scored.append((score, label))
-
-    scored.sort(key=lambda item: (-item[0], item[1]))
-    return scored
-
-
-def infer_cluster_label(
-    keywords: list[str],
-    samples: list[dict[str, object]],
-    used_labels: set[str],
-) -> str:
-    for score, label in score_theme_labels(keywords, samples):
-        if score >= 5.5 and label not in used_labels:
-            return label
-
-    return build_fallback_label(keywords, used_labels)
-
-
-def build_cluster_keyword_scores(
+def build_cluster_phrase_scores(
     metadata: list[dict[str, object]],
     assignments: list[int],
-) -> dict[int, list[str]]:
+) -> dict[int, list[tuple[float, str, int, int]]]:
     global_counts: Counter[str] = Counter()
     cluster_counts: dict[int, Counter[str]] = defaultdict(Counter)
     global_video_support: defaultdict[str, set[str]] = defaultdict(set)
@@ -698,11 +766,20 @@ def build_cluster_keyword_scores(
             global_video_support[phrase].add(video_id)
             cluster_video_support[cluster_id][phrase].add(video_id)
 
-    cluster_keywords: dict[int, list[str]] = {}
+    cluster_phrases: dict[int, list[tuple[float, str, int, int]]] = {}
     for cluster_id in range(CLUSTER_COUNT):
-        ranked: list[tuple[float, str]] = []
+        ranked: list[tuple[float, str, int, int]] = []
         counts = cluster_counts[cluster_id]
-        total_cluster_videos = max(1, len({str(metadata[index]["videoId"]) for index, assigned in enumerate(assignments) if assigned == cluster_id}))
+        total_cluster_videos = max(
+            1,
+            len(
+                {
+                    str(metadata[index]["videoId"])
+                    for index, assigned in enumerate(assignments)
+                    if assigned == cluster_id
+                }
+            ),
+        )
 
         for phrase, count in counts.items():
             phrase_word_count = phrase.count(" ") + 1
@@ -711,7 +788,7 @@ def build_cluster_keyword_scores(
                 continue
 
             global_count = global_counts[phrase]
-            if global_count <= 0:
+            if global_count <= 0 or phrase in GENERIC_LABEL_TOKENS:
                 continue
 
             video_support = len(cluster_video_support[cluster_id][phrase])
@@ -719,20 +796,285 @@ def build_cluster_keyword_scores(
             if video_support < 2 or global_video_count <= 0:
                 continue
 
-            if phrase in GENERIC_LABEL_TOKENS:
-                continue
-
             specificity = count / global_count
             video_specificity = video_support / global_video_count
             coverage = video_support / total_cluster_videos
-            phrase_bonus = 1.18 if phrase_word_count > 1 else 1.0
-            score = (count ** 1.05) * specificity * (1 + video_specificity) * (1 + coverage) * phrase_bonus
-            ranked.append((score, phrase))
+            phrase_bonus = 1.22 if phrase_word_count > 1 else 1.0
+            score = (count ** 1.05) * specificity * (1 + video_specificity) * (0.8 + coverage) * phrase_bonus
+            ranked.append((score, phrase, count, video_support))
 
         ranked.sort(key=lambda item: (-item[0], item[1]))
-        cluster_keywords[cluster_id] = [phrase for _, phrase in ranked[:6]]
+        cluster_phrases[cluster_id] = ranked[:8]
 
-    return cluster_keywords
+    return cluster_phrases
+
+
+def label_matches_theme(phrase: str, hints: set[str]) -> bool:
+    if phrase in hints:
+        return True
+
+    phrase_tokens = set(tokenize(phrase))
+    if not phrase_tokens:
+        return False
+
+    return bool(phrase_tokens.intersection(hints))
+
+
+def count_theme_support(phrases: list[str], hints: set[str]) -> int:
+    return sum(1 for phrase in phrases if label_matches_theme(phrase, hints))
+
+
+def titleize_phrase(phrase: str) -> str:
+    words = [LABEL_CANONICAL.get(word, word.title()) for word in phrase.split()]
+    return " ".join(words)
+
+
+def build_fallback_label(
+    cluster_id: int,
+    phrase_scores: list[tuple[float, str, int, int]],
+) -> str:
+    parts: list[str] = []
+
+    for _, phrase, _, _ in phrase_scores:
+        if phrase in GENERIC_LABEL_TOKENS:
+            continue
+
+        titled = titleize_phrase(phrase)
+        if not titled or titled in parts:
+            continue
+
+        parts.append(titled)
+        if len(parts) == 2:
+            break
+
+    if len(parts) >= 2:
+        return f"{parts[0]} & {parts[1]}"
+    if parts:
+        return parts[0]
+    return f"Region {cluster_id + 1}"
+
+
+def make_unique_label(label: str, used_labels: set[str]) -> str:
+    if label not in used_labels:
+        used_labels.add(label)
+        return label
+
+    suffix = 2
+    while f"{label} {suffix}" in used_labels:
+        suffix += 1
+
+    unique_label = f"{label} {suffix}"
+    used_labels.add(unique_label)
+    return unique_label
+
+
+def score_theme_labels(
+    phrase_scores: list[tuple[float, str, int, int]],
+    samples: list[dict[str, object]],
+) -> list[tuple[float, str]]:
+    weighted_terms: Counter[str] = Counter()
+
+    for rank, (score, phrase, _, _) in enumerate(phrase_scores[:8]):
+        weight = max(1.0, min(5.0, score / 2.0))
+        weighted_terms[phrase] += weight * 1.45
+
+        for token in tokenize(phrase):
+            if token not in STOPWORDS:
+                weighted_terms[token] += max(0.8, weight - rank * 0.12)
+
+    for sample in samples:
+        for token in content_tokens(str(sample["en"])):
+            weighted_terms[token] += 0.35
+
+    scored: list[tuple[float, str]] = []
+    for label, hints in THEME_RULES:
+        label_score = 0.0
+        for term, weight in weighted_terms.items():
+            if term in hints:
+                label_score += weight * (1.28 if " " in term else 1.0)
+                continue
+
+            token_overlap = len(set(term.split()).intersection(hints))
+            if token_overlap:
+                label_score += weight * token_overlap * 0.45
+
+        if label_score > 0:
+            scored.append((label_score, label))
+
+    scored.sort(key=lambda item: (-item[0], item[1]))
+    return scored
+
+
+def infer_cluster_label(
+    cluster_id: int,
+    phrase_scores: list[tuple[float, str, int, int]],
+    samples: list[dict[str, object]],
+    video_count: int,
+    used_labels: set[str],
+) -> tuple[str, str, float, list[tuple[float, str]]]:
+    scored_labels = score_theme_labels(phrase_scores, samples)
+    best_score = scored_labels[0][0] if scored_labels else 0.0
+    best_label = scored_labels[0][1] if scored_labels else ""
+    runner_up = scored_labels[1][0] if len(scored_labels) > 1 else 0.0
+    margin = best_score - runner_up
+
+    hints = THEME_HINTS_BY_LABEL.get(best_label, set())
+    top_phrases = [phrase for _, phrase, _, _ in phrase_scores[:6]]
+    phrase_support = count_theme_support(top_phrases, hints)
+    sample_support = 0
+    for sample in samples:
+        sample_phrases = extract_keyphrases(str(sample["en"]))
+        if count_theme_support(sample_phrases, hints) > 0:
+            sample_support += 1
+
+    raw_confidence = min(1.0, best_score / 13.5) * 0.7 + min(1.0, max(0.0, margin) / 6.0) * 0.3
+    if (
+        best_label
+        and best_score >= THEME_SCORE_THRESHOLD
+        and margin >= THEME_MARGIN_THRESHOLD
+        and phrase_support >= 2
+        and sample_support >= 1
+        and video_count >= HIGH_CONFIDENCE_VIDEO_MIN
+    ):
+        return (
+            make_unique_label(best_label, used_labels),
+            "theme",
+            round(max(0.72, min(0.99, raw_confidence)), 4),
+            scored_labels,
+        )
+
+    if (
+        best_label
+        and best_score >= PROVISIONAL_THEME_SCORE_THRESHOLD
+        and margin >= PROVISIONAL_THEME_MARGIN_THRESHOLD
+        and phrase_support >= 2
+        and video_count >= 2
+    ):
+        provisional_confidence = round(max(0.48, min(0.78, raw_confidence)), 4)
+        return (
+            make_unique_label(best_label, used_labels),
+            "provisional",
+            provisional_confidence,
+            scored_labels,
+        )
+
+    fallback_label = make_unique_label(build_fallback_label(cluster_id, phrase_scores), used_labels)
+    fallback_confidence = round(max(0.22, min(0.46, raw_confidence * 0.55 + 0.18)), 4)
+    return fallback_label, "descriptive", fallback_confidence, scored_labels
+
+
+def select_medoid_index(
+    vectors: array,
+    vector_dim: int,
+    members: list[int],
+    candidate_pool: list[int],
+    similarity_by_member: dict[int, float],
+    metadata: list[dict[str, object]],
+) -> int:
+    best_index = candidate_pool[0]
+    best_average_similarity = -float("inf")
+    best_center_similarity = similarity_by_member.get(best_index, -float("inf"))
+    best_entry_id = str(metadata[best_index]["entryId"])
+
+    for candidate in candidate_pool[:MEDOID_CANDIDATE_COUNT]:
+        total_similarity = 0.0
+        for member in members:
+            total_similarity += dot_rows(vectors, candidate, member, vector_dim)
+        average_similarity = total_similarity / max(1, len(members))
+        center_similarity = similarity_by_member.get(candidate, -float("inf"))
+        entry_id = str(metadata[candidate]["entryId"])
+
+        if (
+            average_similarity > best_average_similarity + 1e-12
+            or (
+                abs(average_similarity - best_average_similarity) <= 1e-12
+                and center_similarity > best_center_similarity + 1e-12
+            )
+            or (
+                abs(average_similarity - best_average_similarity) <= 1e-12
+                and abs(center_similarity - best_center_similarity) <= 1e-12
+                and entry_id < best_entry_id
+            )
+        ):
+            best_index = candidate
+            best_average_similarity = average_similarity
+            best_center_similarity = center_similarity
+            best_entry_id = entry_id
+
+    return best_index
+
+
+def select_representative_indices(
+    metadata: list[dict[str, object]],
+    vectors: array,
+    vector_dim: int,
+    members: list[int],
+    center: list[float],
+) -> tuple[int, list[int]]:
+    scored_members = [
+        (dot_row_to_vector(vectors, member, vector_dim, center), member)
+        for member in members
+    ]
+    scored_members.sort(key=lambda item: (-item[0], str(metadata[item[1]]["entryId"])))
+    candidate_pool = [member for _, member in scored_members[:REPRESENTATIVE_POOL_COUNT]]
+    similarity_by_member = {member: similarity for similarity, member in scored_members}
+
+    medoid_index = select_medoid_index(
+        vectors,
+        vector_dim,
+        members,
+        candidate_pool,
+        similarity_by_member,
+        metadata,
+    )
+    selected = [medoid_index]
+    used_texts = {str(metadata[medoid_index]["en"])}
+    used_videos = {str(metadata[medoid_index]["videoId"])}
+
+    while len(selected) < min(REPRESENTATIVE_SAMPLE_COUNT, len(members)):
+        best_index: int | None = None
+        best_score = -float("inf")
+        best_entry_id = ""
+
+        for candidate in candidate_pool:
+            if candidate in selected:
+                continue
+
+            text_value = str(metadata[candidate]["en"])
+            if text_value in used_texts and len(candidate_pool) > len(selected) + 2:
+                continue
+
+            center_similarity = similarity_by_member.get(candidate, -1.0)
+            similarity_to_selected = max(
+                dot_rows(vectors, candidate, selected_index, vector_dim) for selected_index in selected
+            )
+            novelty = 1.0 - similarity_to_selected
+            video_bonus = 0.06 if str(metadata[candidate]["videoId"]) not in used_videos else 0.0
+            score = center_similarity * 0.72 + novelty * 0.28 + video_bonus
+            entry_id = str(metadata[candidate]["entryId"])
+
+            if score > best_score + 1e-12 or (
+                abs(score - best_score) <= 1e-12 and entry_id < best_entry_id
+            ):
+                best_index = candidate
+                best_score = score
+                best_entry_id = entry_id
+
+        if best_index is None:
+            break
+
+        selected.append(best_index)
+        used_texts.add(str(metadata[best_index]["en"]))
+        used_videos.add(str(metadata[best_index]["videoId"]))
+
+    return medoid_index, selected
+
+
+def truncate_text(text: str, limit: int = 96) -> str:
+    single_line = " ".join(text.split())
+    if len(single_line) <= limit:
+        return single_line
+    return f"{single_line[: limit - 3]}..."
 
 
 def build_video_fingerprint_wall(
@@ -862,13 +1204,17 @@ def main() -> None:
         raise SystemExit("No semantic rows found.")
 
     vector_dim = len(rows[0][6]) // 4
+    if vector_dim <= 0:
+        raise SystemExit("Vector dimension could not be inferred.")
+
     vectors = array("f")
     mean = [0.0] * vector_dim
     metadata: list[dict[str, object]] = []
 
     for video_id, seg_index, en, zh, start_ms, end_ms, blob in rows:
         unpacked = struct.unpack(f"<{vector_dim}f", blob)
-        vectors.extend(unpacked)
+        normalized_vector = normalize(unpacked)
+        vectors.extend(normalized_vector)
         metadata.append(
             {
                 "entryId": f"{video_id}#{seg_index}",
@@ -881,18 +1227,25 @@ def main() -> None:
             }
         )
 
-        for dimension, value in enumerate(unpacked):
+        for dimension, value in enumerate(normalized_vector):
             mean[dimension] += value
 
     entry_count = len(metadata)
+    if entry_count < CLUSTER_COUNT:
+        raise SystemExit(
+            f"Semantic landscape expects at least {CLUSTER_COUNT} entries, found {entry_count}."
+        )
+
     mean = [value / entry_count for value in mean]
 
     def centered_dot(row_index: int, direction: list[float]) -> float:
         total = 0.0
-        offset = row_index * vector_dim
+        offset = row_offset(row_index, vector_dim)
         for dimension in range(vector_dim):
             total += (vectors[offset + dimension] - mean[dimension]) * direction[dimension]
         return total
+
+    assignments, cluster_centers = spherical_kmeans(vectors, entry_count, vector_dim, CLUSTER_COUNT)
 
     principal_components: list[list[float]] = []
     for _ in range(2):
@@ -902,7 +1255,7 @@ def main() -> None:
             updated = [0.0] * vector_dim
             for row_index in range(entry_count):
                 score = centered_dot(row_index, direction)
-                offset = row_index * vector_dim
+                offset = row_offset(row_index, vector_dim)
                 for dimension in range(vector_dim):
                     updated[dimension] += score * (vectors[offset + dimension] - mean[dimension])
 
@@ -932,66 +1285,140 @@ def main() -> None:
         for x_value, y_value in coordinates
     ]
 
-    assignments, cluster_centers = kmeans_2d(
-        [(x_value / 1000, y_value / 1000) for x_value, y_value in scaled_points],
-        CLUSTER_COUNT,
-    )
-
     cluster_members: dict[int, list[int]] = defaultdict(list)
     for index, cluster_id in enumerate(assignments):
         cluster_members[cluster_id].append(index)
 
-    cluster_keywords = build_cluster_keyword_scores(metadata, assignments)
+    if len(cluster_members) != CLUSTER_COUNT:
+        missing = [cluster_id for cluster_id in range(CLUSTER_COUNT) if cluster_id not in cluster_members]
+        raise SystemExit(f"One or more embedding clusters ended empty: {missing}")
+
+    cluster_phrase_scores = build_cluster_phrase_scores(metadata, assignments)
 
     clusters_by_id: dict[int, dict[str, object]] = {}
+    review_rows: list[dict[str, object]] = []
     used_labels: set[str] = set()
-    cluster_order = sorted(range(CLUSTER_COUNT), key=lambda cluster_id: (-len(cluster_members[cluster_id]), cluster_id))
-    for cluster_id in cluster_order:
+    validation_errors: list[str] = []
+
+    for cluster_id in range(CLUSTER_COUNT):
         members = cluster_members[cluster_id]
-        center_x = cluster_centers[cluster_id][0] * 1000
-        center_y = cluster_centers[cluster_id][1] * 1000
-        representative = sorted(
+        center = cluster_centers[cluster_id]
+        medoid_index, representative_indexes = select_representative_indices(
+            metadata,
+            vectors,
+            vector_dim,
             members,
-            key=lambda index: (scaled_points[index][0] - center_x) ** 2 + (scaled_points[index][1] - center_y) ** 2,
+            center,
         )
 
-        samples = []
-        seen = set()
-        for index in representative:
-            item = metadata[index]
-            text_key = str(item["en"])
-            if text_key in seen:
-                continue
-            seen.add(text_key)
-            samples.append(
-                {
-                    "entryId": item["entryId"],
-                    "videoId": item["videoId"],
-                    "segIndex": item["segIndex"],
-                    "en": item["en"],
-                    "zh": item["zh"],
-                }
-            )
-            if len(samples) == 4:
-                break
+        samples = [
+            {
+                "entryId": metadata[index]["entryId"],
+                "videoId": metadata[index]["videoId"],
+                "segIndex": metadata[index]["segIndex"],
+                "en": metadata[index]["en"],
+                "zh": metadata[index]["zh"],
+            }
+            for index in representative_indexes
+        ]
+        representative_entry_ids = [str(metadata[index]["entryId"]) for index in representative_indexes]
+        top_phrase_scores = cluster_phrase_scores.get(cluster_id, [])
+        top_phrases = [phrase for _, phrase, _, _ in top_phrase_scores[:6]]
+        video_ids = {str(metadata[index]["videoId"]) for index in members}
+        video_count = len(video_ids)
+        label, label_mode, label_confidence, theme_scores = infer_cluster_label(
+            cluster_id,
+            top_phrase_scores,
+            samples,
+            video_count,
+            used_labels,
+        )
 
-        keywords = cluster_keywords.get(cluster_id, [])
-        label = infer_cluster_label(keywords, samples, used_labels)
-        used_labels.add(label)
+        cluster_x = round(sum(scaled_points[index][0] for index in members) / len(members))
+        cluster_y = round(sum(scaled_points[index][1] for index in members) / len(members))
+        keyword_list = top_phrases[:]
 
         clusters_by_id[cluster_id] = {
             "id": cluster_id,
             "label": label,
+            "labelMode": label_mode,
+            "labelConfidence": label_confidence,
             "color": PALETTE[cluster_id % len(PALETTE)],
             "size": len(members),
-            "x": round(center_x),
-            "y": round(center_y),
-            "keywords": keywords,
+            "videoCount": video_count,
+            "x": cluster_x,
+            "y": cluster_y,
+            "keywords": keyword_list,
+            "topPhrases": top_phrases,
+            "medoidEntryId": str(metadata[medoid_index]["entryId"]),
+            "representativeEntryIds": representative_entry_ids,
             "samples": samples,
         }
 
-    clusters = [clusters_by_id[cluster_id] for cluster_id in range(CLUSTER_COUNT)]
+        best_theme_score = theme_scores[0][0] if theme_scores else 0.0
+        runner_up_score = theme_scores[1][0] if len(theme_scores) > 1 else 0.0
+        review_rows.append(
+            {
+                "id": cluster_id,
+                "label": label,
+                "labelMode": label_mode,
+                "labelConfidence": label_confidence,
+                "size": len(members),
+                "videoCount": video_count,
+                "topPhrases": top_phrases,
+                "samples": samples,
+                "bestThemeScore": best_theme_score,
+                "runnerUpThemeScore": runner_up_score,
+            }
+        )
 
+        if label_mode == "theme" and label_confidence >= HIGH_CONFIDENCE_LABEL_THRESHOLD:
+            hints = THEME_HINTS_BY_LABEL.get(label, set())
+            phrase_support = count_theme_support(top_phrases, hints)
+            sample_support = sum(
+                1
+                for sample in samples
+                if count_theme_support(extract_keyphrases(str(sample["en"])), hints) > 0
+            )
+            if video_count < HIGH_CONFIDENCE_VIDEO_MIN or phrase_support < 2 or sample_support < 1:
+                validation_errors.append(
+                    (
+                        f"Cluster {cluster_id} is labeled '{label}' at confidence {label_confidence:.2f}, "
+                        f"but support is weak (videos={video_count}, phrase_support={phrase_support}, "
+                        f"sample_support={sample_support})."
+                    )
+                )
+
+    print("Semantic landscape review summary")
+    for row in sorted(review_rows, key=lambda item: (-int(item["size"]), int(item["id"]))):
+        label_mode = str(row["labelMode"])
+        confidence = float(row["labelConfidence"])
+        print(
+            f"- Cluster {row['id']}: {row['label']} [{label_mode}] "
+            f"conf={confidence:.2f} entries={row['size']} videos={row['videoCount']}"
+        )
+        phrases = row["topPhrases"]
+        if phrases:
+            print(f"  top phrases: {', '.join(str(phrase) for phrase in phrases)}")
+        else:
+            print("  top phrases: (none)")
+        print(
+            "  representatives: "
+            + " | ".join(
+                f"{sample['entryId']}: {truncate_text(str(sample['en']))}"
+                for sample in row["samples"]
+            )
+        )
+        print(
+            "  theme scores: "
+            f"best={float(row['bestThemeScore']):.2f} "
+            f"runner-up={float(row['runnerUpThemeScore']):.2f}"
+        )
+
+    if validation_errors:
+        raise SystemExit("Cluster label validation failed:\n" + "\n".join(validation_errors))
+
+    clusters = [clusters_by_id[cluster_id] for cluster_id in range(CLUSTER_COUNT)]
     points = []
     for index, item in enumerate(metadata):
         points.append(
@@ -1008,9 +1435,9 @@ def main() -> None:
         )
 
     payload = {
-        "version": 3,
+        "version": 4,
         "projection": "pca-2d",
-        "clusterAlgorithm": "kmeans-2d",
+        "clusterAlgorithm": "spherical-kmeans-embedding",
         "generatedAt": datetime.now(timezone.utc).isoformat(),
         "sourceDb": DB_PATH.name,
         "modelId": MODEL_ID,

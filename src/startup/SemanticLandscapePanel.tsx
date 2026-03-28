@@ -45,6 +45,28 @@ function toCanvasPosition(value: number, extent: number): number {
   return CANVAS_PADDING + (value / 1000) * extent;
 }
 
+function getClusterPhrases(cluster: SemanticLandscapeCluster): string[] {
+  return cluster.topPhrases.length ? cluster.topPhrases : cluster.keywords;
+}
+
+function formatLabelConfidence(value: number): string {
+  return `${Math.round(Math.min(1, Math.max(0, value)) * 100)}%`;
+}
+
+function describeClusterLabel(cluster: SemanticLandscapeCluster): string {
+  const confidence = formatLabelConfidence(cluster.labelConfidence);
+
+  if (cluster.labelMode === 'theme') {
+    return `Theme label | ${cluster.videoCount.toLocaleString()} videos | ${confidence} confidence`;
+  }
+
+  if (cluster.labelMode === 'provisional') {
+    return `Provisional label | ${cluster.videoCount.toLocaleString()} videos | ${confidence} confidence`;
+  }
+
+  return `Descriptive label | ${cluster.videoCount.toLocaleString()} videos | ${confidence} confidence`;
+}
+
 export default function SemanticLandscapePanel({
   data,
   theme,
@@ -131,6 +153,7 @@ export default function SemanticLandscapePanel({
       : detailPoint
         ? clusterById.get(detailPoint.clusterId) ?? null
         : null;
+  const detailPhrases = detailCluster ? getClusterPhrases(detailCluster) : [];
   const showAllDetailCard = detailPoint === null && selectedClusterId === null;
   const hasDetailPanel = detailPoint !== null || detailCluster !== null || showAllDetailCard;
   const rankedClusters = useMemo(
@@ -353,6 +376,7 @@ export default function SemanticLandscapePanel({
                 : 'semantic-cluster-chip'
             }
             style={{ ['--cluster-color' as string]: cluster.color }}
+            title={describeClusterLabel(cluster)}
             type="button"
             onClick={() => handleClusterToggle(cluster.id)}
           >
@@ -404,6 +428,9 @@ export default function SemanticLandscapePanel({
                 >
                   {detailCluster?.label ?? 'Selected Entry'}
                 </span>
+                {detailCluster ? (
+                  <p className="semantic-detail-note">{describeClusterLabel(detailCluster)}</p>
+                ) : null}
 
                 <div className="semantic-detail-result-header">
                   <span className="result-metric">
@@ -440,11 +467,11 @@ export default function SemanticLandscapePanel({
                   </div>
                 </div>
 
-                {detailCluster?.keywords.length ? (
+                {detailPhrases.length ? (
                   <div className="semantic-keyword-list">
-                    {detailCluster.keywords.map((keyword) => (
-                      <span key={keyword} className="semantic-keyword">
-                        {keyword}
+                    {detailPhrases.map((phrase) => (
+                      <span key={phrase} className="semantic-keyword">
+                        {phrase}
                       </span>
                     ))}
                   </div>
@@ -458,19 +485,21 @@ export default function SemanticLandscapePanel({
                 >
                   {detailCluster.label}
                 </span>
+                <p className="semantic-detail-note">{describeClusterLabel(detailCluster)}</p>
                 <div className="semantic-detail-stat">
                   <strong>{detailCluster.size.toLocaleString()}</strong>
                   <span>entries in this region</span>
                 </div>
-                {detailCluster.keywords.length ? (
+                {detailPhrases.length ? (
                   <div className="semantic-keyword-list">
-                    {detailCluster.keywords.map((keyword) => (
-                      <span key={keyword} className="semantic-keyword">
-                        {keyword}
+                    {detailPhrases.map((phrase) => (
+                      <span key={phrase} className="semantic-keyword">
+                        {phrase}
                       </span>
                     ))}
                   </div>
                 ) : null}
+                <p className="semantic-detail-subheading">Representative Lines</p>
                 <div className="semantic-sample-list">
                   {detailCluster.samples.map((sample) => (
                     <button
@@ -480,6 +509,7 @@ export default function SemanticLandscapePanel({
                       onClick={() => setSelectedEntryId(sample.entryId)}
                     >
                       <strong>
+                        {sample.entryId === detailCluster.medoidEntryId ? 'Medoid' : 'Representative'} |{' '}
                         {sample.videoId}#{sample.segIndex}
                       </strong>
                       <span>{sample.en}</span>
@@ -500,6 +530,7 @@ export default function SemanticLandscapePanel({
                       <button
                         className="cluster-ranking-row cluster-ranking-row--interactive"
                         style={{ ['--cluster-color' as string]: cluster.color }}
+                        title={describeClusterLabel(cluster)}
                         type="button"
                         onClick={() => handleClusterToggle(cluster.id)}
                       >
