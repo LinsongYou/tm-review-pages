@@ -159,7 +159,6 @@ export default function SemanticLandscapePanel({
         : null;
   const detailPhrases = detailCluster ? getClusterPhrases(detailCluster) : [];
   const showAllDetailCard = detailPoint === null && selectedClusterId === null;
-  const hasDetailPanel = detailPoint !== null || detailCluster !== null || showAllDetailCard;
   const rankedClusters = useMemo(
     () =>
       [...data.clusters]
@@ -391,9 +390,7 @@ export default function SemanticLandscapePanel({
       </div>
 
       <div
-        className={
-          hasDetailPanel ? 'semantic-workspace' : 'semantic-workspace semantic-workspace--plot-only'
-        }
+        className="semantic-workspace"
         style={{ ['--semantic-plot-height' as string]: `${plotHeight}px` }}
       >
         <div className="semantic-plot-shell">
@@ -421,150 +418,148 @@ export default function SemanticLandscapePanel({
           </div>
         </div>
 
-        {hasDetailPanel ? (
-          <aside className="semantic-detail-panel">
-            {detailPoint ? (
-              <div className="semantic-detail-card semantic-detail-card--entry">
-                <span
-                  className="semantic-detail-badge"
-                  style={{ ['--cluster-color' as string]: detailCluster?.color ?? '#84a98c' }}
-                >
-                  {detailCluster?.label ?? 'Selected Entry'}
-                </span>
-                {detailCluster ? (
-                  <p className="semantic-detail-note">{describeClusterLabel(detailCluster)}</p>
-                ) : null}
-
-                <div className="semantic-detail-result-header">
-                  <span className="result-metric">
-                    <span className="result-metric-label">YouTube ID</span>
-                    <button
-                      className="video-id-button"
-                      type="button"
-                      onClick={() => onOpenTranscript(detailPoint.videoId, detailPoint.entryId)}
-                    >
-                      {detailPoint.videoId}
-                    </button>
-                  </span>
-
-                  <span className="result-metric result-score">
-                    <span className="result-metric-label">Entry</span>
-                    <strong>#{detailPoint.segIndex}</strong>
-                  </span>
-                </div>
-
-                <div className="result-copy-group semantic-detail-copy-group">
-                  <div className="result-copy">
-                    <div className="result-copy-line">
-                      <p className="result-en semantic-entry-copy semantic-entry-copy--en">
-                        {detailPoint.en}
-                      </p>
-                      <span className="result-char-count">{detailPoint.en.length} chars</span>
-                    </div>
-                  </div>
-
-                  <div className="result-copy">
-                    <p className="result-zh semantic-entry-copy semantic-entry-copy--zh">
-                      {detailPoint.zh}
-                    </p>
-                  </div>
-                </div>
-
-                {detailPhrases.length ? (
-                  <div className="semantic-keyword-list">
-                    {detailPhrases.map((phrase) => (
-                      <span key={phrase} className="semantic-keyword">
-                        {phrase}
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            ) : detailCluster ? (
-              <div className="semantic-detail-card">
-                <span
-                  className="semantic-detail-badge"
-                  style={{ ['--cluster-color' as string]: detailCluster.color }}
-                >
-                  {detailCluster.label}
-                </span>
+        <aside className="semantic-detail-panel">
+          {detailPoint ? (
+            <div className="semantic-detail-card semantic-detail-card--entry">
+              <span
+                className="semantic-detail-badge"
+                style={{ ['--cluster-color' as string]: detailCluster?.color ?? '#84a98c' }}
+              >
+                {detailCluster?.label ?? 'Selected Entry'}
+              </span>
+              {detailCluster ? (
                 <p className="semantic-detail-note">{describeClusterLabel(detailCluster)}</p>
-                <div className="semantic-detail-stat">
-                  <strong>{detailCluster.size.toLocaleString()}</strong>
-                  <span>entries in this region</span>
-                </div>
-                {detailPhrases.length ? (
-                  <div className="semantic-keyword-list">
-                    {detailPhrases.map((phrase) => (
-                      <span key={phrase} className="semantic-keyword">
-                        {phrase}
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
-                <p className="semantic-detail-subheading">Representative Lines</p>
-                <div className="semantic-sample-list">
-                  {detailCluster.samples.map((sample) => (
-                    <button
-                      key={sample.entryId}
-                      className="semantic-sample-card"
-                      type="button"
-                      onClick={() => setSelectedEntryId(sample.entryId)}
-                    >
-                      <strong>
-                        {sample.entryId === detailCluster.medoidEntryId ? 'Medoid' : 'Representative'} |{' '}
-                        {sample.videoId}#{sample.segIndex}
-                      </strong>
-                      <span>{sample.en}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : showAllDetailCard ? (
-              <div className="semantic-detail-card semantic-detail-card--all">
-                <span className="semantic-detail-badge">All</span>
-                <div className="semantic-detail-stat">
-                  <strong>{data.pointCount.toLocaleString()}</strong>
-                  <span>{data.clusters.length.toLocaleString()} semantic clusters ranked by size</span>
-                </div>
-                <ol className="cluster-ranking-list cluster-ranking-list--embedded">
-                  {rankedClusters.map((cluster) => (
-                    <li key={cluster.id}>
-                      <button
-                        className="cluster-ranking-row cluster-ranking-row--interactive"
-                        style={{ ['--cluster-color' as string]: cluster.color }}
-                        title={describeClusterLabel(cluster)}
-                        type="button"
-                        onClick={() => handleClusterToggle(cluster.id)}
-                      >
-                        <div className="cluster-ranking-meta">
-                          <span className="cluster-ranking-rank">#{cluster.rank}</span>
-                          <div className="cluster-ranking-name-wrap">
-                            <span className="cluster-ranking-dot" aria-hidden="true" />
-                            <strong className="cluster-ranking-name">{cluster.label}</strong>
-                          </div>
-                          <span className="cluster-ranking-count">
-                            {cluster.size.toLocaleString()} cues
-                          </span>
-                          <span className="cluster-ranking-share">
-                            {(cluster.share * 100).toFixed(1)}%
-                          </span>
-                        </div>
+              ) : null}
 
-                        <div className="cluster-ranking-bar-track" aria-hidden="true">
-                          <span
-                            className="cluster-ranking-bar-fill"
-                            style={{ width: `${Math.max(cluster.widthPercent, 4)}%` }}
-                          />
-                        </div>
-                      </button>
-                    </li>
-                  ))}
-                </ol>
+              <div className="semantic-detail-result-header">
+                <span className="result-metric">
+                  <span className="result-metric-label">YouTube ID</span>
+                  <button
+                    className="video-id-button"
+                    type="button"
+                    onClick={() => onOpenTranscript(detailPoint.videoId, detailPoint.entryId)}
+                  >
+                    {detailPoint.videoId}
+                  </button>
+                </span>
+
+                <span className="result-metric result-score">
+                  <span className="result-metric-label">Entry</span>
+                  <strong>#{detailPoint.segIndex}</strong>
+                </span>
               </div>
-            ) : null}
-          </aside>
-        ) : null}
+
+              <div className="result-copy-group semantic-detail-copy-group">
+                <div className="result-copy">
+                  <div className="result-copy-line">
+                    <p className="result-en semantic-entry-copy semantic-entry-copy--en">
+                      {detailPoint.en}
+                    </p>
+                    <span className="result-char-count">{detailPoint.en.length} chars</span>
+                  </div>
+                </div>
+
+                <div className="result-copy">
+                  <p className="result-zh semantic-entry-copy semantic-entry-copy--zh">
+                    {detailPoint.zh}
+                  </p>
+                </div>
+              </div>
+
+              {detailPhrases.length ? (
+                <div className="semantic-keyword-list">
+                  {detailPhrases.map((phrase) => (
+                    <span key={phrase} className="semantic-keyword">
+                      {phrase}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : detailCluster ? (
+            <div className="semantic-detail-card">
+              <span
+                className="semantic-detail-badge"
+                style={{ ['--cluster-color' as string]: detailCluster.color }}
+              >
+                {detailCluster.label}
+              </span>
+              <p className="semantic-detail-note">{describeClusterLabel(detailCluster)}</p>
+              <div className="semantic-detail-stat">
+                <strong>{detailCluster.size.toLocaleString()}</strong>
+                <span>entries in this region</span>
+              </div>
+              {detailPhrases.length ? (
+                <div className="semantic-keyword-list">
+                  {detailPhrases.map((phrase) => (
+                    <span key={phrase} className="semantic-keyword">
+                      {phrase}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+              <p className="semantic-detail-subheading">Representative Lines</p>
+              <div className="semantic-sample-list">
+                {detailCluster.samples.map((sample) => (
+                  <button
+                    key={sample.entryId}
+                    className="semantic-sample-card"
+                    type="button"
+                    onClick={() => setSelectedEntryId(sample.entryId)}
+                  >
+                    <strong>
+                      {sample.entryId === detailCluster.medoidEntryId ? 'Medoid' : 'Representative'} |{' '}
+                      {sample.videoId}#{sample.segIndex}
+                    </strong>
+                    <span>{sample.en}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : showAllDetailCard ? (
+            <div className="semantic-detail-card semantic-detail-card--all">
+              <span className="semantic-detail-badge">All</span>
+              <div className="semantic-detail-stat">
+                <strong>{data.pointCount.toLocaleString()}</strong>
+                <span>{data.clusters.length.toLocaleString()} semantic clusters ranked by size</span>
+              </div>
+              <ol className="cluster-ranking-list cluster-ranking-list--embedded">
+                {rankedClusters.map((cluster) => (
+                  <li key={cluster.id}>
+                    <button
+                      className="cluster-ranking-row cluster-ranking-row--interactive"
+                      style={{ ['--cluster-color' as string]: cluster.color }}
+                      title={describeClusterLabel(cluster)}
+                      type="button"
+                      onClick={() => handleClusterToggle(cluster.id)}
+                    >
+                      <div className="cluster-ranking-meta">
+                        <span className="cluster-ranking-rank">#{cluster.rank}</span>
+                        <div className="cluster-ranking-name-wrap">
+                          <span className="cluster-ranking-dot" aria-hidden="true" />
+                          <strong className="cluster-ranking-name">{cluster.label}</strong>
+                        </div>
+                        <span className="cluster-ranking-count">
+                          {cluster.size.toLocaleString()} cues
+                        </span>
+                        <span className="cluster-ranking-share">
+                          {(cluster.share * 100).toFixed(1)}%
+                        </span>
+                      </div>
+
+                      <div className="cluster-ranking-bar-track" aria-hidden="true">
+                        <span
+                          className="cluster-ranking-bar-fill"
+                          style={{ width: `${Math.max(cluster.widthPercent, 4)}%` }}
+                        />
+                      </div>
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          ) : null}
+        </aside>
       </div>
     </section>
   );

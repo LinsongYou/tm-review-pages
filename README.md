@@ -24,14 +24,15 @@ Static GitHub Pages app for reviewing translation-memory data in the browser.
 
 The current UI intentionally keeps search to a single English semantic query path. Results still display both EN and ZH text for review.
 
-## Hidden Startup Panels
+## Startup Panels
 
-Two additional startup panels are already implemented but intentionally not rendered by default:
+The home screen currently renders three startup panels when data is available:
 
-- `SemanticFlowTimelinePanel`
+- `SemanticLandscapePanel`
+- `CueTimeDistributionPanel`
 - `VideoFingerprintWallPanel`
 
-Their precomputed data is already included in `public/data/startup-visualizations.json`. To enable them again, add the two component renders back into the `startupData` startup branch in `src/App.tsx`, directly below the existing `SemanticLandscapePanel`.
+Their precomputed data lives in `public/data/startup-visualizations.json`, while cue-time distribution data comes from the browser-side DB boot path.
 
 ## Local Development
 

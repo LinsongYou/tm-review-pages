@@ -569,10 +569,6 @@ button {
   align-items: start;
 }
 
-.semantic-workspace--plot-only {
-  grid-template-columns: minmax(0, 1fr);
-}
-
 .semantic-plot-shell {
   display: grid;
   min-width: 0;
