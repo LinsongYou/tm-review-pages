@@ -56,6 +56,23 @@ export interface VideoFingerprintWall {
   videos: VideoFingerprintVideo[];
 }
 
+export interface SemanticLandscapeClusterSelection {
+  minCount: number;
+  maxCount: number;
+  sampleSize: number;
+  finalistCount: number;
+  selectedCount: number;
+  score: number;
+  cohesion: number;
+  margin: number;
+  centerSeparation: number;
+  maxNeighborSimilarity: number;
+  minClusterShare: number;
+  interpretabilityScore: number;
+  themeShare: number;
+  descriptiveShare: number;
+}
+
 export interface SemanticLandscapeData {
   version: number;
   projection: string;
@@ -65,6 +82,8 @@ export interface SemanticLandscapeData {
   modelId: string;
   pointCount: number;
   vectorDim: number;
+  clusterCount?: number;
+  clusterSelection?: SemanticLandscapeClusterSelection;
   clusters: SemanticLandscapeCluster[];
   points: SemanticLandscapePoint[];
   videoFingerprintWall: VideoFingerprintWall;

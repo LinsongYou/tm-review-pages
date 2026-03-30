@@ -13,7 +13,10 @@ from pathlib import Path
 DB_PATH = Path(__file__).resolve().parent.parent / "public" / "data" / "tm_misha_minilm.db"
 OUTPUT_PATH = Path(__file__).resolve().parent.parent / "public" / "data" / "startup-visualizations.json"
 MODEL_ID = "sentence-transformers/all-MiniLM-L6-v2"
-CLUSTER_COUNT = 10
+MIN_CLUSTER_COUNT = 8
+MAX_CLUSTER_COUNT = 16
+CLUSTER_SEARCH_SAMPLE_SIZE = 2200
+CLUSTER_SEARCH_FINALIST_COUNT = 3
 PCA_ITERATIONS = 18
 CLUSTER_ITERATIONS = 14
 RANDOM_SEED = 7
@@ -28,6 +31,17 @@ PROVISIONAL_THEME_SCORE_THRESHOLD = 4.5
 PROVISIONAL_THEME_MARGIN_THRESHOLD = 0.35
 HIGH_CONFIDENCE_LABEL_THRESHOLD = 0.84
 HIGH_CONFIDENCE_VIDEO_MIN = 3
+CLUSTER_COHESION_WEIGHT = 0.48
+CLUSTER_MARGIN_WEIGHT = 0.95
+CLUSTER_SEPARATION_WEIGHT = 0.42
+CLUSTER_BALANCE_WEIGHT = 0.16
+CLUSTER_UNDERFILL_WEIGHT = 1.35
+CLUSTER_COUNT_PENALTY = 0.012
+NEAR_DUPLICATE_CENTER_THRESHOLD = 0.74
+NEAR_DUPLICATE_CENTER_PENALTY = 0.35
+RELATIVE_MIN_CLUSTER_SHARE = 0.58
+ABSOLUTE_MIN_CLUSTER_SHARE = 0.035
+CLUSTER_SELECTION_STRUCTURAL_TOLERANCE = 0.015
 TOKEN_RE = re.compile(r"[A-Za-z0-9']+")
 STOPWORDS = {
     "a",
@@ -500,6 +514,34 @@ THEME_RULES = [
         },
     ),
     (
+        "Cars, Drivers & Seats",
+        {
+            "car",
+            "cars",
+            "driver",
+            "drivers",
+            "driven",
+            "drove",
+            "porsche",
+            "seats",
+            "vehicle",
+            "vehicles",
+        },
+    ),
+    (
+        "Personal Asides & Side Notes",
+        {
+            "able",
+            "anything",
+            "mic",
+            "myself",
+            "sometimes",
+            "tell",
+            "want",
+            "wife",
+        },
+    ),
+    (
         "Speeds, Prices & Numbers",
         {
             "euros",
@@ -637,6 +679,26 @@ def add_row(target: list[float], vectors: array, row_index: int, vector_dim: int
         target[dimension] += vectors[offset + dimension]
 
 
+def dot_vectors(left: list[float], right: list[float]) -> float:
+    return sum(left_value * right_value for left_value, right_value in zip(left, right))
+
+
+def choose_sample_indexes(entry_count: int, sample_size: int) -> list[int]:
+    if entry_count <= sample_size:
+        return list(range(entry_count))
+
+    random_generator = random.Random(RANDOM_SEED)
+    return sorted(random_generator.sample(range(entry_count), sample_size))
+
+
+def copy_rows(vectors: array, vector_dim: int, row_indexes: list[int]) -> array:
+    sampled_vectors = array("f")
+    for row_index in row_indexes:
+        offset = row_offset(row_index, vector_dim)
+        sampled_vectors.extend(vectors[offset : offset + vector_dim])
+    return sampled_vectors
+
+
 def initialize_cluster_centers(
     vectors: array,
     entry_count: int,
@@ -738,6 +800,223 @@ def spherical_kmeans(
     return assignments, centers
 
 
+def score_spherical_clustering(
+    vectors: array,
+    entry_count: int,
+    vector_dim: int,
+    assignments: list[int],
+    centers: list[list[float]],
+    min_cluster_count: int,
+) -> dict[str, float]:
+    cluster_count = len(centers)
+    cluster_sizes = [0 for _ in range(cluster_count)]
+    cohesion_total = 0.0
+    margin_total = 0.0
+
+    for row_index in range(entry_count):
+        assigned_cluster = assignments[row_index]
+        cluster_sizes[assigned_cluster] += 1
+
+        best_score = -float("inf")
+        second_score = -float("inf")
+        for center in centers:
+            score = dot_row_to_vector(vectors, row_index, vector_dim, center)
+            if score > best_score + 1e-12:
+                second_score = best_score
+                best_score = score
+            elif score > second_score + 1e-12:
+                second_score = score
+
+        cohesion_total += best_score
+        if second_score > -float("inf"):
+            margin_total += max(0.0, best_score - second_score)
+
+    expected_share = 1.0 / max(1, cluster_count)
+    minimum_reasonable_share = max(ABSOLUTE_MIN_CLUSTER_SHARE, expected_share * RELATIVE_MIN_CLUSTER_SHARE)
+    min_cluster_share = min(cluster_sizes) / max(1, entry_count)
+    balance_score = min(1.0, min_cluster_share / minimum_reasonable_share) if minimum_reasonable_share else 1.0
+    underfilled_share = (
+        sum(
+            max(0.0, minimum_reasonable_share - (cluster_size / max(1, entry_count)))
+            for cluster_size in cluster_sizes
+        )
+        / max(1, cluster_count)
+    )
+
+    nearest_neighbor_similarities: list[float] = []
+    max_neighbor_similarity = 0.0
+    if cluster_count > 1:
+        for cluster_id, center in enumerate(centers):
+            nearest_similarity = -float("inf")
+            for other_id, other_center in enumerate(centers):
+                if cluster_id == other_id:
+                    continue
+
+                similarity = dot_vectors(center, other_center)
+                if similarity > nearest_similarity:
+                    nearest_similarity = similarity
+                if similarity > max_neighbor_similarity:
+                    max_neighbor_similarity = similarity
+
+            nearest_neighbor_similarities.append(nearest_similarity)
+
+    center_separation = (
+        sum(max(0.0, 1.0 - similarity) for similarity in nearest_neighbor_similarities)
+        / max(1, len(nearest_neighbor_similarities))
+        if nearest_neighbor_similarities
+        else 1.0
+    )
+    duplicate_penalty = max(0.0, max_neighbor_similarity - NEAR_DUPLICATE_CENTER_THRESHOLD) * NEAR_DUPLICATE_CENTER_PENALTY
+    count_penalty = max(0, cluster_count - min_cluster_count) * CLUSTER_COUNT_PENALTY
+    cohesion = cohesion_total / max(1, entry_count)
+    margin = margin_total / max(1, entry_count)
+    score = (
+        cohesion * CLUSTER_COHESION_WEIGHT
+        + margin * CLUSTER_MARGIN_WEIGHT
+        + center_separation * CLUSTER_SEPARATION_WEIGHT
+        + balance_score * CLUSTER_BALANCE_WEIGHT
+        - underfilled_share * CLUSTER_UNDERFILL_WEIGHT
+        - duplicate_penalty
+        - count_penalty
+    )
+
+    return {
+        "score": score,
+        "cohesion": cohesion,
+        "margin": margin,
+        "centerSeparation": center_separation,
+        "balanceScore": balance_score,
+        "underfilledShare": underfilled_share,
+        "maxNeighborSimilarity": max_neighbor_similarity,
+        "minClusterShare": min_cluster_share,
+    }
+
+
+def select_cluster_count(
+    vectors: array,
+    metadata: list[dict[str, object]],
+    entry_count: int,
+    vector_dim: int,
+) -> tuple[int, list[int], list[list[float]], dict[str, object], list[dict[str, object]]]:
+    min_cluster_count = min(MIN_CLUSTER_COUNT, max(1, entry_count))
+    max_cluster_count = min(MAX_CLUSTER_COUNT, entry_count)
+    if max_cluster_count < min_cluster_count:
+        min_cluster_count = max_cluster_count
+
+    sample_indexes = choose_sample_indexes(entry_count, CLUSTER_SEARCH_SAMPLE_SIZE)
+    sample_vectors = copy_rows(vectors, vector_dim, sample_indexes)
+    sample_count = len(sample_indexes)
+    search_rows: list[dict[str, object]] = []
+
+    for cluster_count in range(min_cluster_count, max_cluster_count + 1):
+        sample_assignments, sample_centers = spherical_kmeans(
+            sample_vectors,
+            sample_count,
+            vector_dim,
+            cluster_count,
+        )
+        sample_metrics = score_spherical_clustering(
+            sample_vectors,
+            sample_count,
+            vector_dim,
+            sample_assignments,
+            sample_centers,
+            min_cluster_count,
+        )
+        search_rows.append(
+            {
+                "clusterCount": cluster_count,
+                "sampleMetrics": sample_metrics,
+            }
+        )
+
+    finalists = sorted(
+        search_rows,
+        key=lambda row: (
+            -float(row["sampleMetrics"]["score"]),
+            int(row["clusterCount"]),
+        ),
+    )[: max(1, min(CLUSTER_SEARCH_FINALIST_COUNT, len(search_rows)))]
+    finalist_counts = {int(row["clusterCount"]) for row in finalists}
+
+    best_result: dict[str, object] | None = None
+    for row in search_rows:
+        cluster_count = int(row["clusterCount"])
+        if cluster_count not in finalist_counts:
+            continue
+
+        assignments, centers = spherical_kmeans(vectors, entry_count, vector_dim, cluster_count)
+        full_metrics = score_spherical_clustering(
+            vectors,
+            entry_count,
+            vector_dim,
+            assignments,
+            centers,
+            min_cluster_count,
+        )
+        interpretability = score_cluster_interpretability(metadata, assignments, cluster_count)
+        row["fullMetrics"] = full_metrics
+        row["interpretability"] = interpretability
+        row["assignments"] = assignments
+        row["centers"] = centers
+
+    finalist_rows = [row for row in search_rows if "fullMetrics" in row]
+    best_structural_score = max(
+        float(row["fullMetrics"]["score"]) for row in finalist_rows
+    )
+    eligible_rows = [
+        row
+        for row in finalist_rows
+        if float(row["fullMetrics"]["score"]) >= best_structural_score - CLUSTER_SELECTION_STRUCTURAL_TOLERANCE
+    ]
+    best_row = sorted(
+        eligible_rows,
+        key=lambda row: (
+            -float(row["interpretability"]["score"]),
+            -float(row["fullMetrics"]["score"]),
+            int(row["clusterCount"]),
+        ),
+    )[0]
+    best_result = {
+        "clusterCount": int(best_row["clusterCount"]),
+        "assignments": list(best_row["assignments"]),
+        "centers": list(best_row["centers"]),
+        "fullMetrics": dict(best_row["fullMetrics"]),
+        "interpretability": dict(best_row["interpretability"]),
+    }
+
+    if best_result is None:
+        raise SystemExit("Cluster-count search did not produce a valid result.")
+
+    selected_cluster_count = int(best_result["clusterCount"])
+    selected_metrics = dict(best_result["fullMetrics"])
+    interpretability = dict(best_result["interpretability"])
+    selection_summary = {
+        "minCount": min_cluster_count,
+        "maxCount": max_cluster_count,
+        "sampleSize": sample_count,
+        "finalistCount": len(finalists),
+        "selectedCount": selected_cluster_count,
+        "score": round(float(selected_metrics["score"]), 6),
+        "cohesion": round(float(selected_metrics["cohesion"]), 6),
+        "margin": round(float(selected_metrics["margin"]), 6),
+        "centerSeparation": round(float(selected_metrics["centerSeparation"]), 6),
+        "maxNeighborSimilarity": round(float(selected_metrics["maxNeighborSimilarity"]), 6),
+        "minClusterShare": round(float(selected_metrics["minClusterShare"]), 6),
+        "interpretabilityScore": round(float(interpretability["score"]), 6),
+        "themeShare": round(float(interpretability["themeShare"]), 6),
+        "descriptiveShare": round(float(interpretability["descriptiveShare"]), 6),
+    }
+
+    return (
+        selected_cluster_count,
+        list(best_result["assignments"]),
+        list(best_result["centers"]),
+        selection_summary,
+        search_rows,
+    )
+
+
 def to_bin_index(value: float, bin_count: int) -> int:
     clamped = min(0.999999, max(0.0, value))
     return min(bin_count - 1, max(0, int(clamped * bin_count)))
@@ -746,11 +1025,13 @@ def to_bin_index(value: float, bin_count: int) -> int:
 def build_cluster_phrase_scores(
     metadata: list[dict[str, object]],
     assignments: list[int],
+    cluster_count: int,
 ) -> dict[int, list[tuple[float, str, int, int]]]:
     global_counts: Counter[str] = Counter()
     cluster_counts: dict[int, Counter[str]] = defaultdict(Counter)
     global_video_support: defaultdict[str, set[str]] = defaultdict(set)
     cluster_video_support: dict[int, defaultdict[str, set[str]]] = defaultdict(lambda: defaultdict(set))
+    cluster_video_ids: dict[int, set[str]] = defaultdict(set)
 
     for index, item in enumerate(metadata):
         cluster_id = assignments[index]
@@ -765,21 +1046,13 @@ def build_cluster_phrase_scores(
         for phrase in set(phrases):
             global_video_support[phrase].add(video_id)
             cluster_video_support[cluster_id][phrase].add(video_id)
+        cluster_video_ids[cluster_id].add(video_id)
 
     cluster_phrases: dict[int, list[tuple[float, str, int, int]]] = {}
-    for cluster_id in range(CLUSTER_COUNT):
+    for cluster_id in range(cluster_count):
         ranked: list[tuple[float, str, int, int]] = []
         counts = cluster_counts[cluster_id]
-        total_cluster_videos = max(
-            1,
-            len(
-                {
-                    str(metadata[index]["videoId"])
-                    for index, assigned in enumerate(assignments)
-                    if assigned == cluster_id
-                }
-            ),
-        )
+        total_cluster_videos = max(1, len(cluster_video_ids[cluster_id]))
 
         for phrase, count in counts.items():
             phrase_word_count = phrase.count(" ") + 1
@@ -832,6 +1105,7 @@ def titleize_phrase(phrase: str) -> str:
 def build_fallback_label(
     cluster_id: int,
     phrase_scores: list[tuple[float, str, int, int]],
+    samples: list[dict[str, object]],
 ) -> str:
     parts: list[str] = []
 
@@ -844,6 +1118,25 @@ def build_fallback_label(
             continue
 
         parts.append(titled)
+        if len(parts) == 2:
+            break
+
+    if len(parts) >= 2:
+        return f"{parts[0]} & {parts[1]}"
+    if parts:
+        return parts[0]
+
+    sample_terms: Counter[str] = Counter()
+    for sample in samples:
+        for token in content_tokens(str(sample["en"])):
+            if token in GENERIC_LABEL_TOKENS:
+                continue
+            sample_terms[token] += 1
+
+    for term, _ in sample_terms.most_common():
+        titled = titleize_phrase(term)
+        if titled and titled not in parts:
+            parts.append(titled)
         if len(parts) == 2:
             break
 
@@ -905,6 +1198,83 @@ def score_theme_labels(
     return scored
 
 
+def score_cluster_interpretability(
+    metadata: list[dict[str, object]],
+    assignments: list[int],
+    cluster_count: int,
+) -> dict[str, float]:
+    cluster_phrase_scores = build_cluster_phrase_scores(metadata, assignments, cluster_count)
+    cluster_video_ids: dict[int, set[str]] = defaultdict(set)
+    for index, item in enumerate(metadata):
+        cluster_video_ids[assignments[index]].add(str(item["videoId"]))
+
+    theme_count = 0
+    provisional_count = 0
+    descriptive_count = 0
+    confidence_total = 0.0
+    phrase_dense_count = 0
+
+    for cluster_id in range(cluster_count):
+        phrase_scores = cluster_phrase_scores.get(cluster_id, [])
+        top_phrases = [phrase for _, phrase, _, _ in phrase_scores[:6]]
+        if len(top_phrases) >= 4:
+            phrase_dense_count += 1
+
+        scored_labels = score_theme_labels(phrase_scores, [])
+        best_score = scored_labels[0][0] if scored_labels else 0.0
+        best_label = scored_labels[0][1] if scored_labels else ""
+        runner_up = scored_labels[1][0] if len(scored_labels) > 1 else 0.0
+        margin = best_score - runner_up
+        hints = THEME_HINTS_BY_LABEL.get(best_label, set())
+        phrase_support = count_theme_support(top_phrases, hints)
+        video_count = len(cluster_video_ids[cluster_id])
+        raw_confidence = min(1.0, best_score / 13.5) * 0.7 + min(1.0, max(0.0, margin) / 6.0) * 0.3
+
+        if (
+            best_label
+            and best_score >= THEME_SCORE_THRESHOLD
+            and margin >= THEME_MARGIN_THRESHOLD
+            and phrase_support >= 2
+            and video_count >= HIGH_CONFIDENCE_VIDEO_MIN
+        ):
+            theme_count += 1
+            confidence_total += max(0.72, min(0.99, raw_confidence))
+            continue
+
+        if (
+            best_label
+            and best_score >= PROVISIONAL_THEME_SCORE_THRESHOLD
+            and margin >= PROVISIONAL_THEME_MARGIN_THRESHOLD
+            and phrase_support >= 2
+            and video_count >= 2
+        ):
+            provisional_count += 1
+            confidence_total += max(0.48, min(0.78, raw_confidence))
+            continue
+
+        descriptive_count += 1
+        confidence_total += max(0.22, min(0.46, raw_confidence * 0.55 + 0.18))
+
+    cluster_total = max(1, cluster_count)
+    theme_share = theme_count / cluster_total
+    named_share = (theme_count + provisional_count) / cluster_total
+    descriptive_share = descriptive_count / cluster_total
+    phrase_coverage = phrase_dense_count / cluster_total
+    mean_confidence = confidence_total / cluster_total
+    score = (
+        mean_confidence * 0.45
+        + named_share * 0.25
+        + theme_share * 0.20
+        + phrase_coverage * 0.10
+    )
+    return {
+        "score": score,
+        "themeShare": theme_share,
+        "descriptiveShare": descriptive_share,
+        "meanConfidence": mean_confidence,
+    }
+
+
 def infer_cluster_label(
     cluster_id: int,
     phrase_scores: list[tuple[float, str, int, int]],
@@ -958,7 +1328,7 @@ def infer_cluster_label(
             scored_labels,
         )
 
-    fallback_label = make_unique_label(build_fallback_label(cluster_id, phrase_scores), used_labels)
+    fallback_label = make_unique_label(build_fallback_label(cluster_id, phrase_scores, samples), used_labels)
     fallback_confidence = round(max(0.22, min(0.46, raw_confidence * 0.55 + 0.18)), 4)
     return fallback_label, "descriptive", fallback_confidence, scored_labels
 
@@ -1081,6 +1451,7 @@ def build_video_fingerprint_wall(
     metadata: list[dict[str, object]],
     assignments: list[int],
     scaled_points: list[tuple[int, int]],
+    cluster_count: int,
 ) -> dict[str, object]:
     grouped: dict[str, list[int]] = defaultdict(list)
     for index, item in enumerate(metadata):
@@ -1109,7 +1480,7 @@ def build_video_fingerprint_wall(
         span = max(1, video_end - video_start)
         density_counts = [0 for _ in range(FINGERPRINT_BIN_COUNT)]
         cluster_bin_counts = [Counter() for _ in range(FINGERPRINT_BIN_COUNT)]
-        cluster_counts = [0 for _ in range(CLUSTER_COUNT)]
+        cluster_counts = [0 for _ in range(cluster_count)]
         timed_entry_count = 0
         x_total = 0
         y_total = 0
@@ -1150,7 +1521,7 @@ def build_video_fingerprint_wall(
             bins.append(dominant_cluster_id)
 
         dominant_cluster_id = max(
-            range(CLUSTER_COUNT),
+            range(cluster_count),
             key=lambda cluster_id: (cluster_counts[cluster_id], -cluster_id),
         )
         entry_count = len(ordered_indexes)
@@ -1231,10 +1602,8 @@ def main() -> None:
             mean[dimension] += value
 
     entry_count = len(metadata)
-    if entry_count < CLUSTER_COUNT:
-        raise SystemExit(
-            f"Semantic landscape expects at least {CLUSTER_COUNT} entries, found {entry_count}."
-        )
+    if entry_count < 2:
+        raise SystemExit("Semantic landscape expects at least 2 entries.")
 
     mean = [value / entry_count for value in mean]
 
@@ -1245,7 +1614,12 @@ def main() -> None:
             total += (vectors[offset + dimension] - mean[dimension]) * direction[dimension]
         return total
 
-    assignments, cluster_centers = spherical_kmeans(vectors, entry_count, vector_dim, CLUSTER_COUNT)
+    cluster_count, assignments, cluster_centers, cluster_selection, cluster_search_rows = select_cluster_count(
+        vectors,
+        metadata,
+        entry_count,
+        vector_dim,
+    )
 
     principal_components: list[list[float]] = []
     for _ in range(2):
@@ -1285,22 +1659,23 @@ def main() -> None:
         for x_value, y_value in coordinates
     ]
 
-    cluster_members: dict[int, list[int]] = defaultdict(list)
+    cluster_members: dict[int, list[int]] = {cluster_id: [] for cluster_id in range(cluster_count)}
     for index, cluster_id in enumerate(assignments):
         cluster_members[cluster_id].append(index)
 
-    if len(cluster_members) != CLUSTER_COUNT:
-        missing = [cluster_id for cluster_id in range(CLUSTER_COUNT) if cluster_id not in cluster_members]
+    empty_clusters = [cluster_id for cluster_id in range(cluster_count) if not cluster_members[cluster_id]]
+    if empty_clusters:
+        missing = [cluster_id for cluster_id in range(cluster_count) if not cluster_members[cluster_id]]
         raise SystemExit(f"One or more embedding clusters ended empty: {missing}")
 
-    cluster_phrase_scores = build_cluster_phrase_scores(metadata, assignments)
+    cluster_phrase_scores = build_cluster_phrase_scores(metadata, assignments, cluster_count)
 
     clusters_by_id: dict[int, dict[str, object]] = {}
     review_rows: list[dict[str, object]] = []
     used_labels: set[str] = set()
     validation_errors: list[str] = []
 
-    for cluster_id in range(CLUSTER_COUNT):
+    for cluster_id in range(cluster_count):
         members = cluster_members[cluster_id]
         center = cluster_centers[cluster_id]
         medoid_index, representative_indexes = select_representative_indices(
@@ -1389,6 +1764,33 @@ def main() -> None:
                     )
                 )
 
+    print("Cluster count search")
+    for row in sorted(cluster_search_rows, key=lambda item: int(item["clusterCount"])):
+        searched_cluster_count = int(row["clusterCount"])
+        sample_metrics = row["sampleMetrics"]
+        full_metrics = row.get("fullMetrics")
+        marker = "*" if searched_cluster_count == cluster_count else "+" if full_metrics else "-"
+        print(
+            f"{marker} k={searched_cluster_count}: "
+            f"sample={float(sample_metrics['score']):.4f} "
+            f"cohesion={float(sample_metrics['cohesion']):.4f} "
+            f"margin={float(sample_metrics['margin']):.4f} "
+            f"sep={float(sample_metrics['centerSeparation']):.4f} "
+            f"min_share={float(sample_metrics['minClusterShare']):.4f}"
+        )
+        if full_metrics:
+            print(
+                "  full: "
+                f"score={float(full_metrics['score']):.4f} "
+                f"cohesion={float(full_metrics['cohesion']):.4f} "
+                f"margin={float(full_metrics['margin']):.4f} "
+                f"sep={float(full_metrics['centerSeparation']):.4f} "
+                f"max_neighbor={float(full_metrics['maxNeighborSimilarity']):.4f} "
+                f"min_share={float(full_metrics['minClusterShare']):.4f} "
+                f"interp={float(row['interpretability']['score']):.4f} "
+                f"theme_share={float(row['interpretability']['themeShare']):.4f}"
+            )
+
     print("Semantic landscape review summary")
     for row in sorted(review_rows, key=lambda item: (-int(item["size"]), int(item["id"]))):
         label_mode = str(row["labelMode"])
@@ -1418,7 +1820,7 @@ def main() -> None:
     if validation_errors:
         raise SystemExit("Cluster label validation failed:\n" + "\n".join(validation_errors))
 
-    clusters = [clusters_by_id[cluster_id] for cluster_id in range(CLUSTER_COUNT)]
+    clusters = [clusters_by_id[cluster_id] for cluster_id in range(cluster_count)]
     points = []
     for index, item in enumerate(metadata):
         points.append(
@@ -1435,17 +1837,24 @@ def main() -> None:
         )
 
     payload = {
-        "version": 4,
+        "version": 5,
         "projection": "pca-2d",
-        "clusterAlgorithm": "spherical-kmeans-embedding",
+        "clusterAlgorithm": "adaptive-spherical-kmeans-embedding",
         "generatedAt": datetime.now(timezone.utc).isoformat(),
         "sourceDb": DB_PATH.name,
         "modelId": MODEL_ID,
         "pointCount": entry_count,
         "vectorDim": vector_dim,
+        "clusterCount": cluster_count,
+        "clusterSelection": cluster_selection,
         "clusters": clusters,
         "points": points,
-        "videoFingerprintWall": build_video_fingerprint_wall(metadata, assignments, scaled_points),
+        "videoFingerprintWall": build_video_fingerprint_wall(
+            metadata,
+            assignments,
+            scaled_points,
+            cluster_count,
+        ),
     }
 
     OUTPUT_PATH.write_text(

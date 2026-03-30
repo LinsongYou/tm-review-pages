@@ -79,6 +79,10 @@ export default function SemanticLandscapePanel({
   const [selectedClusterId, setSelectedClusterId] = useState<number | null>(null);
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
   const [hoverState, setHoverState] = useState<HoverState | null>(null);
+  const selectedClusterCount = data.clusterSelection?.selectedCount ?? data.clusterCount ?? data.clusters.length;
+  const clusterSearchSummary = data.clusterSelection
+    ? `Auto-selected ${selectedClusterCount} full-space clusters from a ${data.clusterSelection.minCount}-${data.clusterSelection.maxCount} search.`
+    : `Precomputed ${data.projection} distribution across all ${data.pointCount.toLocaleString()} entries.`;
 
   const clusterById = useMemo(
     () => new Map<number, SemanticLandscapeCluster>(data.clusters.map((cluster) => [cluster.id, cluster])),
@@ -346,12 +350,11 @@ export default function SemanticLandscapePanel({
         <div className="results-heading">
           <h2>Semantic Landscape</h2>
           <span>
-            Precomputed {data.projection} distribution across all {data.pointCount.toLocaleString()}{' '}
-            entries.
+            {clusterSearchSummary}
           </span>
         </div>
         <div className="semantic-summary">
-          <span>{data.clusters.length} clusters</span>
+          <span>{selectedClusterCount} clusters</span>
           <span>{visiblePointCount.toLocaleString()} visible</span>
         </div>
       </div>
