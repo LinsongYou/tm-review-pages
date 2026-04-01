@@ -1161,6 +1161,10 @@ def make_unique_label(label: str, used_labels: set[str]) -> str:
     return unique_label
 
 
+def canonicalize_theme_label(label: str) -> str:
+    return re.sub(r" \d+$", "", label)
+
+
 def score_theme_labels(
     phrase_scores: list[tuple[float, str, int, int]],
     samples: list[dict[str, object]],
@@ -1748,7 +1752,7 @@ def main() -> None:
         )
 
         if label_mode == "theme" and label_confidence >= HIGH_CONFIDENCE_LABEL_THRESHOLD:
-            hints = THEME_HINTS_BY_LABEL.get(label, set())
+            hints = THEME_HINTS_BY_LABEL.get(canonicalize_theme_label(label), set())
             phrase_support = count_theme_support(top_phrases, hints)
             sample_support = sum(
                 1
