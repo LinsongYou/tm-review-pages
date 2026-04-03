@@ -43,6 +43,7 @@ RELATIVE_MIN_CLUSTER_SHARE = 0.58
 ABSOLUTE_MIN_CLUSTER_SHARE = 0.035
 CLUSTER_SELECTION_STRUCTURAL_TOLERANCE = 0.015
 TOKEN_RE = re.compile(r"[A-Za-z0-9']+")
+SPECIFIC_LABEL_TOKEN_RE = re.compile(r"\d")
 STOPWORDS = {
     "a",
     "about",
@@ -340,6 +341,17 @@ THEME_RULES = [
             "range",
             "rpm",
             "torque",
+            "turbo",
+        },
+    ),
+    (
+        "Engine, Turbo & Exhaust",
+        {
+            "engine",
+            "engines",
+            "exhaust",
+            "horsepower",
+            "rpm",
             "turbo",
         },
     ),
@@ -1102,67 +1114,125 @@ def titleize_phrase(phrase: str) -> str:
     return " ".join(words)
 
 
-def build_fallback_label(
+def is_specific_label_phrase(phrase: str) -> bool:
+    return any(SPECIFIC_LABEL_TOKEN_RE.search(token) for token in tokenize(phrase))
+
+
+def build_fallback_label_candidates(
     cluster_id: int,
     phrase_scores: list[tuple[float, str, int, int]],
     samples: list[dict[str, object]],
-) -> str:
+) -> list[str]:
     parts: list[str] = []
 
-    for _, phrase, _, _ in phrase_scores:
-        if phrase in GENERIC_LABEL_TOKENS:
-            continue
-
-        titled = titleize_phrase(phrase)
-        if not titled or titled in parts:
-            continue
-
-        parts.append(titled)
-        if len(parts) == 2:
-            break
-
-    if len(parts) >= 2:
-        return f"{parts[0]} & {parts[1]}"
-    if parts:
-        return parts[0]
-
-    sample_terms: Counter[str] = Counter()
-    for sample in samples:
-        for token in content_tokens(str(sample["en"])):
-            if token in GENERIC_LABEL_TOKENS:
+    def collect_phrase_parts(allow_specific: bool) -> None:
+        for _, phrase, _, _ in phrase_scores:
+            if phrase in GENERIC_LABEL_TOKENS:
                 continue
-            sample_terms[token] += 1
+            if not allow_specific and is_specific_label_phrase(phrase):
+                continue
 
-    for term, _ in sample_terms.most_common():
-        titled = titleize_phrase(term)
-        if titled and titled not in parts:
+            titled = titleize_phrase(phrase)
+            if not titled or titled in parts:
+                continue
+
             parts.append(titled)
-        if len(parts) == 2:
-            break
+            if len(parts) == 6:
+                break
 
-    if len(parts) >= 2:
-        return f"{parts[0]} & {parts[1]}"
-    if parts:
-        return parts[0]
-    return f"Region {cluster_id + 1}"
+    def collect_sample_terms(allow_specific: bool) -> None:
+        sample_terms: Counter[str] = Counter()
+        for sample in samples:
+            for token in content_tokens(str(sample["en"])):
+                if token in GENERIC_LABEL_TOKENS:
+                    continue
+                if not allow_specific and is_specific_label_phrase(token):
+                    continue
+                sample_terms[token] += 1
 
+        for term, _ in sample_terms.most_common():
+            titled = titleize_phrase(term)
+            if titled and titled not in parts:
+                parts.append(titled)
+            if len(parts) == 6:
+                break
 
-def make_unique_label(label: str, used_labels: set[str]) -> str:
-    if label not in used_labels:
-        used_labels.add(label)
-        return label
+    collect_phrase_parts(allow_specific=False)
+    if len(parts) < 6:
+        collect_sample_terms(allow_specific=False)
+    if len(parts) < 6:
+        collect_phrase_parts(allow_specific=True)
+    if len(parts) < 6:
+        collect_sample_terms(allow_specific=True)
 
-    suffix = 2
-    while f"{label} {suffix}" in used_labels:
-        suffix += 1
+    candidates: list[str] = []
+    for index, first in enumerate(parts):
+        for second in parts[index + 1 :]:
+            candidates.append(f"{first} & {second}")
+        candidates.append(first)
 
-    unique_label = f"{label} {suffix}"
-    used_labels.add(unique_label)
-    return unique_label
+    candidates.append(f"Region {cluster_id + 1}")
+
+    deduped_candidates: list[str] = []
+    seen_candidates: set[str] = set()
+    for candidate in candidates:
+        if not candidate or candidate in seen_candidates:
+            continue
+        deduped_candidates.append(candidate)
+        seen_candidates.add(candidate)
+
+    return deduped_candidates
 
 
 def canonicalize_theme_label(label: str) -> str:
     return re.sub(r" \d+$", "", label)
+
+
+def is_label_available(label: str, used_label_roots: set[str]) -> bool:
+    return canonicalize_theme_label(label) not in used_label_roots
+
+
+def reserve_label(label: str, used_label_roots: set[str]) -> str:
+    used_label_roots.add(canonicalize_theme_label(label))
+    return label
+
+
+def classify_theme_candidate(
+    candidate_index: int,
+    candidate_label: str,
+    candidate_score: float,
+    scored_labels: list[tuple[float, str]],
+    top_phrases: list[str],
+    sample_keyphrases: list[list[str]],
+    video_count: int,
+) -> tuple[str, float] | None:
+    next_score = scored_labels[candidate_index + 1][0] if candidate_index + 1 < len(scored_labels) else 0.0
+    margin = candidate_score - next_score
+    hints = THEME_HINTS_BY_LABEL.get(candidate_label, set())
+    phrase_support = count_theme_support(top_phrases, hints)
+    sample_support = sum(1 for phrases in sample_keyphrases if count_theme_support(phrases, hints) > 0)
+    raw_confidence = min(1.0, candidate_score / 13.5) * 0.7 + min(1.0, max(0.0, margin) / 6.0) * 0.3
+
+    if (
+        candidate_label
+        and candidate_score >= THEME_SCORE_THRESHOLD
+        and margin >= THEME_MARGIN_THRESHOLD
+        and phrase_support >= 2
+        and sample_support >= 1
+        and video_count >= HIGH_CONFIDENCE_VIDEO_MIN
+    ):
+        return "theme", round(max(0.72, min(0.99, raw_confidence)), 4)
+
+    if (
+        candidate_label
+        and candidate_score >= PROVISIONAL_THEME_SCORE_THRESHOLD
+        and margin >= PROVISIONAL_THEME_MARGIN_THRESHOLD
+        and phrase_support >= 2
+        and video_count >= 2
+    ):
+        return "provisional", round(max(0.48, min(0.78, raw_confidence)), 4)
+
+    return None
 
 
 def score_theme_labels(
@@ -1284,55 +1354,53 @@ def infer_cluster_label(
     phrase_scores: list[tuple[float, str, int, int]],
     samples: list[dict[str, object]],
     video_count: int,
-    used_labels: set[str],
+    used_label_roots: set[str],
 ) -> tuple[str, str, float, list[tuple[float, str]]]:
     scored_labels = score_theme_labels(phrase_scores, samples)
-    best_score = scored_labels[0][0] if scored_labels else 0.0
-    best_label = scored_labels[0][1] if scored_labels else ""
-    runner_up = scored_labels[1][0] if len(scored_labels) > 1 else 0.0
-    margin = best_score - runner_up
-
-    hints = THEME_HINTS_BY_LABEL.get(best_label, set())
     top_phrases = [phrase for _, phrase, _, _ in phrase_scores[:6]]
-    phrase_support = count_theme_support(top_phrases, hints)
-    sample_support = 0
-    for sample in samples:
-        sample_phrases = extract_keyphrases(str(sample["en"]))
-        if count_theme_support(sample_phrases, hints) > 0:
-            sample_support += 1
+    sample_keyphrases = [extract_keyphrases(str(sample["en"])) for sample in samples]
+    provisional_candidate: tuple[str, float] | None = None
 
-    raw_confidence = min(1.0, best_score / 13.5) * 0.7 + min(1.0, max(0.0, margin) / 6.0) * 0.3
-    if (
-        best_label
-        and best_score >= THEME_SCORE_THRESHOLD
-        and margin >= THEME_MARGIN_THRESHOLD
-        and phrase_support >= 2
-        and sample_support >= 1
-        and video_count >= HIGH_CONFIDENCE_VIDEO_MIN
-    ):
-        return (
-            make_unique_label(best_label, used_labels),
-            "theme",
-            round(max(0.72, min(0.99, raw_confidence)), 4),
+    for candidate_index, (candidate_score, candidate_label) in enumerate(scored_labels):
+        if not is_label_available(candidate_label, used_label_roots):
+            continue
+
+        candidate_classification = classify_theme_candidate(
+            candidate_index,
+            candidate_label,
+            candidate_score,
             scored_labels,
+            top_phrases,
+            sample_keyphrases,
+            video_count,
         )
+        if candidate_classification is None:
+            continue
 
-    if (
-        best_label
-        and best_score >= PROVISIONAL_THEME_SCORE_THRESHOLD
-        and margin >= PROVISIONAL_THEME_MARGIN_THRESHOLD
-        and phrase_support >= 2
-        and video_count >= 2
-    ):
-        provisional_confidence = round(max(0.48, min(0.78, raw_confidence)), 4)
-        return (
-            make_unique_label(best_label, used_labels),
-            "provisional",
-            provisional_confidence,
-            scored_labels,
-        )
+        mode, confidence = candidate_classification
+        if mode == "theme":
+            return reserve_label(candidate_label, used_label_roots), mode, confidence, scored_labels
 
-    fallback_label = make_unique_label(build_fallback_label(cluster_id, phrase_scores, samples), used_labels)
+        if provisional_candidate is None:
+            provisional_candidate = (candidate_label, confidence)
+
+    if provisional_candidate is not None:
+        candidate_label, confidence = provisional_candidate
+        return reserve_label(candidate_label, used_label_roots), "provisional", confidence, scored_labels
+
+    fallback_candidates = build_fallback_label_candidates(cluster_id, phrase_scores, samples)
+    fallback_label = ""
+    for candidate in fallback_candidates:
+        if not is_label_available(candidate, used_label_roots):
+            continue
+        fallback_label = reserve_label(candidate, used_label_roots)
+        break
+
+    if not fallback_label:
+        fallback_label = reserve_label(f"Region {cluster_id + 1}", used_label_roots)
+    best_score = scored_labels[0][0] if scored_labels else 0.0
+    runner_up = scored_labels[1][0] if len(scored_labels) > 1 else 0.0
+    raw_confidence = min(1.0, best_score / 13.5) * 0.7 + min(1.0, max(0.0, best_score - runner_up) / 6.0) * 0.3
     fallback_confidence = round(max(0.22, min(0.46, raw_confidence * 0.55 + 0.18)), 4)
     return fallback_label, "descriptive", fallback_confidence, scored_labels
 
@@ -1676,7 +1744,7 @@ def main() -> None:
 
     clusters_by_id: dict[int, dict[str, object]] = {}
     review_rows: list[dict[str, object]] = []
-    used_labels: set[str] = set()
+    used_label_roots: set[str] = set()
     validation_errors: list[str] = []
 
     for cluster_id in range(cluster_count):
@@ -1710,7 +1778,7 @@ def main() -> None:
             top_phrase_scores,
             samples,
             video_count,
-            used_labels,
+            used_label_roots,
         )
 
         cluster_x = round(sum(scaled_points[index][0] for index in members) / len(members))
