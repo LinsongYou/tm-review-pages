@@ -438,8 +438,7 @@ button {
   flex: 1 0 440px;
 }
 
-.field input,
-.field select {
+.field input {
   width: 100%;
   min-height: 48px;
   padding: 0 14px;
@@ -450,8 +449,7 @@ button {
   outline: none;
 }
 
-.field input:focus,
-.field select:focus {
+.field input:focus {
   border-color: var(--accent-border);
   box-shadow: 0 0 0 3px var(--accent-ring);
 }
@@ -606,7 +604,6 @@ button {
 
 .semantic-tooltip strong,
 .semantic-sample-card strong,
-.semantic-entry-meta strong,
 .semantic-detail-stat strong {
   color: var(--text);
 }
@@ -659,14 +656,6 @@ button {
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-}
-
-.semantic-entry-meta {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  color: var(--muted);
-  font-size: 0.9rem;
 }
 
 .semantic-detail-result-header {
@@ -1251,15 +1240,9 @@ button {
   text-align: right;
 }
 
-.time-distribution-note,
 .time-distribution-subnote {
   margin: 0;
   line-height: 1.55;
-}
-
-.time-distribution-note {
-  color: var(--muted-strong);
-  font-size: 0.92rem;
 }
 
 .time-distribution-subnote {

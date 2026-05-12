@@ -1,4 +1,5 @@
 import { PointerEvent as ReactPointerEvent, useRef, useState } from 'react';
+import { classNames } from '../classes';
 import type { CueTimeDistribution } from '../search/protocol';
 
 const CHART_WIDTH = 920;
@@ -187,15 +188,11 @@ export default function CueTimeDistributionPanel({ data }: CueTimeDistributionPa
             return (
               <rect
                 key={index}
-                className={
-                  [
-                    'time-distribution-bar',
-                    index === peakBinIndex ? 'time-distribution-bar--peak' : '',
-                    index === hoveredBinIndex ? 'time-distribution-bar--active' : '',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')
-                }
+                className={classNames(
+                  'time-distribution-bar',
+                  index === peakBinIndex && 'time-distribution-bar--peak',
+                  index === hoveredBinIndex && 'time-distribution-bar--active',
+                )}
                 x={x}
                 y={y}
                 width={width}

@@ -644,14 +644,9 @@ def content_tokens(text: str) -> list[str]:
 
 def extract_keyphrases(text: str) -> list[str]:
     tokens = content_tokens(text)
-    phrases: list[str] = []
+    phrases = tokens[:]
 
-    for token in tokens:
-        phrases.append(token)
-
-    for index in range(len(tokens) - 1):
-        left = tokens[index]
-        right = tokens[index + 1]
+    for left, right in zip(tokens, tokens[1:]):
         if left == right:
             continue
         phrases.append(f"{left} {right}")
@@ -1737,8 +1732,7 @@ def main() -> None:
 
     empty_clusters = [cluster_id for cluster_id in range(cluster_count) if not cluster_members[cluster_id]]
     if empty_clusters:
-        missing = [cluster_id for cluster_id in range(cluster_count) if not cluster_members[cluster_id]]
-        raise SystemExit(f"One or more embedding clusters ended empty: {missing}")
+        raise SystemExit(f"One or more embedding clusters ended empty: {empty_clusters}")
 
     cluster_phrase_scores = build_cluster_phrase_scores(metadata, assignments, cluster_count)
 

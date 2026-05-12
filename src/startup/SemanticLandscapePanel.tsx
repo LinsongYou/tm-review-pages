@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { classNames } from '../classes';
 import type {
   SemanticLandscapeCluster,
   SemanticLandscapeData,
   SemanticLandscapePoint,
 } from './semantic-landscape';
+import { hexToRgba } from './colors';
 
 const CANVAS_PADDING = 28;
 
@@ -25,20 +27,6 @@ interface SemanticLandscapePanelProps {
   data: SemanticLandscapeData;
   theme: ThemeMode;
   onOpenTranscript: (videoId: string, focusEntryId: string) => void;
-}
-
-function hexToRgba(hex: string, alpha: number): string {
-  const value = hex.replace('#', '');
-  const normalized = value.length === 3 ? value.split('').map((part) => `${part}${part}`).join('') : value;
-
-  if (normalized.length !== 6) {
-    return `rgba(127, 176, 105, ${alpha})`;
-  }
-
-  const red = Number.parseInt(normalized.slice(0, 2), 16);
-  const green = Number.parseInt(normalized.slice(2, 4), 16);
-  const blue = Number.parseInt(normalized.slice(4, 6), 16);
-  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 }
 
 function toCanvasPosition(value: number, extent: number): number {
@@ -360,7 +348,7 @@ export default function SemanticLandscapePanel({
 
       <div className="semantic-cluster-strip" role="toolbar" aria-label="Semantic cluster filters">
         <button
-          className={selectedClusterId === null ? 'semantic-cluster-chip is-active' : 'semantic-cluster-chip'}
+          className={classNames('semantic-cluster-chip', selectedClusterId === null && 'is-active')}
           type="button"
           onClick={() => handleClusterToggle(null)}
         >
@@ -372,11 +360,10 @@ export default function SemanticLandscapePanel({
         {data.clusters.map((cluster) => (
           <button
             key={cluster.id}
-            className={
-              selectedClusterId === cluster.id
-                ? 'semantic-cluster-chip is-active'
-                : 'semantic-cluster-chip'
-            }
+            className={classNames(
+              'semantic-cluster-chip',
+              selectedClusterId === cluster.id && 'is-active',
+            )}
             style={{ ['--cluster-color' as string]: cluster.color }}
             title={describeClusterLabel(cluster)}
             type="button"

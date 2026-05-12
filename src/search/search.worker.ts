@@ -54,7 +54,6 @@ type ModelProgressInfo =
 
 interface Entry extends EntrySummary {
   enLength: number;
-  zhLength: number;
 }
 
 interface RankedHit {
@@ -662,7 +661,6 @@ async function loadDatabase(request: BootRequest, reportProgress: ProgressReport
         startMs,
         endMs,
         enLength: en.length,
-        zhLength: zh.length,
       };
 
       const nextIndex = entries.length;
@@ -750,11 +748,6 @@ async function loadDatabase(request: BootRequest, reportProgress: ProgressReport
         vectorDim = dim;
       } else if (vectorDim !== dim) {
         throw new Error(`Vector dimension mismatch: expected ${vectorDim}, got ${dim}.`);
-      }
-
-      const sourceEntry = entries[sourceIndex];
-      if (!sourceEntry) {
-        continue;
       }
 
       entryVectorRows[sourceIndex] = vectorRows.length;

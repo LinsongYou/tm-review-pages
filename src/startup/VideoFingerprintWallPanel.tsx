@@ -1,9 +1,12 @@
-import { KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { classNames } from '../classes';
+import { handleSelectKey } from '../keyboard';
 import type {
   SemanticLandscapeCluster,
   VideoFingerprintVideo,
   VideoFingerprintWall,
 } from './semantic-landscape';
+import { hexToRgba } from './colors';
 
 interface VideoFingerprintWallPanelProps {
   data: VideoFingerprintWall;
@@ -17,20 +20,6 @@ interface FingerprintStripProps {
   compact?: boolean;
 }
 
-function hexToRgba(hex: string, alpha: number): string {
-  const value = hex.replace('#', '');
-  const normalized = value.length === 3 ? value.split('').map((part) => `${part}${part}`).join('') : value;
-
-  if (normalized.length !== 6) {
-    return `rgba(106, 157, 120, ${alpha})`;
-  }
-
-  const red = Number.parseInt(normalized.slice(0, 2), 16);
-  const green = Number.parseInt(normalized.slice(2, 4), 16);
-  const blue = Number.parseInt(normalized.slice(4, 6), 16);
-  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
-}
-
 function formatPercent(value: number): string {
   return `${Math.round(value * 100)}%`;
 }
@@ -38,7 +27,7 @@ function formatPercent(value: number): string {
 function FingerprintStrip({ video, clusterById, compact = false }: FingerprintStripProps) {
   return (
     <div
-      className={compact ? 'video-fingerprint-strip video-fingerprint-strip--compact' : 'video-fingerprint-strip'}
+      className={classNames('video-fingerprint-strip', compact && 'video-fingerprint-strip--compact')}
       style={{ ['--fingerprint-columns' as string]: String(video.bins.length) }}
       aria-hidden="true"
     >
@@ -51,7 +40,7 @@ function FingerprintStrip({ video, clusterById, compact = false }: FingerprintSt
         return (
           <span
             key={`${video.videoId}-${index}`}
-            className={cluster ? 'video-fingerprint-cell' : 'video-fingerprint-cell video-fingerprint-cell--empty'}
+            className={classNames('video-fingerprint-cell', !cluster && 'video-fingerprint-cell--empty')}
             style={{
               background,
               opacity: alpha,
@@ -107,20 +96,6 @@ export default function VideoFingerprintWallPanel({
     ? clusterById.get(selectedVideo.dominantClusterId) ?? null
     : null;
   const selectedTopClusters = selectedVideo ? getTopClusters(selectedVideo, clusterById) : [];
-
-  function handleRowKeyDown(
-    event: ReactKeyboardEvent<HTMLElement>,
-    videoId: string,
-  ): void {
-    if (event.target !== event.currentTarget) {
-      return;
-    }
-
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      setSelectedVideoId(videoId);
-    }
-  }
 
   return (
     <section className="panel semantic-panel video-fingerprint-panel" aria-label="Video fingerprints wall">
@@ -221,15 +196,16 @@ export default function VideoFingerprintWallPanel({
               return (
                 <li key={video.videoId}>
                   <article
-                    className={
-                      video.videoId === selectedVideo?.videoId
-                        ? 'video-fingerprint-row is-active'
-                        : 'video-fingerprint-row'
-                    }
+                    className={classNames(
+                      'video-fingerprint-row',
+                      video.videoId === selectedVideo?.videoId && 'is-active',
+                    )}
                     role="button"
                     tabIndex={0}
                     onClick={() => setSelectedVideoId(video.videoId)}
-                    onKeyDown={(event) => handleRowKeyDown(event, video.videoId)}
+                    onKeyDown={(event) =>
+                      handleSelectKey(event, () => setSelectedVideoId(video.videoId))
+                    }
                   >
                     <div className="video-fingerprint-row-meta">
                       <div className="video-fingerprint-row-title">
@@ -252,7 +228,7 @@ export default function VideoFingerprintWallPanel({
                             className="video-fingerprint-cluster-chip"
                             style={{
                               ['--cluster-color' as string]: dominantCluster.color,
-                              background: hexToRgba(dominantCluster.color, 0.12),
+                              background: hexToRgba(dominantCluster.color, 0.12, '106, 157, 120'),
                             }}
                           >
                             {dominantCluster.label}

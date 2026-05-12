@@ -1,12 +1,13 @@
 import {
   FormEvent,
-  KeyboardEvent as ReactKeyboardEvent,
   startTransition,
   useEffect,
   useLayoutEffect,
   useRef,
   useState,
 } from 'react';
+import { classNames } from './classes';
+import { handleSelectKey } from './keyboard';
 import type {
   BootProgressSnapshot,
   BootStats,
@@ -105,7 +106,7 @@ function createInitialBootProgressState(): HeaderLoadState {
     },
     model: {
       target: 'model',
-      name: 'Embedding Model',
+      name: MODEL_CHIP_LABEL,
       progress: 0,
       statusText: 'Preparing embedding model',
     },
@@ -556,34 +557,6 @@ function App() {
     setContextRadius(clampNumericInput(value, 0));
   }
 
-  function handleTranscriptEntryKeyDown(
-    event: ReactKeyboardEvent<HTMLElement>,
-    entryId: string,
-  ): void {
-    if (event.target !== event.currentTarget) {
-      return;
-    }
-
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      setTranscriptSelection(entryId);
-    }
-  }
-
-  function handleResultCardKeyDown(
-    event: ReactKeyboardEvent<HTMLElement>,
-    entryId: string,
-  ): void {
-    if (event.target !== event.currentTarget) {
-      return;
-    }
-
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      setSelectedEntryId(entryId);
-    }
-  }
-
   function setTranscriptItemRef(entryId: string, element: HTMLLIElement | null): void {
     if (element) {
       transcriptItemRefs.current.set(entryId, element);
@@ -686,7 +659,6 @@ function App() {
   const pairsChipValue = bootStats
     ? bootStats.totalEntries.toLocaleString()
     : formatProgressPercent(bootProgress.pairs.progress);
-  const pairsChipLabel = PAIRS_CHIP_LABEL;
   const pairsChipTitle = buildChipTitle(
     bootStats
       ? `${bootStats.totalEntries.toLocaleString()} English/中文 pairs`
@@ -697,7 +669,6 @@ function App() {
   const modelChipValue = bootStats
     ? getDisplayModelName(bootStats.embeddingModelId)
     : bootProgress.model.name;
-  const modelChipLabel = MODEL_CHIP_LABEL;
   const modelChipTitle = buildChipTitle(
     bootStats?.embeddingModelId ?? bootProgress.model.name,
     bootProgress.model.statusText,
@@ -740,7 +711,7 @@ function App() {
           >
             <span className="hero-chip-content">
               <strong className="hero-chip-value">{pairsChipValue}</strong>
-              <span className="hero-chip-label">{pairsChipLabel}</span>
+              <span className="hero-chip-label">{PAIRS_CHIP_LABEL}</span>
             </span>
           </span>
           <span
@@ -758,24 +729,24 @@ function App() {
           >
             <span className="hero-chip-content">
               <strong className="hero-chip-value">{modelChipValue}</strong>
-              <span className="hero-chip-label">{modelChipLabel}</span>
+              <span className="hero-chip-label">{MODEL_CHIP_LABEL}</span>
             </span>
           </span>
           <button
             aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-            className={theme === 'dark' ? 'theme-toggle is-dark' : 'theme-toggle is-light'}
+            className={classNames('theme-toggle', theme === 'dark' ? 'is-dark' : 'is-light')}
             type="button"
             onClick={toggleTheme}
           >
             <span
               aria-hidden="true"
-              className={theme === 'dark' ? 'theme-option is-active' : 'theme-option'}
+              className={classNames('theme-option', theme === 'dark' && 'is-active')}
             >
               ☾
             </span>
             <span
               aria-hidden="true"
-              className={theme === 'light' ? 'theme-option is-active' : 'theme-option'}
+              className={classNames('theme-option', theme === 'light' && 'is-active')}
             >
               ☼
             </span>
@@ -819,7 +790,7 @@ function App() {
       {!hasSearched ? (
         <div className="startup-focus-shell" style={startupFocusStyle}>
           <div
-            className={startupFocusActive ? 'startup-focus-veil is-active' : 'startup-focus-veil'}
+            className={classNames('startup-focus-veil', startupFocusActive && 'is-active')}
             aria-hidden="true"
           />
 
@@ -842,15 +813,13 @@ function App() {
                 </div>
               </section>
             ) : startupData ? (
-              <>
-                <SemanticLandscapePanel
-                  data={startupData}
-                  theme={theme}
-                  onOpenTranscript={(videoId, focusEntryId) => {
-                    void openTranscript(videoId, focusEntryId);
-                  }}
-                />
-              </>
+              <SemanticLandscapePanel
+                data={startupData}
+                theme={theme}
+                onOpenTranscript={(videoId, focusEntryId) => {
+                  void openTranscript(videoId, focusEntryId);
+                }}
+              />
             ) : null}
 
             {booting ? (
@@ -948,13 +917,16 @@ function App() {
                 {results.map((result) => (
                   <li key={result.entryId}>
                     <article
-                      className={
-                        result.entryId === selectedEntryId ? 'result-card is-active' : 'result-card'
-                      }
+                      className={classNames(
+                        'result-card',
+                        result.entryId === selectedEntryId && 'is-active',
+                      )}
                       role="button"
                       tabIndex={0}
                       onClick={() => setSelectedEntryId(result.entryId)}
-                      onKeyDown={(event) => handleResultCardKeyDown(event, result.entryId)}
+                      onKeyDown={(event) =>
+                        handleSelectKey(event, () => setSelectedEntryId(result.entryId))
+                      }
                     >
                       <div className="result-header">
                         <span className="result-metric">
@@ -1023,7 +995,7 @@ function App() {
                   {contextItems.map((item) => (
                     <li
                       key={item.entryId}
-                      className={item.isFocus ? 'context-item is-focus' : 'context-item'}
+                      className={classNames('context-item', item.isFocus && 'is-focus')}
                     >
                       <div className="context-meta">
                         <span>{item.videoId}#{item.segIndex}</span>
@@ -1093,9 +1065,7 @@ function App() {
                             item.endMs,
                           )}.`}
                           className={
-                            isSelected
-                              ? 'transcript-timeline-button is-selected'
-                              : 'transcript-timeline-button'
+                            classNames('transcript-timeline-button', isSelected && 'is-selected')
                           }
                           type="button"
                           onClick={() => setTranscriptSelection(item.entryId)}
@@ -1113,17 +1083,17 @@ function App() {
                         </button>
 
                         <article
-                          className={[
+                          className={classNames(
                             'context-item',
                             'transcript-entry',
-                            isSelected ? 'is-selected' : '',
-                          ]
-                            .filter(Boolean)
-                            .join(' ')}
+                            isSelected && 'is-selected',
+                          )}
                           role="button"
                           tabIndex={0}
                           onClick={() => setTranscriptSelection(item.entryId)}
-                          onKeyDown={(event) => handleTranscriptEntryKeyDown(event, item.entryId)}
+                          onKeyDown={(event) =>
+                            handleSelectKey(event, () => setTranscriptSelection(item.entryId))
+                          }
                         >
                           <div className="context-meta transcript-entry-meta">
                             <span>{item.videoId}#{item.segIndex}</span>
