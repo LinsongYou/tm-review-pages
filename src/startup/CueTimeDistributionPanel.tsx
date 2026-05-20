@@ -146,11 +146,10 @@ export default function CueTimeDistributionPanel({ data }: CueTimeDistributionPa
             return (
               <g key={level}>
                 <line
-                  className={
-                    level === 0
-                      ? 'time-distribution-grid-line time-distribution-grid-line--baseline'
-                      : 'time-distribution-grid-line'
-                  }
+                  className={classNames(
+                    'time-distribution-grid-line',
+                    level === 0 && 'time-distribution-grid-line--baseline',
+                  )}
                   x1={CHART_PADDING_LEFT}
                   x2={CHART_WIDTH - CHART_PADDING_RIGHT}
                   y1={y}

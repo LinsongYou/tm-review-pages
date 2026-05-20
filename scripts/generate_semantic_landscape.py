@@ -345,17 +345,6 @@ THEME_RULES = [
         },
     ),
     (
-        "Engine, Turbo & Exhaust",
-        {
-            "engine",
-            "engines",
-            "exhaust",
-            "horsepower",
-            "rpm",
-            "turbo",
-        },
-    ),
-    (
         "Lap Times & Conditions",
         {
             "conditions",
@@ -1192,21 +1181,24 @@ def reserve_label(label: str, used_label_roots: set[str]) -> str:
     return label
 
 
+def compute_raw_confidence(score: float, margin: float) -> float:
+    return min(1.0, score / 13.5) * 0.7 + min(1.0, max(0.0, margin) / 6.0) * 0.3
+
+
 def classify_theme_candidate(
     candidate_index: int,
-    candidate_label: str,
-    candidate_score: float,
     scored_labels: list[tuple[float, str]],
     top_phrases: list[str],
     sample_keyphrases: list[list[str]],
     video_count: int,
 ) -> tuple[str, float] | None:
+    candidate_score, candidate_label = scored_labels[candidate_index]
     next_score = scored_labels[candidate_index + 1][0] if candidate_index + 1 < len(scored_labels) else 0.0
     margin = candidate_score - next_score
     hints = THEME_HINTS_BY_LABEL.get(candidate_label, set())
     phrase_support = count_theme_support(top_phrases, hints)
     sample_support = sum(1 for phrases in sample_keyphrases if count_theme_support(phrases, hints) > 0)
-    raw_confidence = min(1.0, candidate_score / 13.5) * 0.7 + min(1.0, max(0.0, margin) / 6.0) * 0.3
+    raw_confidence = compute_raw_confidence(candidate_score, margin)
 
     if (
         candidate_label
@@ -1297,7 +1289,7 @@ def score_cluster_interpretability(
         hints = THEME_HINTS_BY_LABEL.get(best_label, set())
         phrase_support = count_theme_support(top_phrases, hints)
         video_count = len(cluster_video_ids[cluster_id])
-        raw_confidence = min(1.0, best_score / 13.5) * 0.7 + min(1.0, max(0.0, margin) / 6.0) * 0.3
+        raw_confidence = compute_raw_confidence(best_score, margin)
 
         if (
             best_label
@@ -1362,8 +1354,6 @@ def infer_cluster_label(
 
         candidate_classification = classify_theme_candidate(
             candidate_index,
-            candidate_label,
-            candidate_score,
             scored_labels,
             top_phrases,
             sample_keyphrases,
@@ -1395,7 +1385,7 @@ def infer_cluster_label(
         fallback_label = reserve_label(f"Region {cluster_id + 1}", used_label_roots)
     best_score = scored_labels[0][0] if scored_labels else 0.0
     runner_up = scored_labels[1][0] if len(scored_labels) > 1 else 0.0
-    raw_confidence = min(1.0, best_score / 13.5) * 0.7 + min(1.0, max(0.0, best_score - runner_up) / 6.0) * 0.3
+    raw_confidence = compute_raw_confidence(best_score, best_score - runner_up)
     fallback_confidence = round(max(0.22, min(0.46, raw_confidence * 0.55 + 0.18)), 4)
     return fallback_label, "descriptive", fallback_confidence, scored_labels
 

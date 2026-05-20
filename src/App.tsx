@@ -697,11 +697,10 @@ function App() {
         </h1>
         <div className="hero-meta">
           <span
-            className={
-              booting
-                ? 'hero-chip hero-chip--pairs hero-chip--progress is-loading'
-                : 'hero-chip hero-chip--pairs hero-chip--progress is-ready'
-            }
+            className={classNames(
+              'hero-chip hero-chip--pairs hero-chip--progress',
+              booting ? 'is-loading' : 'is-ready',
+            )}
             style={
               {
                 ['--hero-chip-progress' as string]: bootProgress.pairs.progress.toFixed(3),
@@ -715,11 +714,10 @@ function App() {
             </span>
           </span>
           <span
-            className={
-              booting
-                ? 'hero-chip hero-chip--progress hero-chip--model is-loading'
-                : 'hero-chip hero-chip--progress hero-chip--model is-ready'
-            }
+            className={classNames(
+              'hero-chip hero-chip--progress hero-chip--model',
+              booting ? 'is-loading' : 'is-ready',
+            )}
             style={
               {
                 ['--hero-chip-progress' as string]: bootProgress.model.progress.toFixed(3),
