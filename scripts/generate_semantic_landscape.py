@@ -981,9 +981,6 @@ def select_cluster_count(
         "interpretability": dict(best_row["interpretability"]),
     }
 
-    if best_result is None:
-        raise SystemExit("Cluster-count search did not produce a valid result.")
-
     selected_cluster_count = int(best_result["clusterCount"])
     selected_metrics = dict(best_result["fullMetrics"])
     interpretability = dict(best_result["interpretability"])
@@ -1282,39 +1279,22 @@ def score_cluster_interpretability(
             phrase_dense_count += 1
 
         scored_labels = score_theme_labels(phrase_scores, [])
-        best_score = scored_labels[0][0] if scored_labels else 0.0
-        best_label = scored_labels[0][1] if scored_labels else ""
-        runner_up = scored_labels[1][0] if len(scored_labels) > 1 else 0.0
-        margin = best_score - runner_up
-        hints = THEME_HINTS_BY_LABEL.get(best_label, set())
-        phrase_support = count_theme_support(top_phrases, hints)
         video_count = len(cluster_video_ids[cluster_id])
-        raw_confidence = compute_raw_confidence(best_score, margin)
+        classification = classify_theme_candidate(0, scored_labels, top_phrases, [], video_count)
 
-        if (
-            best_label
-            and best_score >= THEME_SCORE_THRESHOLD
-            and margin >= THEME_MARGIN_THRESHOLD
-            and phrase_support >= 2
-            and video_count >= HIGH_CONFIDENCE_VIDEO_MIN
-        ):
-            theme_count += 1
-            confidence_total += max(0.72, min(0.99, raw_confidence))
-            continue
-
-        if (
-            best_label
-            and best_score >= PROVISIONAL_THEME_SCORE_THRESHOLD
-            and margin >= PROVISIONAL_THEME_MARGIN_THRESHOLD
-            and phrase_support >= 2
-            and video_count >= 2
-        ):
-            provisional_count += 1
-            confidence_total += max(0.48, min(0.78, raw_confidence))
-            continue
-
-        descriptive_count += 1
-        confidence_total += max(0.22, min(0.46, raw_confidence * 0.55 + 0.18))
+        if classification is not None:
+            mode, confidence = classification
+            if mode == "theme":
+                theme_count += 1
+            else:
+                provisional_count += 1
+            confidence_total += confidence
+        else:
+            best_score = scored_labels[0][0] if scored_labels else 0.0
+            runner_up = scored_labels[1][0] if len(scored_labels) > 1 else 0.0
+            raw_confidence = compute_raw_confidence(best_score, best_score - runner_up)
+            descriptive_count += 1
+            confidence_total += max(0.22, min(0.46, raw_confidence * 0.55 + 0.18))
 
     cluster_total = max(1, cluster_count)
     theme_share = theme_count / cluster_total
@@ -1767,8 +1747,6 @@ def main() -> None:
 
         cluster_x = round(sum(scaled_points[index][0] for index in members) / len(members))
         cluster_y = round(sum(scaled_points[index][1] for index in members) / len(members))
-        keyword_list = top_phrases[:]
-
         clusters_by_id[cluster_id] = {
             "id": cluster_id,
             "label": label,
@@ -1779,7 +1757,7 @@ def main() -> None:
             "videoCount": video_count,
             "x": cluster_x,
             "y": cluster_y,
-            "keywords": keyword_list,
+            "keywords": top_phrases,
             "topPhrases": top_phrases,
             "medoidEntryId": str(metadata[medoid_index]["entryId"]),
             "representativeEntryIds": representative_entry_ids,

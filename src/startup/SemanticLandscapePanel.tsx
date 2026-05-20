@@ -34,7 +34,7 @@ function toCanvasPosition(value: number, extent: number): number {
 }
 
 function getClusterPhrases(cluster: SemanticLandscapeCluster): string[] {
-  return cluster.topPhrases.length ? cluster.topPhrases : cluster.keywords;
+  return cluster.topPhrases;
 }
 
 function formatLabelConfidence(value: number): string {
