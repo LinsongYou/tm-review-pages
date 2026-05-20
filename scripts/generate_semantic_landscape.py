@@ -29,7 +29,6 @@ THEME_SCORE_THRESHOLD = 8.0
 THEME_MARGIN_THRESHOLD = 2.4
 PROVISIONAL_THEME_SCORE_THRESHOLD = 4.5
 PROVISIONAL_THEME_MARGIN_THRESHOLD = 0.35
-HIGH_CONFIDENCE_LABEL_THRESHOLD = 0.84
 HIGH_CONFIDENCE_VIDEO_MIN = 3
 CLUSTER_COHESION_WEIGHT = 0.48
 CLUSTER_MARGIN_WEIGHT = 0.95
@@ -44,542 +43,54 @@ ABSOLUTE_MIN_CLUSTER_SHARE = 0.035
 CLUSTER_SELECTION_STRUCTURAL_TOLERANCE = 0.015
 TOKEN_RE = re.compile(r"[A-Za-z0-9']+")
 SPECIFIC_LABEL_TOKEN_RE = re.compile(r"\d")
-STOPWORDS = {
-    "a",
-    "about",
-    "actually",
-    "after",
-    "again",
-    "all",
-    "almost",
-    "also",
-    "am",
-    "an",
-    "and",
-    "any",
-    "anyway",
-    "are",
-    "around",
-    "as",
-    "at",
-    "back",
-    "basically",
-    "be",
-    "because",
-    "been",
-    "being",
-    "best",
-    "bit",
-    "but",
-    "by",
-    "can",
-    "car",
-    "cars",
-    "come",
-    "could",
-    "day",
-    "did",
-    "do",
-    "does",
-    "doing",
-    "done",
-    "dont",
-    "down",
-    "drive",
-    "driving",
-    "even",
-    "every",
-    "first",
-    "for",
-    "from",
-    "get",
-    "getting",
-    "go",
-    "going",
-    "gone",
-    "gonna",
-    "good",
-    "got",
-    "great",
-    "had",
-    "has",
-    "have",
-    "having",
-    "he",
-    "hello",
-    "here",
-    "how",
-    "i",
-    "if",
-    "im",
-    "in",
-    "into",
-    "is",
-    "it",
-    "its",
-    "ive",
-    "just",
-    "kind",
-    "kinds",
-    "know",
-    "last",
-    "lets",
-    "like",
-    "little",
-    "look",
-    "lot",
-    "lots",
-    "made",
-    "many",
-    "maybe",
-    "me",
-    "mean",
-    "more",
-    "most",
-    "much",
-    "my",
-    "need",
-    "never",
-    "nice",
-    "no",
-    "not",
-    "now",
-    "of",
-    "off",
-    "oh",
-    "okay",
-    "on",
-    "one",
-    "only",
-    "or",
-    "other",
-    "our",
-    "out",
-    "over",
-    "pretty",
-    "probably",
-    "quite",
-    "really",
-    "right",
-    "said",
-    "say",
-    "see",
-    "she",
-    "should",
-    "so",
-    "some",
-    "something",
-    "still",
-    "such",
-    "than",
-    "thank",
-    "thanks",
-    "that",
-    "thats",
-    "the",
-    "their",
-    "them",
-    "then",
-    "there",
-    "these",
-    "they",
-    "thing",
-    "think",
-    "this",
-    "those",
-    "three",
-    "through",
-    "time",
-    "to",
-    "too",
-    "two",
-    "up",
-    "us",
-    "very",
-    "was",
-    "way",
-    "we",
-    "well",
-    "went",
-    "were",
-    "what",
-    "when",
-    "where",
-    "which",
-    "while",
-    "who",
-    "why",
-    "will",
-    "with",
-    "would",
-    "yeah",
-    "yes",
-    "you",
-    "your",
-    "let",
-    "s",
-}
-GENERIC_LABEL_TOKENS = {
-    "awesome",
-    "book",
-    "books",
-    "bye",
-    "code",
-    "construction",
-    "cool",
-    "couple mods",
-    "curb",
-    "day",
-    "definitely",
-    "enjoy",
-    "enjoy lap",
-    "everything",
-    "flat",
-    "great",
-    "guys",
-    "guys enjoy",
-    "happen",
-    "hello",
-    "hope enjoyed",
-    "interesting",
-    "licensed",
-    "licensed products",
-    "loved",
-    "man",
-    "merino",
-    "nice",
-    "okay",
-    "rburgring licensed",
-    "russian",
-    "sad",
-    "second lap",
-    "statesidesupercars",
-    "stock",
-    "talk",
-    "tuned",
-    "use code",
-    "video",
-    "wool",
-    "write",
-    "yellow",
-}
-LABEL_CANONICAL = {
-    "abs": "ABS",
-    "brake": "Brake",
-    "brakes": "Brakes",
-    "chassis": "Chassis",
-    "corner": "Corners",
-    "corners": "Corners",
-    "engine": "Engine",
-    "euros": "Euros",
-    "flag": "Flags",
-    "flags": "Flags",
-    "gearbox": "Gearbox",
-    "grip": "Grip",
-    "gt3": "GT3",
-    "hour": "Hour",
-    "kilometers": "Kilometers",
-    "kilos": "Kilos",
-    "lap": "Lap",
-    "laps": "Laps",
-    "people": "People",
-    "price": "Price",
-    "prices": "Prices",
-    "speed": "Speed",
-    "suspension": "Suspension",
-    "turbo": "Turbo",
-    "wet": "Wet",
-    "yep": "Short Replies",
-}
+STOPWORDS = frozenset(
+    "a about actually after again all almost also am an and any anyway are around as at back "
+    "basically be because been being best bit but by can car cars come could day did do does "
+    "doing done dont down drive driving even every first for from get getting go going gone "
+    "gonna good got great had has have having he hello here how i if im in into is it its ive "
+    "just kind kinds know last lets like little look lot lots made many maybe me mean more most "
+    "much my need never nice no not now of off oh okay on one only or other our out over pretty "
+    "probably quite really right said say see she should so some something still such than "
+    "thank thanks that thats the their them then there these they thing think this those three "
+    "through time to too two up us very was way we well went were what when where which while "
+    "who why will with would yeah yes you your let s".split()
+)
+GENERIC_LABEL_TOKENS = frozenset(
+    "awesome book books bye code construction cool couple mods curb day definitely enjoy "
+    "enjoy lap everything flat great guys guys enjoy hello hope enjoyed interesting licensed "
+    "licensed products loved man merino nice okay rburgring licensed russian sad second lap "
+    "statesidesupercars stock talk tuned use code video wool write yellow happen".split()
+)
+LABEL_CANONICAL = dict(
+    abs="ABS", brake="Brake", brakes="Brakes", chassis="Chassis", corner="Corners",
+    corners="Corners", engine="Engine", euros="Euros", flag="Flags", flags="Flags",
+    gearbox="Gearbox", grip="Grip", gt3="GT3", hour="Hour", kilometers="Kilometers",
+    kilos="Kilos", lap="Lap", laps="Laps", people="People", price="Price", prices="Prices",
+    speed="Speed", suspension="Suspension", turbo="Turbo", wet="Wet", yep="Short Replies",
+)
 THEME_RULES = [
-    (
-        "Brakes, Grip & Chassis",
-        {
-            "brake",
-            "brakes",
-            "braking",
-            "caliper",
-            "calipers",
-            "chassis",
-            "cup tyres",
-            "grip",
-            "traction",
-            "tyre",
-            "tyre pressure",
-            "tyres",
-            "wheel",
-            "wheelbase",
-            "wheels",
-        },
-    ),
-    (
-        "Suspension & Front-End Setup",
-        {
-            "camber",
-            "compression",
-            "dampers",
-            "front end",
-            "ride height",
-            "splitter",
-            "suspension",
-        },
-    ),
-    (
-        "Powertrain & Performance",
-        {
-            "battery",
-            "charging",
-            "electric",
-            "engine",
-            "engines",
-            "ethanol",
-            "gearbox",
-            "horsepower",
-            "kilowatts",
-            "motor",
-            "power",
-            "range",
-            "rpm",
-            "torque",
-            "turbo",
-        },
-    ),
-    (
-        "Lap Times & Conditions",
-        {
-            "conditions",
-            "lap",
-            "lap time",
-            "laps",
-            "minutes",
-            "rain",
-            "record",
-            "seconds",
-            "timing",
-            "track conditions",
-            "wet",
-        },
-    ),
-    (
-        "Track Access & Logistics",
-        {
-            "closed",
-            "entry",
-            "marshal",
-            "parking",
-            "passenger",
-            "passengers",
-            "session",
-            "track day",
-            "traffic",
-        },
-    ),
-    (
-        "Driving Technique & Feedback",
-        {
-            "balance",
-            "bumps",
-            "corner",
-            "corners",
-            "feedback",
-            "full throttle",
-            "heel",
-            "line",
-            "steering",
-            "throttle",
-            "trail",
-            "transition",
-            "turn",
-            "turning",
-        },
-    ),
-    (
-        "Suspension, Grip & Speed",
-        {
-            "abs",
-            "downforce",
-            "front",
-            "grip",
-            "high speed",
-            "speed",
-            "suspension",
-            "weight",
-        },
-    ),
-    (
-        "Corners, Flags & Wet Conditions",
-        {
-            "corner",
-            "corners",
-            "flag",
-            "left",
-            "umbrella",
-            "wet",
-            "yellow flag",
-        },
-    ),
-    (
-        "Build Plans & Hardware",
-        {
-            "aero",
-            "build",
-            "cage",
-            "carbon",
-            "fiber",
-            "heavier",
-            "lighter",
-            "parts",
-            "strip",
-            "stripped",
-            "upgrade",
-            "weight",
-            "wing",
-        },
-    ),
-    (
-        "Styling & Interior Materials",
-        {
-            "carpets",
-            "color",
-            "interior",
-            "looks",
-            "material",
-            "materials",
-            "merino",
-            "styling",
-            "wool",
-            "wrap",
-            "wrapped",
-        },
-    ),
-    (
-        "Video Production & Outro",
-        {
-            "filming",
-            "music",
-            "outro",
-            "playlist",
-            "recording",
-            "share",
-            "subscribe",
-            "video",
-            "youtube",
-        },
-    ),
-    (
-        "Positive Reactions & Thanks",
-        {
-            "amazing",
-            "appreciate",
-            "enjoyed",
-            "loved",
-            "thank",
-            "thanks",
-            "welcome",
-        },
-    ),
-    (
-        "Short Reactions & Acknowledgements",
-        {
-            "alright",
-            "alrighty",
-            "nein",
-            "worries",
-            "yep",
-        },
-    ),
-    (
-        "Starts, Passes & Next Moves",
-        {
-            "ahead",
-            "go",
-            "hopefully",
-            "next",
-            "pass",
-            "take",
-            "take easy",
-            "watch",
-        },
-    ),
-    (
-        "People, Comments & Mentions",
-        {
-            "comments",
-            "else",
-            "mention",
-            "mods",
-            "people",
-            "reason",
-            "things",
-            "years",
-        },
-    ),
-    (
-        "Cars, Drivers & Seats",
-        {
-            "car",
-            "cars",
-            "driver",
-            "drivers",
-            "driven",
-            "drove",
-            "porsche",
-            "seats",
-            "vehicle",
-            "vehicles",
-        },
-    ),
-    (
-        "Personal Asides & Side Notes",
-        {
-            "able",
-            "anything",
-            "mic",
-            "myself",
-            "sometimes",
-            "tell",
-            "want",
-            "wife",
-        },
-    ),
-    (
-        "Speeds, Prices & Numbers",
-        {
-            "euros",
-            "hour",
-            "kilometers",
-            "kilometers per",
-            "kilos",
-            "per hour",
-            "price",
-        },
-    ),
-    (
-        "Group Banter & Setups",
-        {
-            "banter",
-            "follow",
-            "line up",
-            "passenger",
-            "passengers",
-            "setup",
-            "try",
-        },
-    ),
+    ("Brakes, Grip & Chassis", {"brake", "brakes", "braking", "caliper", "calipers", "chassis", "cup tyres", "grip", "traction", "tyre", "tyre pressure", "tyres", "wheel", "wheelbase", "wheels"}),
+    ("Suspension & Front-End Setup", {"camber", "compression", "dampers", "front end", "ride height", "splitter", "suspension"}),
+    ("Powertrain & Performance", {"battery", "charging", "electric", "engine", "engines", "ethanol", "gearbox", "horsepower", "kilowatts", "motor", "power", "range", "rpm", "torque", "turbo"}),
+    ("Lap Times & Conditions", {"conditions", "lap", "lap time", "laps", "minutes", "rain", "record", "seconds", "timing", "track conditions", "wet"}),
+    ("Track Access & Logistics", {"closed", "entry", "marshal", "parking", "passenger", "passengers", "session", "track day", "traffic"}),
+    ("Driving Technique & Feedback", {"balance", "bumps", "corner", "corners", "feedback", "full throttle", "heel", "line", "steering", "throttle", "trail", "transition", "turn", "turning"}),
+    ("Suspension, Grip & Speed", {"abs", "downforce", "front", "grip", "high speed", "speed", "suspension", "weight"}),
+    ("Corners, Flags & Wet Conditions", {"corner", "corners", "flag", "left", "umbrella", "wet", "yellow flag"}),
+    ("Build Plans & Hardware", {"aero", "build", "cage", "carbon", "fiber", "heavier", "lighter", "parts", "strip", "stripped", "upgrade", "weight", "wing"}),
+    ("Styling & Interior Materials", {"carpets", "color", "interior", "looks", "material", "materials", "merino", "styling", "wool", "wrap", "wrapped"}),
+    ("Video Production & Outro", {"filming", "music", "outro", "playlist", "recording", "share", "subscribe", "video", "youtube"}),
+    ("Positive Reactions & Thanks", {"amazing", "appreciate", "enjoyed", "loved", "thank", "thanks", "welcome"}),
+    ("Short Reactions & Acknowledgements", {"alright", "alrighty", "nein", "worries", "yep"}),
+    ("Starts, Passes & Next Moves", {"ahead", "go", "hopefully", "next", "pass", "take", "take easy", "watch"}),
+    ("People, Comments & Mentions", {"comments", "else", "mention", "mods", "people", "reason", "things", "years"}),
+    ("Cars, Drivers & Seats", {"car", "cars", "driver", "drivers", "driven", "drove", "porsche", "seats", "vehicle", "vehicles"}),
+    ("Personal Asides & Side Notes", {"able", "anything", "mic", "myself", "sometimes", "tell", "want", "wife"}),
+    ("Speeds, Prices & Numbers", {"euros", "hour", "kilometers", "kilometers per", "kilos", "per hour", "price"}),
+    ("Group Banter & Setups", {"banter", "follow", "line up", "passenger", "passengers", "setup", "try"}),
 ]
 THEME_HINTS_BY_LABEL = {label: hints for label, hints in THEME_RULES}
-PALETTE = [
-    "#84a98c",
-    "#f4a261",
-    "#58a4b0",
-    "#e76f51",
-    "#8d99ae",
-    "#c9ada7",
-    "#e9c46a",
-    "#7fb069",
-    "#6d597a",
-    "#4d908e",
-]
+PALETTE = ["#84a98c", "#f4a261", "#58a4b0", "#e76f51", "#8d99ae", "#c9ada7", "#e9c46a", "#7fb069", "#6d597a", "#4d908e"]
 
 
 def normalize(vector: list[float] | tuple[float, ...]) -> list[float]:
@@ -993,7 +504,6 @@ def select_cluster_count(
         list(best_row["assignments"]),
         list(best_row["centers"]),
         selection_summary,
-        search_rows,
     )
 
 
@@ -1459,13 +969,6 @@ def select_representative_indices(
     return medoid_index, selected
 
 
-def truncate_text(text: str, limit: int = 96) -> str:
-    single_line = " ".join(text.split())
-    if len(single_line) <= limit:
-        return single_line
-    return f"{single_line[: limit - 3]}..."
-
-
 def build_video_fingerprint_wall(
     metadata: list[dict[str, object]],
     assignments: list[int],
@@ -1629,7 +1132,7 @@ def main() -> None:
             total += (vectors[offset + dimension] - mean[dimension]) * direction[dimension]
         return total
 
-    cluster_count, assignments, cluster_centers, cluster_selection, cluster_search_rows = select_cluster_count(
+    cluster_count, assignments, cluster_centers, cluster_selection = select_cluster_count(
         vectors,
         metadata,
         entry_count,
@@ -1685,9 +1188,7 @@ def main() -> None:
     cluster_phrase_scores = build_cluster_phrase_scores(metadata, assignments, cluster_count)
 
     clusters_by_id: dict[int, dict[str, object]] = {}
-    review_rows: list[dict[str, object]] = []
     used_label_roots: set[str] = set()
-    validation_errors: list[str] = []
 
     for cluster_id in range(cluster_count):
         members = cluster_members[cluster_id]
@@ -1740,96 +1241,6 @@ def main() -> None:
             "representativeEntryIds": representative_entry_ids,
             "samples": samples,
         }
-
-        best_theme_score = theme_scores[0][0] if theme_scores else 0.0
-        runner_up_score = theme_scores[1][0] if len(theme_scores) > 1 else 0.0
-        review_rows.append(
-            {
-                "id": cluster_id,
-                "label": label,
-                "labelMode": label_mode,
-                "labelConfidence": label_confidence,
-                "size": len(members),
-                "videoCount": video_count,
-                "topPhrases": top_phrases,
-                "samples": samples,
-                "bestThemeScore": best_theme_score,
-                "runnerUpThemeScore": runner_up_score,
-            }
-        )
-
-        if label_mode == "theme" and label_confidence >= HIGH_CONFIDENCE_LABEL_THRESHOLD:
-            hints = THEME_HINTS_BY_LABEL.get(canonicalize_theme_label(label), set())
-            phrase_support = count_theme_support(top_phrases, hints)
-            sample_support = sum(
-                1
-                for sample in samples
-                if count_theme_support(extract_keyphrases(str(sample["en"])), hints) > 0
-            )
-            if video_count < HIGH_CONFIDENCE_VIDEO_MIN or phrase_support < 2 or sample_support < 1:
-                validation_errors.append(
-                    (
-                        f"Cluster {cluster_id} is labeled '{label}' at confidence {label_confidence:.2f}, "
-                        f"but support is weak (videos={video_count}, phrase_support={phrase_support}, "
-                        f"sample_support={sample_support})."
-                    )
-                )
-
-    print("Cluster count search")
-    for row in sorted(cluster_search_rows, key=lambda item: int(item["clusterCount"])):
-        searched_cluster_count = int(row["clusterCount"])
-        sample_metrics = row["sampleMetrics"]
-        full_metrics = row.get("fullMetrics")
-        marker = "*" if searched_cluster_count == cluster_count else "+" if full_metrics else "-"
-        print(
-            f"{marker} k={searched_cluster_count}: "
-            f"sample={float(sample_metrics['score']):.4f} "
-            f"cohesion={float(sample_metrics['cohesion']):.4f} "
-            f"margin={float(sample_metrics['margin']):.4f} "
-            f"sep={float(sample_metrics['centerSeparation']):.4f} "
-            f"min_share={float(sample_metrics['minClusterShare']):.4f}"
-        )
-        if full_metrics:
-            print(
-                "  full: "
-                f"score={float(full_metrics['score']):.4f} "
-                f"cohesion={float(full_metrics['cohesion']):.4f} "
-                f"margin={float(full_metrics['margin']):.4f} "
-                f"sep={float(full_metrics['centerSeparation']):.4f} "
-                f"max_neighbor={float(full_metrics['maxNeighborSimilarity']):.4f} "
-                f"min_share={float(full_metrics['minClusterShare']):.4f} "
-                f"interp={float(row['interpretability']['score']):.4f} "
-                f"theme_share={float(row['interpretability']['themeShare']):.4f}"
-            )
-
-    print("Semantic landscape review summary")
-    for row in sorted(review_rows, key=lambda item: (-int(item["size"]), int(item["id"]))):
-        label_mode = str(row["labelMode"])
-        confidence = float(row["labelConfidence"])
-        print(
-            f"- Cluster {row['id']}: {row['label']} [{label_mode}] "
-            f"conf={confidence:.2f} entries={row['size']} videos={row['videoCount']}"
-        )
-        phrases = row["topPhrases"]
-        if phrases:
-            print(f"  top phrases: {', '.join(str(phrase) for phrase in phrases)}")
-        else:
-            print("  top phrases: (none)")
-        print(
-            "  representatives: "
-            + " | ".join(
-                f"{sample['entryId']}: {truncate_text(str(sample['en']))}"
-                for sample in row["samples"]
-            )
-        )
-        print(
-            "  theme scores: "
-            f"best={float(row['bestThemeScore']):.2f} "
-            f"runner-up={float(row['runnerUpThemeScore']):.2f}"
-        )
-
-    if validation_errors:
-        raise SystemExit("Cluster label validation failed:\n" + "\n".join(validation_errors))
 
     clusters = [clusters_by_id[cluster_id] for cluster_id in range(cluster_count)]
     points = [
