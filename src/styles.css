@@ -99,7 +99,6 @@ button {
   justify-content: space-between;
   gap: 14px;
   align-items: center;
-  flex-wrap: nowrap;
   overflow-x: auto;
   scrollbar-width: none;
   margin-bottom: 16px;
@@ -205,7 +204,6 @@ button {
   flex: 0 0 auto;
   gap: 8px;
   align-items: stretch;
-  flex-wrap: nowrap;
   justify-content: flex-end;
   margin-left: auto;
   min-width: max-content;
@@ -421,7 +419,6 @@ button {
 
 .search-form {
   display: flex;
-  flex-wrap: nowrap;
   gap: 12px;
   align-items: end;
   min-width: max-content;
@@ -748,13 +745,8 @@ button {
   color: inherit;
 }
 
-.cluster-ranking-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: grid;
-  gap: 10px;
-}
+.cluster-ranking-list,
+.video-fingerprint-list,
 
 .cluster-ranking-list--embedded {
   gap: 6px;
@@ -884,7 +876,8 @@ button {
   font-size: 0.82rem;
 }
 
-.video-fingerprint-axis {
+.video-fingerprint-axis,
+.time-distribution-axis {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
@@ -896,11 +889,15 @@ button {
 
 .video-fingerprint-axis span:nth-child(2),
 .video-fingerprint-axis span:nth-child(3),
-.video-fingerprint-axis span:nth-child(4) {
+.video-fingerprint-axis span:nth-child(4),
+.time-distribution-axis span:nth-child(2),
+.time-distribution-axis span:nth-child(3),
+.time-distribution-axis span:nth-child(4) {
   text-align: center;
 }
 
-.video-fingerprint-axis span:last-child {
+.video-fingerprint-axis span:last-child,
+.time-distribution-axis span:last-child {
   text-align: right;
 }
 
@@ -970,17 +967,11 @@ button {
 }
 
 .video-fingerprint-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: grid;
-  gap: 10px;
   max-height: min(72vh, 900px);
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: 4px;
   scrollbar-gutter: stable;
-  -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
 }
 
@@ -1220,26 +1211,6 @@ button {
   letter-spacing: 0.02em;
 }
 
-.time-distribution-axis {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 8px;
-  color: var(--muted);
-  font-size: 0.76rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.time-distribution-axis span:nth-child(2),
-.time-distribution-axis span:nth-child(3),
-.time-distribution-axis span:nth-child(4) {
-  text-align: center;
-}
-
-.time-distribution-axis span:last-child {
-  text-align: right;
-}
-
 .time-distribution-subnote {
   margin: 0;
   line-height: 1.55;
@@ -1360,14 +1331,6 @@ button {
   text-align: center;
 }
 
-.results-list,
-.context-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: grid;
-  gap: 10px;
-}
 
 .result-card,
 .context-item {
