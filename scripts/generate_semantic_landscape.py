@@ -605,19 +605,14 @@ def scale_value(value: float, low: float, high: float) -> int:
     return round(((clamped - low) / (high - low)) * 1000)
 
 
-def normalize_token(token: str) -> str:
-    normalized = token.lower().strip("'")
-    for suffix in ("'s", "'re", "'ve", "'ll", "'m", "'d", "n't"):
-        if normalized.endswith(suffix) and len(normalized) > len(suffix):
-            normalized = normalized[: -len(suffix)]
-            break
-    return normalized
-
-
 def tokenize(text: str) -> list[str]:
     tokens: list[str] = []
     for token in TOKEN_RE.findall(text):
-        normalized = normalize_token(token)
+        normalized = token.lower().strip("'")
+        for suffix in ("'s", "'re", "'ve", "'ll", "'m", "'d", "n't"):
+            if normalized.endswith(suffix) and len(normalized) > len(suffix):
+                normalized = normalized[: -len(suffix)]
+                break
         if normalized:
             tokens.append(normalized)
     return tokens
@@ -704,7 +699,7 @@ def initialize_cluster_centers(
     random_generator = random.Random(RANDOM_SEED)
     first_index = random_generator.randrange(entry_count)
     centers = [copy_row(vectors, first_index, vector_dim)]
-    nearest_distances = [0.0 for _ in range(entry_count)]
+    nearest_distances = [0.0] * entry_count
 
     for row_index in range(entry_count):
         similarity = dot_row_to_vector(vectors, row_index, vector_dim, centers[0])
@@ -805,7 +800,7 @@ def score_spherical_clustering(
     min_cluster_count: int,
 ) -> dict[str, float]:
     cluster_count = len(centers)
-    cluster_sizes = [0 for _ in range(cluster_count)]
+    cluster_sizes = [0] * cluster_count
     cohesion_total = 0.0
     margin_total = 0.0
 
@@ -973,17 +968,9 @@ def select_cluster_count(
             int(row["clusterCount"]),
         ),
     )[0]
-    best_result = {
-        "clusterCount": int(best_row["clusterCount"]),
-        "assignments": list(best_row["assignments"]),
-        "centers": list(best_row["centers"]),
-        "fullMetrics": dict(best_row["fullMetrics"]),
-        "interpretability": dict(best_row["interpretability"]),
-    }
-
-    selected_cluster_count = int(best_result["clusterCount"])
-    selected_metrics = dict(best_result["fullMetrics"])
-    interpretability = dict(best_result["interpretability"])
+    selected_cluster_count = int(best_row["clusterCount"])
+    selected_metrics = dict(best_row["fullMetrics"])
+    interpretability = dict(best_row["interpretability"])
     selection_summary = {
         "minCount": min_cluster_count,
         "maxCount": max_cluster_count,
@@ -1003,8 +990,8 @@ def select_cluster_count(
 
     return (
         selected_cluster_count,
-        list(best_result["assignments"]),
-        list(best_result["centers"]),
+        list(best_row["assignments"]),
+        list(best_row["centers"]),
         selection_summary,
         search_rows,
     )
@@ -1075,19 +1062,14 @@ def build_cluster_phrase_scores(
     return cluster_phrases
 
 
-def label_matches_theme(phrase: str, hints: set[str]) -> bool:
-    if phrase in hints:
-        return True
-
-    phrase_tokens = set(tokenize(phrase))
-    if not phrase_tokens:
-        return False
-
-    return bool(phrase_tokens.intersection(hints))
-
-
 def count_theme_support(phrases: list[str], hints: set[str]) -> int:
-    return sum(1 for phrase in phrases if label_matches_theme(phrase, hints))
+    count = 0
+    for phrase in phrases:
+        if phrase in hints:
+            count += 1
+        elif set(tokenize(phrase)).intersection(hints):
+            count += 1
+    return count
 
 
 def titleize_phrase(phrase: str) -> str:
@@ -1496,16 +1478,12 @@ def build_video_fingerprint_wall(
 
     videos: list[dict[str, object]] = []
     for video_id, indexes in grouped.items():
-        starts = [
-            int(metadata[index]["startMs"])
-            for index in indexes
+        timed = [
+            index for index in indexes
             if metadata[index]["startMs"] is not None and metadata[index]["endMs"] is not None
         ]
-        ends = [
-            int(metadata[index]["endMs"])
-            for index in indexes
-            if metadata[index]["startMs"] is not None and metadata[index]["endMs"] is not None
-        ]
+        starts = [int(metadata[index]["startMs"]) for index in timed]
+        ends = [int(metadata[index]["endMs"]) for index in timed]
 
         if starts and ends:
             video_start = min(starts)
@@ -1515,9 +1493,9 @@ def build_video_fingerprint_wall(
             video_end = max(1, len(indexes))
 
         span = max(1, video_end - video_start)
-        density_counts = [0 for _ in range(FINGERPRINT_BIN_COUNT)]
+        density_counts = [0] * FINGERPRINT_BIN_COUNT
         cluster_bin_counts = [Counter() for _ in range(FINGERPRINT_BIN_COUNT)]
-        cluster_counts = [0 for _ in range(cluster_count)]
+        cluster_counts = [0] * cluster_count
         timed_entry_count = 0
         x_total = 0
         y_total = 0
@@ -1757,7 +1735,6 @@ def main() -> None:
             "videoCount": video_count,
             "x": cluster_x,
             "y": cluster_y,
-            "keywords": top_phrases,
             "topPhrases": top_phrases,
             "medoidEntryId": str(metadata[medoid_index]["entryId"]),
             "representativeEntryIds": representative_entry_ids,
@@ -1855,20 +1832,19 @@ def main() -> None:
         raise SystemExit("Cluster label validation failed:\n" + "\n".join(validation_errors))
 
     clusters = [clusters_by_id[cluster_id] for cluster_id in range(cluster_count)]
-    points = []
-    for index, item in enumerate(metadata):
-        points.append(
-            {
-                "entryId": item["entryId"],
-                "videoId": item["videoId"],
-                "segIndex": item["segIndex"],
-                "en": item["en"],
-                "zh": item["zh"],
-                "x": scaled_points[index][0],
-                "y": scaled_points[index][1],
-                "clusterId": assignments[index],
-            }
-        )
+    points = [
+        {
+            "entryId": item["entryId"],
+            "videoId": item["videoId"],
+            "segIndex": item["segIndex"],
+            "en": item["en"],
+            "zh": item["zh"],
+            "x": scaled_points[index][0],
+            "y": scaled_points[index][1],
+            "clusterId": assignments[index],
+        }
+        for index, item in enumerate(metadata)
+    ]
 
     payload = {
         "version": 5,

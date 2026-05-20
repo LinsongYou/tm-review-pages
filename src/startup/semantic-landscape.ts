@@ -18,7 +18,6 @@ export interface SemanticLandscapeCluster {
   videoCount: number;
   x: number;
   y: number;
-  keywords: string[];
   topPhrases: string[];
   medoidEntryId: string;
   representativeEntryIds: string[];
