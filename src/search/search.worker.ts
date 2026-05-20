@@ -1,6 +1,7 @@
 import initSqlJs from 'sql.js';
 import sqlWasmUrl from 'sql.js/dist/sql-wasm.wasm?url';
 import { env, pipeline } from '@huggingface/transformers';
+import { getDisplayModelName } from '../format';
 import type {
   BootProgressResponse,
   BootProgressSnapshot,
@@ -173,9 +174,6 @@ function scaleProgress(start: number, end: number, progress: number): number {
   return start + (end - start) * clamp01(progress);
 }
 
-function getDisplayModelName(modelId: string): string {
-  return modelId.split('/').at(-1) ?? modelId;
-}
 
 function formatByteCount(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) {

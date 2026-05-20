@@ -7,6 +7,7 @@ import {
   useState,
 } from 'react';
 import { classNames } from './classes';
+import { getDisplayModelName } from './format';
 import { handleSelectKey } from './keyboard';
 import type {
   BootProgressSnapshot,
@@ -116,10 +117,6 @@ function createInitialBootProgressState(): HeaderLoadState {
 function formatProgressPercent(progress: number): string {
   const bounded = Math.min(1, Math.max(0, progress));
   return `${Math.round(bounded * 100)}%`;
-}
-
-function getDisplayModelName(modelId: string): string {
-  return modelId.split('/').at(-1) ?? modelId;
 }
 
 function buildChipTitle(primary: string, statusText: string, detail?: string): string {

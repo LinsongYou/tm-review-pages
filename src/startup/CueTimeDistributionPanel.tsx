@@ -1,5 +1,6 @@
 import { PointerEvent as ReactPointerEvent, useRef, useState } from 'react';
 import { classNames } from '../classes';
+import { formatPercent } from '../format';
 import type { CueTimeDistribution } from '../search/protocol';
 
 const CHART_WIDTH = 920;
@@ -17,19 +18,6 @@ interface HoveredBinState {
   index: number;
   x: number;
   y: number;
-}
-
-function formatPercent(value: number): string {
-  if (!Number.isFinite(value)) {
-    return '--';
-  }
-
-  const percent = value * 100;
-  if (percent >= 10) {
-    return `${Math.round(percent)}%`;
-  }
-
-  return `${percent.toFixed(1)}%`;
 }
 
 function formatPercentRange(start: number, end: number): string {

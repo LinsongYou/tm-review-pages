@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { classNames } from '../classes';
+import { formatPercent } from '../format';
 import { handleSelectKey } from '../keyboard';
 import type {
   SemanticLandscapeCluster,
@@ -18,10 +19,6 @@ interface FingerprintStripProps {
   video: VideoFingerprintVideo;
   clusterById: Map<number, SemanticLandscapeCluster>;
   compact?: boolean;
-}
-
-function formatPercent(value: number): string {
-  return `${Math.round(value * 100)}%`;
 }
 
 function FingerprintStrip({ video, clusterById, compact = false }: FingerprintStripProps) {

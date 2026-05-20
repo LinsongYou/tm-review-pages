@@ -1243,9 +1243,6 @@ button {
 .time-distribution-subnote {
   margin: 0;
   line-height: 1.55;
-}
-
-.time-distribution-subnote {
   color: var(--muted);
   font-size: 0.82rem;
 }
@@ -1395,9 +1392,6 @@ button {
 .result-header {
   display: grid;
   gap: 12px;
-}
-
-.result-header {
   grid-template-columns: minmax(0, 1.7fr) repeat(2, minmax(72px, auto));
   align-items: start;
   color: var(--accent-strong);
