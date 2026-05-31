@@ -681,7 +681,7 @@ export default function TmAtlasPanel({
       : [];
     const videoPathEntryIds = new Set(videoPathPoints.map((item) => item.point.entryId));
     const selectedVideoPathIndex = videoPathPoints.findIndex((item) => item.point.entryId === selectedEntryId);
-    const videoPathFocusColor = '#ffffff';
+    const videoPathFocusColor = selectedPoint?.color ?? videoPathPoints[0]?.point.color ?? selected;
     const emphasizedVideoPathIds = new Set(
       [selectedVideoPathIndex - 1, selectedVideoPathIndex, selectedVideoPathIndex + 1]
         .filter((index) => index >= 0 && index < videoPathPoints.length)
