@@ -232,10 +232,6 @@ function fitProjected3d(items: RawProjected3d[], width: number, height: number) 
   return { centerX, centerY, scale };
 }
 
-function getEntryText(entry: SemanticLandscapePoint | SearchResult | null): string {
-  return entry?.en.trim() ?? '';
-}
-
 function formatCueTimestamp(ms: number | null): string {
   if (ms === null || !Number.isFinite(ms)) {
     return '--:--.---';
@@ -1344,7 +1340,7 @@ export default function TmAtlasPanel({
                 ))}
               </ol>
             ) : (
-              <p className="atlas-muted">{getEntryText(selectedEntry) ? 'Loading context.' : 'Select a dot or search result.'}</p>
+              <p className="atlas-muted">{selectedEntry?.en.trim() ? 'Loading context.' : 'Select a dot or search result.'}</p>
             )}
           </section>
         ) : null}

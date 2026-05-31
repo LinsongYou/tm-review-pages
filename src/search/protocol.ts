@@ -18,28 +18,6 @@ export interface ContextItem extends EntrySummary {
   isFocus: boolean;
 }
 
-export interface CueTimeDistributionRepresentativeLine {
-  en: string;
-  zh: string;
-  candidateCount: number;
-}
-
-export interface CueTimeDistribution {
-  binCount: number;
-  bins: number[];
-  binRepresentativeLines: Array<CueTimeDistributionRepresentativeLine | null>;
-  timedEntryCount: number;
-  totalEntryCount: number;
-  timedVideoCount: number;
-  totalVideoCount: number;
-  averageCueDurationMs: number;
-  medianVideoSpanMs: number;
-  averageCoverage: number;
-  peakCoverage: number;
-  peakRangeStart: number;
-  peakRangeEnd: number;
-}
-
 export type BootProgressTarget = 'pairs' | 'model';
 
 export interface BootProgressSnapshot {
@@ -52,7 +30,6 @@ export interface BootProgressSnapshot {
 
 export interface BootStats {
   totalEntries: number;
-  cueTimeDistribution: CueTimeDistribution | null;
   embeddingModelId: string;
 }
 

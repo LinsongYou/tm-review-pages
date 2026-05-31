@@ -7,8 +7,6 @@ import type {
   BootProgressSnapshot,
   BootRequest,
   BootStats,
-  CueTimeDistribution,
-  CueTimeDistributionRepresentativeLine,
   ContextItem,
   ContextRequest,
   EntrySummary,
@@ -22,7 +20,6 @@ import type {
 
 const workerScope = self as DedicatedWorkerGlobalScope;
 const DEFAULT_CONTEXT_RADIUS = 3;
-const TIME_DISTRIBUTION_BIN_COUNT = 120;
 const VECTOR_MODEL_ID = 'sentence-transformers/all-MiniLM-L6-v2';
 const QUERY_MODEL_ID = 'Xenova/all-MiniLM-L6-v2';
 const ORT_WASM_BASE_URL =
@@ -62,11 +59,6 @@ interface Entry extends EntrySummary {
 interface RankedHit {
   entryIndex: number;
   score: number;
-}
-
-interface SemanticBinCandidate {
-  entryIndex: number;
-  overlapShare: number;
 }
 
 interface LoadedState {
@@ -250,14 +242,6 @@ async function downloadAsset(
   return buffer;
 }
 
-function toStartBinIndex(value: number, binCount: number): number {
-  return Math.max(0, Math.min(binCount - 1, Math.floor(value * binCount)));
-}
-
-function toEndBinIndex(value: number, binCount: number): number {
-  return Math.max(0, Math.min(binCount - 1, Math.ceil(value * binCount) - 1));
-}
-
 function ensureState(): LoadedState {
   if (!state) {
     throw new Error('TM database is not loaded yet.');
@@ -317,243 +301,6 @@ function toSearchResult(entry: Entry, score: number): SearchResult {
 
 function toFloat32(blob: SqlBlob, dim: number): Float32Array {
   return new Float32Array(blob.buffer.slice(blob.byteOffset, blob.byteOffset + dim * 4));
-}
-
-function average(values: number[]): number {
-  if (values.length === 0) {
-    return 0;
-  }
-
-  let total = 0;
-  for (const value of values) {
-    total += value;
-  }
-
-  return total / values.length;
-}
-
-function median(values: number[]): number {
-  if (values.length === 0) {
-    return 0;
-  }
-
-  const sorted = [...values].sort((left, right) => left - right);
-  const middle = Math.floor(sorted.length / 2);
-
-  if (sorted.length % 2 === 0) {
-    return (sorted[middle - 1]! + sorted[middle]!) / 2;
-  }
-
-  return sorted[middle]!;
-}
-
-function buildCueTimeDistribution(
-  entries: Entry[],
-  videoGroups: Map<string, number[]>,
-  semanticVectors: Float32Array,
-  vectorDim: number,
-  entryVectorRows: Int32Array,
-): CueTimeDistribution | null {
-  const binCount = TIME_DISTRIBUTION_BIN_COUNT;
-  const coverageTotals = new Float64Array(binCount);
-  const cueDurations: number[] = [];
-  const videoSpans: number[] = [];
-  const binWidth = 1 / binCount;
-  const semanticSums = vectorDim > 0 ? new Float64Array(binCount * vectorDim) : new Float64Array(0);
-  const semanticCandidates = Array.from({ length: binCount }, () => [] as SemanticBinCandidate[]);
-  let timedEntryCount = 0;
-  let timedVideoCount = 0;
-
-  for (const group of videoGroups.values()) {
-    let videoStartMs = Number.POSITIVE_INFINITY;
-    let videoEndMs = Number.NEGATIVE_INFINITY;
-
-    for (const entryIndex of group) {
-      const entry = entries[entryIndex];
-      if (!entry) {
-        continue;
-      }
-
-      if (entry.startMs !== null) {
-        videoStartMs = Math.min(videoStartMs, entry.startMs);
-      }
-
-      if (entry.endMs !== null) {
-        videoEndMs = Math.max(videoEndMs, entry.endMs);
-      }
-    }
-
-    if (!Number.isFinite(videoStartMs) || !Number.isFinite(videoEndMs) || videoEndMs <= videoStartMs) {
-      continue;
-    }
-
-    const videoSpanMs = videoEndMs - videoStartMs;
-    const videoCoverage = new Float64Array(binCount);
-    timedVideoCount += 1;
-    videoSpans.push(videoSpanMs);
-
-    for (const entryIndex of group) {
-      const entry = entries[entryIndex];
-      if (!entry || entry.startMs === null || entry.endMs === null) {
-        continue;
-      }
-
-      const startMs = Math.max(videoStartMs, entry.startMs);
-      const endMs = Math.min(videoEndMs, entry.endMs);
-      if (!(endMs > startMs)) {
-        continue;
-      }
-
-      const startRatio = clamp01((startMs - videoStartMs) / videoSpanMs);
-      const endRatio = clamp01((endMs - videoStartMs) / videoSpanMs);
-      if (!(endRatio > startRatio)) {
-        continue;
-      }
-
-      const cueSpan = endRatio - startRatio;
-      timedEntryCount += 1;
-      cueDurations.push(endMs - startMs);
-
-      const startBinIndex = toStartBinIndex(startRatio, binCount);
-      const endBinIndex = toEndBinIndex(endRatio, binCount);
-      const vectorRow = entryVectorRows[entryIndex] ?? -1;
-      const cueMidpoint = startRatio + cueSpan / 2;
-      let dominantBinIndex = -1;
-      let dominantOverlap = 0;
-      let dominantCenterDistance = Number.POSITIVE_INFINITY;
-
-      for (let binIndex = startBinIndex; binIndex <= endBinIndex; binIndex += 1) {
-        const binStart = binIndex * binWidth;
-        const binEnd = binStart + binWidth;
-        const overlap = Math.min(endRatio, binEnd) - Math.max(startRatio, binStart);
-        if (overlap > 0) {
-          videoCoverage[binIndex] = (videoCoverage[binIndex] ?? 0) + overlap / binWidth;
-          if (vectorDim > 0 && vectorRow >= 0) {
-            const binCenter = binStart + binWidth / 2;
-            const centerDistance = Math.abs(binCenter - cueMidpoint);
-            const overlapDelta = overlap - dominantOverlap;
-            const distanceDelta = dominantCenterDistance - centerDistance;
-
-            if (
-              dominantBinIndex < 0 ||
-              overlapDelta > 1e-9 ||
-              (Math.abs(overlapDelta) <= 1e-9 && distanceDelta > 1e-9) ||
-              (Math.abs(overlapDelta) <= 1e-9 &&
-                Math.abs(distanceDelta) <= 1e-9 &&
-                binIndex < dominantBinIndex)
-            ) {
-              dominantBinIndex = binIndex;
-              dominantOverlap = overlap;
-              dominantCenterDistance = centerDistance;
-            }
-          }
-        }
-      }
-
-      if (vectorDim > 0 && vectorRow >= 0 && dominantBinIndex >= 0) {
-        const semanticOffset = dominantBinIndex * vectorDim;
-        const vectorOffset = vectorRow * vectorDim;
-        semanticCandidates[dominantBinIndex]!.push({
-          entryIndex,
-          overlapShare: dominantOverlap / cueSpan,
-        });
-
-        for (let dim = 0; dim < vectorDim; dim += 1) {
-          semanticSums[semanticOffset + dim] =
-            (semanticSums[semanticOffset + dim] ?? 0) + semanticVectors[vectorOffset + dim]!;
-        }
-      }
-    }
-
-    for (let binIndex = 0; binIndex < binCount; binIndex += 1) {
-      coverageTotals[binIndex] = (coverageTotals[binIndex] ?? 0) + Math.min(1, videoCoverage[binIndex] ?? 0);
-    }
-  }
-
-  if (timedVideoCount === 0 || timedEntryCount === 0) {
-    return null;
-  }
-
-  const bins = Array.from(coverageTotals, (value) => value / timedVideoCount);
-  const binRepresentativeLines = semanticCandidates.map(
-    (candidates, binIndex): CueTimeDistributionRepresentativeLine | null => {
-      if (vectorDim === 0 || candidates.length === 0) {
-        return null;
-      }
-
-      let bestCandidate = candidates[0] ?? null;
-      let bestScore = Number.NEGATIVE_INFINITY;
-      const semanticOffset = binIndex * vectorDim;
-
-      for (const candidate of candidates) {
-        const vectorRow = entryVectorRows[candidate.entryIndex] ?? -1;
-        if (vectorRow < 0) {
-          continue;
-        }
-
-        const vectorOffset = vectorRow * vectorDim;
-        let score = 0;
-        for (let dim = 0; dim < vectorDim; dim += 1) {
-          score += semanticVectors[vectorOffset + dim]! * semanticSums[semanticOffset + dim]!;
-        }
-
-        if (
-          !bestCandidate ||
-          score > bestScore ||
-          (score === bestScore && candidate.overlapShare > bestCandidate.overlapShare) ||
-          (score === bestScore &&
-            candidate.overlapShare === bestCandidate.overlapShare &&
-            candidate.entryIndex < bestCandidate.entryIndex)
-        ) {
-          bestCandidate = candidate;
-          bestScore = score;
-        }
-      }
-
-      if (!bestCandidate) {
-        return null;
-      }
-
-      const sampleEntry = entries[bestCandidate.entryIndex];
-      if (!sampleEntry) {
-        return null;
-      }
-
-      return {
-        en: sampleEntry.en,
-        zh: sampleEntry.zh,
-        candidateCount: candidates.length,
-      };
-    },
-  );
-  let peakCoverage = 0;
-  let peakBinIndex = 0;
-  let coverageTotal = 0;
-
-  for (let index = 0; index < bins.length; index += 1) {
-    const value = bins[index] ?? 0;
-    coverageTotal += value;
-    if (value > peakCoverage) {
-      peakCoverage = value;
-      peakBinIndex = index;
-    }
-  }
-
-  return {
-    binCount,
-    bins,
-    binRepresentativeLines,
-    timedEntryCount,
-    totalEntryCount: entries.length,
-    timedVideoCount,
-    totalVideoCount: videoGroups.size,
-    averageCueDurationMs: average(cueDurations),
-    medianVideoSpanMs: median(videoSpans),
-    averageCoverage: coverageTotal / binCount,
-    peakCoverage,
-    peakRangeStart: peakBinIndex / binCount,
-    peakRangeEnd: (peakBinIndex + 1) / binCount,
-  };
 }
 
 async function loadDatabase(request: BootRequest, reportProgress: ProgressReporter): Promise<BootStats> {
@@ -701,8 +448,6 @@ async function loadDatabase(request: BootRequest, reportProgress: ProgressReport
     const semanticIndexes: number[] = [];
     const vectorRows: Float32Array[] = [];
     let vectorDim = 0;
-    const entryVectorRows = new Int32Array(entries.length);
-    entryVectorRows.fill(-1);
     const totalVectorCount = readCount(
       `
         SELECT COUNT(*) AS count
@@ -750,7 +495,6 @@ async function loadDatabase(request: BootRequest, reportProgress: ProgressReport
         throw new Error(`Vector dimension mismatch: expected ${vectorDim}, got ${dim}.`);
       }
 
-      entryVectorRows[sourceIndex] = vectorRows.length;
       semanticIndexes.push(sourceIndex);
       vectorRows.push(toFloat32(blob, dim));
 
@@ -792,14 +536,6 @@ async function loadDatabase(request: BootRequest, reportProgress: ProgressReport
       vectorDim,
     };
 
-    const cueTimeDistribution = buildCueTimeDistribution(
-      entries,
-      videoGroups,
-      semanticVectors,
-      vectorDim,
-      entryVectorRows,
-    );
-
     reportProgress({
       name: PAIRS_LABEL,
       progress: 1,
@@ -809,7 +545,6 @@ async function loadDatabase(request: BootRequest, reportProgress: ProgressReport
 
     return {
       totalEntries: entries.length,
-      cueTimeDistribution,
       embeddingModelId: QUERY_MODEL_ID,
     };
   } finally {
