@@ -55,6 +55,14 @@ interface VisualGeometry {
   radius: number;
 }
 
+interface VisualFocus {
+  key: string;
+  centerX: number;
+  centerY: number;
+  centerZ: number;
+  zoom: number;
+}
+
 interface RawProjected3d {
   point: SemanticLandscapePoint;
   cluster: SemanticLandscapeCluster;
@@ -123,6 +131,19 @@ function createVisualGeometry(points: SemanticLandscapePoint[]): VisualGeometry 
     centerY,
     centerZ,
     radius,
+  };
+}
+
+function geometryWithFocus(geometry: VisualGeometry, focus: VisualFocus | null): VisualGeometry {
+  if (!focus) {
+    return geometry;
+  }
+
+  return {
+    ...geometry,
+    centerX: focus.centerX,
+    centerY: focus.centerY,
+    centerZ: focus.centerZ,
   };
 }
 
@@ -233,6 +254,7 @@ export default function TmAtlasPanel({
   const [size, setSize] = useState({ width: 1, height: 1 });
   const [view3d, setView3d] = useState<View3d>(INITIAL_VIEW_3D);
   const [hoveredEntryId, setHoveredEntryId] = useState<string | null>(null);
+  const [selectedIslandId, setSelectedIslandId] = useState<number | null>(null);
 
   const clusterById = useMemo(
     () => new Map(data?.clusters.map((cluster) => [cluster.id, cluster]) ?? []),
@@ -266,6 +288,39 @@ export default function TmAtlasPanel({
     [data],
   );
 
+  const selectedPoint = selectedEntryId ? pointById.get(selectedEntryId) ?? null : null;
+  const selectedSearchResult = selectedEntryId ? searchResultById.get(selectedEntryId) ?? null : null;
+  const selectedEntry = selectedPoint ?? selectedSearchResult ?? null;
+  const selectedCluster = selectedPoint ? clusterById.get(selectedPoint.clusterId)! : null;
+  const hoveredPoint = hoveredEntryId ? pointById.get(hoveredEntryId) ?? null : null;
+  const visualFocus = useMemo<VisualFocus | null>(() => {
+    if (selectedIslandId !== null) {
+      const cluster = clusterById.get(selectedIslandId)!;
+      return {
+        key: `island:${cluster.id}`,
+        centerX: cluster.x3d,
+        centerY: cluster.y3d,
+        centerZ: cluster.z3d,
+        zoom: 2,
+      };
+    }
+
+    if (selectedPoint) {
+      return {
+        key: `entry:${selectedPoint.entryId}`,
+        centerX: selectedPoint.x3d,
+        centerY: selectedPoint.y3d,
+        centerZ: selectedPoint.z3d,
+        zoom: 2.25,
+      };
+    }
+
+    return null;
+  }, [clusterById, selectedIslandId, selectedPoint]);
+  const projectionGeometry = useMemo(
+    () => geometryWithFocus(visualGeometry, visualFocus),
+    [visualFocus, visualGeometry],
+  );
   const projectedPoints = useMemo<ProjectedPoint[]>(() => {
     if (!data) {
       return [];
@@ -274,27 +329,23 @@ export default function TmAtlasPanel({
     const rawItems = data.points.map((point): RawProjected3d => ({
       point,
       cluster: clusterById.get(point.clusterId)!,
-      ...project3dRaw(point, view3d, visualGeometry),
+      ...project3dRaw(point, view3d, projectionGeometry),
     }));
     const fitted = fitProjected3d(rawItems, size.width, size.height);
+    const centerX = visualFocus ? 0 : fitted.centerX;
+    const centerY = visualFocus ? 0 : fitted.centerY;
     const points = rawItems.map((item) => ({
       point: item.point,
       cluster: item.cluster,
-      x: (item.rawX - fitted.centerX) * fitted.scale * view3d.zoom + size.width / 2 + view3d.offsetX,
-      y: (item.rawY - fitted.centerY) * fitted.scale * view3d.zoom + size.height / 2 + view3d.offsetY,
+      x: (item.rawX - centerX) * fitted.scale * view3d.zoom + size.width / 2 + view3d.offsetX,
+      y: (item.rawY - centerY) * fitted.scale * view3d.zoom + size.height / 2 + view3d.offsetY,
       depth: item.depth,
       culled: item.culled,
     }));
 
     points.sort((left, right) => left.depth - right.depth);
     return points;
-  }, [clusterById, data, size.height, size.width, view3d, visualGeometry]);
-
-  const selectedPoint = selectedEntryId ? pointById.get(selectedEntryId) ?? null : null;
-  const selectedSearchResult = selectedEntryId ? searchResultById.get(selectedEntryId) ?? null : null;
-  const selectedEntry = selectedPoint ?? selectedSearchResult ?? null;
-  const selectedCluster = selectedPoint ? clusterById.get(selectedPoint.clusterId)! : null;
-  const hoveredPoint = hoveredEntryId ? pointById.get(hoveredEntryId) ?? null : null;
+  }, [clusterById, data, projectionGeometry, size.height, size.width, view3d, visualFocus]);
   const showIslandBrowser = !!data && searchResults.length === 0 && !query.trim();
   const showLocalContext = !showIslandBrowser || !!selectedEntry;
   const idleSidebar = showIslandBrowser && !selectedEntry && !errorText && !searchNote;
@@ -320,6 +371,31 @@ export default function TmAtlasPanel({
     observer.observe(container);
     return () => observer.disconnect();
   }, []);
+
+  useEffect(() => {
+    if (searchResults.length > 0) {
+      setSelectedIslandId(null);
+    }
+  }, [searchResults.length]);
+
+  useEffect(() => {
+    if (!visualFocus) {
+      setView3d((current) => ({
+        ...current,
+        zoom: INITIAL_VIEW_3D.zoom,
+        offsetX: 0,
+        offsetY: 0,
+      }));
+      return;
+    }
+
+    setView3d((current) => ({
+      ...current,
+      zoom: visualFocus.zoom,
+      offsetX: 0,
+      offsetY: 0,
+    }));
+  }, [visualFocus?.key]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -395,8 +471,21 @@ export default function TmAtlasPanel({
       const isHovered = item.point.entryId === hoveredEntryId;
       const isSearchHit = searchHitIds.has(item.point.entryId);
       const hasSearch = searchHitIds.size > 0;
+      const isOutsideSelectedIsland = selectedIslandId !== null && item.point.clusterId !== selectedIslandId;
       const radius = isSelected ? 5.2 : isHovered ? 4.4 : isSearchHit ? 3.4 : 2.35;
-      const alpha = isSelected ? 1 : isHovered ? 0.95 : isSearchHit ? 0.86 : hasSearch ? 0.16 : 0.58;
+      const alpha = isSelected
+        ? 1
+        : isHovered
+          ? 0.95
+          : isSearchHit
+            ? 0.86
+            : hasSearch
+              ? 0.16
+              : isOutsideSelectedIsland
+                ? 0.08
+                : selectedIslandId !== null
+                  ? 0.68
+                  : 0.58;
 
       context.fillStyle = isSelected || isSearchHit ? hexToRgba(selected, alpha) : hexToRgba(item.point.color, alpha);
       context.beginPath();
@@ -431,6 +520,7 @@ export default function TmAtlasPanel({
     searchHitIds,
     searchResults,
     selectedEntryId,
+    selectedIslandId,
     size.height,
     size.width,
     theme,
@@ -470,7 +560,23 @@ export default function TmAtlasPanel({
 
   function handleSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
+    setSelectedIslandId(null);
     onSearch();
+  }
+
+  function selectEntry(entryId: string | null): void {
+    setSelectedIslandId(null);
+    onSelectEntry(entryId);
+  }
+
+  function selectIsland(cluster: SemanticLandscapeCluster): void {
+    setSelectedIslandId(cluster.id);
+    onSelectEntry(cluster.medoidEntryId);
+  }
+
+  function clearAtlas(): void {
+    setSelectedIslandId(null);
+    onClear();
   }
 
   function handlePointerDown(event: React.PointerEvent<HTMLCanvasElement>): void {
@@ -534,7 +640,7 @@ export default function TmAtlasPanel({
     dragRef.current = null;
     if (!drag.moved) {
       const nearest = findPoint(event.clientX, event.clientY);
-      onSelectEntry(nearest?.point.entryId ?? null);
+      selectEntry(nearest?.point.entryId ?? null);
     }
   }
 
@@ -557,7 +663,7 @@ export default function TmAtlasPanel({
   function resetView(): void {
     setView3d(INITIAL_VIEW_3D);
     setHoveredEntryId(null);
-    onClear();
+    clearAtlas();
   }
 
   return (
@@ -581,7 +687,7 @@ export default function TmAtlasPanel({
         )}
 
         <div className="atlas-hud">
-          <button className="atlas-title" type="button" onClick={onClear}>
+          <button className="atlas-title" type="button" onClick={clearAtlas}>
             TM Atlas
           </button>
 
@@ -640,7 +746,10 @@ export default function TmAtlasPanel({
             type="text"
             value={query}
             placeholder="Search English lines"
-            onChange={(event) => onQueryChange(event.target.value)}
+            onChange={(event) => {
+              setSelectedIslandId(null);
+              onQueryChange(event.target.value);
+            }}
           />
           <button type="submit" disabled={searching || !searchReady || !query.trim()}>
             {searching ? '...' : 'Search'}
@@ -701,7 +810,7 @@ export default function TmAtlasPanel({
                   <button
                     className={classNames('atlas-result-row', result.entryId === selectedEntryId && 'is-active')}
                     type="button"
-                    onClick={() => onSelectEntry(result.entryId)}
+                    onClick={() => selectEntry(result.entryId)}
                   >
                     <span>{result.videoId}#{result.segIndex}</span>
                     <strong>{result.score.toFixed(3)}</strong>
@@ -723,11 +832,11 @@ export default function TmAtlasPanel({
                   <button
                     className={classNames(
                       'atlas-island-row',
-                      selectedCluster?.id === cluster.id && 'is-active',
+                      selectedIslandId === cluster.id && 'is-active',
                     )}
                     style={{ ['--cluster-color' as string]: cluster.color }}
                     type="button"
-                    onClick={() => onSelectEntry(cluster.medoidEntryId)}
+                    onClick={() => selectIsland(cluster)}
                   >
                     <span className="atlas-island-dot" aria-hidden="true" />
                     <span className="atlas-island-copy">
@@ -756,11 +865,11 @@ export default function TmAtlasPanel({
                       className={classNames('atlas-context-item', item.isFocus && 'is-focus')}
                       role="button"
                       tabIndex={0}
-                      onClick={() => onSelectEntry(item.entryId)}
+                      onClick={() => selectEntry(item.entryId)}
                       onKeyDown={(event) => {
                         if (event.key === 'Enter' || event.key === ' ') {
                           event.preventDefault();
-                          onSelectEntry(item.entryId);
+                          selectEntry(item.entryId);
                         }
                       }}
                     >
