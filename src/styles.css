@@ -191,7 +191,8 @@ button:disabled {
 }
 
 .atlas-button-icon,
-.atlas-theme-icon {
+.atlas-theme-icon,
+.transcript-entry-action-icon {
   width: 18px;
   height: 18px;
   fill: none;
@@ -962,8 +963,18 @@ button:disabled {
 }
 
 .transcript-entry-action {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  min-width: 32px;
   min-height: 32px;
+  padding: 0;
   white-space: nowrap;
+}
+
+.transcript-entry-action-icon {
+  width: 15px;
+  height: 15px;
 }
 
 .empty-state {

@@ -282,6 +282,15 @@ function ResetIcon({ className }: IconProps) {
   );
 }
 
+function SearchIcon({ className }: IconProps) {
+  return (
+    <svg className={className} aria-hidden="true" viewBox="0 0 24 24">
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.5-3.5" />
+    </svg>
+  );
+}
+
 function SunIcon({ className }: IconProps) {
   return (
     <svg className={className} aria-hidden="true" viewBox="0 0 24 24">
@@ -1097,13 +1106,14 @@ export default function TmAtlasPanel({
                               aria-label={`Search using cue ${item.segIndex} English text`}
                               className="transcript-entry-action"
                               type="button"
+                              title={`Search cue ${item.segIndex}`}
                               disabled={!item.en.trim()}
                               onClick={(event) => {
                                 event.stopPropagation();
                                 onSearchTranscriptLine(item.en);
                               }}
                             >
-                              Search
+                              <SearchIcon className="transcript-entry-action-icon" />
                             </button>
                           </div>
                           <p className="transcript-entry-line transcript-entry-line--zh">{item.zh}</p>
