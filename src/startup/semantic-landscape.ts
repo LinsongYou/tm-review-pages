@@ -4,6 +4,7 @@ export interface SemanticLandscapeSample {
   segIndex: number;
   en: string;
   zh: string;
+  blockName?: string;
 }
 
 export type SemanticLandscapeLabelMode = 'theme' | 'provisional' | 'descriptive';
@@ -18,6 +19,10 @@ export interface SemanticLandscapeCluster {
   videoCount: number;
   x: number;
   y: number;
+  z: number;
+  x3d: number;
+  y3d: number;
+  z3d: number;
   topPhrases: string[];
   medoidEntryId: string;
   representativeEntryIds: string[];
@@ -30,8 +35,15 @@ export interface SemanticLandscapePoint {
   segIndex: number;
   en: string;
   zh: string;
+  blockName: string;
+  startMs: number | null;
+  endMs: number | null;
   x: number;
   y: number;
+  z: number;
+  x3d: number;
+  y3d: number;
+  z3d: number;
   clusterId: number;
 }
 
@@ -82,8 +94,15 @@ export interface SemanticLandscapeData {
   pointCount: number;
   vectorDim: number;
   clusterCount?: number;
+  umap?: {
+    neighbors: number;
+    minDist: number;
+    spread: number;
+    epochs: number;
+    randomSeed: number;
+  };
   clusterSelection?: SemanticLandscapeClusterSelection;
   clusters: SemanticLandscapeCluster[];
   points: SemanticLandscapePoint[];
-  videoFingerprintWall: VideoFingerprintWall;
+  videoFingerprintWall?: VideoFingerprintWall;
 }

@@ -25,6 +25,8 @@ const DEFAULT_CONTEXT_RADIUS = 3;
 const TIME_DISTRIBUTION_BIN_COUNT = 120;
 const VECTOR_MODEL_ID = 'sentence-transformers/all-MiniLM-L6-v2';
 const QUERY_MODEL_ID = 'Xenova/all-MiniLM-L6-v2';
+const ORT_WASM_BASE_URL =
+  'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0-dev.20250409-89f8206ba4/dist/';
 const PAIRS_LABEL = 'English/中文 Pairs';
 const ENTRY_PROGRESS_BATCH_SIZE = 2_000;
 const VECTOR_PROGRESS_BATCH_SIZE = 2_000;
@@ -84,7 +86,7 @@ env.allowLocalModels = false;
 env.useBrowserCache = true;
 
 if (env.backends.onnx.wasm) {
-  env.backends.onnx.wasm.wasmPaths = undefined;
+  env.backends.onnx.wasm.wasmPaths = ORT_WASM_BASE_URL;
   env.backends.onnx.wasm.numThreads = 1;
   env.backends.onnx.wasm.proxy = false;
 }

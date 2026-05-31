@@ -1,11 +1,4 @@
-import {
-  FormEvent,
-  startTransition,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from 'react';
+import { startTransition, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { classNames } from './classes';
 import { getDisplayModelName } from './format';
 import { handleSelectKey } from './keyboard';
@@ -17,11 +10,8 @@ import type {
   WorkerPayload,
   WorkerResponse,
 } from './search/protocol';
-import CueTimeDistributionPanel from './startup/CueTimeDistributionPanel';
-import SemanticLandscapePanel from './startup/SemanticLandscapePanel';
-import VideoFingerprintWallPanel from './startup/VideoFingerprintWallPanel';
+import TmAtlasPanel from './startup/TmAtlasPanel';
 import type { SemanticLandscapeData } from './startup/semantic-landscape';
-import NordschleifeMark from './icons/NordschleifeMark';
 
 type PendingRequest = {
   resolve: (value: WorkerResponse) => void;
@@ -34,7 +24,8 @@ type HeaderLoadState = Record<BootProgressSnapshot['target'], BootProgressSnapsh
 const DB_ASSET = 'data/tm_misha_minilm.db';
 const STARTUP_DATA_ASSET = 'data/startup-visualizations.json';
 const THEME_STORAGE_KEY = 'tm-review-theme';
-const DEFAULT_CONTEXT_RADIUS = 3;
+const DEFAULT_CONTEXT_RADIUS = 4;
+const DEFAULT_SEARCH_TOP_K = 24;
 const PAIRS_CHIP_LABEL = 'English/中文 Pairs';
 const MODEL_CHIP_LABEL = 'Embedding Model';
 
@@ -92,11 +83,6 @@ function formatCueRange(startMs: number | null, endMs: number | null): string {
   return `${formatCueTimestamp(startMs)} - ${formatCueTimestamp(endMs)}`;
 }
 
-function clampNumericInput(value: string, minimum: number): number {
-  const parsed = Number(value);
-  return Math.max(minimum, Number.isFinite(parsed) ? parsed : minimum);
-}
-
 function createInitialBootProgressState(): HeaderLoadState {
   return {
     pairs: {
@@ -119,10 +105,6 @@ function formatProgressPercent(progress: number): string {
   return `${Math.round(bounded * 100)}%`;
 }
 
-function buildChipTitle(primary: string, statusText: string, detail?: string): string {
-  return [primary, statusText, detail].filter(Boolean).join(' | ');
-}
-
 function App() {
   const workerRef = useRef<Worker | null>(null);
   const pendingRef = useRef(new Map<number, PendingRequest>());
@@ -140,12 +122,7 @@ function App() {
   const [errorText, setErrorText] = useState<string | null>(null);
   const [searchNote, setSearchNote] = useState<string | null>(null);
   const [query, setQuery] = useState('');
-  const [topK, setTopK] = useState(10);
-  const [minLength, setMinLength] = useState(0);
-  const [minScore, setMinScore] = useState(0);
-  const [contextRadius, setContextRadius] = useState(DEFAULT_CONTEXT_RADIUS);
   const [theme, setTheme] = useState<Theme>(getInitialTheme);
-  const [hasSearched, setHasSearched] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
   const [contextItems, setContextItems] = useState<ContextItem[]>([]);
@@ -157,8 +134,6 @@ function App() {
   const [startupData, setStartupData] = useState<SemanticLandscapeData | null>(null);
   const [startupDataLoading, setStartupDataLoading] = useState(true);
   const [startupDataErrorText, setStartupDataErrorText] = useState<string | null>(null);
-  const [startupRevealProgress, setStartupRevealProgress] = useState(0);
-  const [startupFocusDismissed, setStartupFocusDismissed] = useState(false);
 
   const dbUrl = `${import.meta.env.BASE_URL}${withAssetVersion(DB_ASSET, __TM_DB_VERSION__)}`;
   const startupDataUrl = `${import.meta.env.BASE_URL}${withAssetVersion(
@@ -173,6 +148,7 @@ function App() {
   }, [theme]);
 
   useEffect(() => {
+    let disposed = false;
     const worker = new Worker(new URL('./search/search.worker.ts', import.meta.url), {
       type: 'module',
     });
@@ -207,14 +183,19 @@ function App() {
     });
 
     worker.addEventListener('error', (event) => {
+      if (disposed) {
+        return;
+      }
+
       setErrorText(event.message || 'The search worker crashed.');
       setBooting(false);
       setSearching(false);
     });
 
-    void boot();
+    void boot(() => disposed);
 
     return () => {
+      disposed = true;
       for (const pending of pendingRef.current.values()) {
         pending.reject(new Error('Worker terminated.'));
       }
@@ -226,65 +207,9 @@ function App() {
 
   useEffect(() => {
     const controller = new AbortController();
-
     void loadStartupData(controller.signal);
-
-    return () => {
-      controller.abort();
-    };
+    return () => controller.abort();
   }, [startupDataUrl]);
-
-  useEffect(() => {
-    if (hasSearched && !startupFocusDismissed) {
-      setStartupFocusDismissed(true);
-    }
-  }, [hasSearched, startupFocusDismissed]);
-
-  useEffect(() => {
-    if (hasSearched || startupFocusDismissed) {
-      setStartupRevealProgress(1);
-      return;
-    }
-
-    let frameId = 0;
-
-    const updateRevealProgress = () => {
-      frameId = 0;
-      const threshold = Math.max(160, Math.min(320, window.innerHeight * 0.32));
-      const nextProgress = Math.min(1, Math.max(0, window.scrollY / threshold));
-
-      if (nextProgress >= 1) {
-        setStartupFocusDismissed(true);
-        setStartupRevealProgress(1);
-        return;
-      }
-
-      setStartupRevealProgress((current) =>
-        Math.abs(current - nextProgress) < 0.01 ? current : nextProgress,
-      );
-    };
-
-    const scheduleUpdate = () => {
-      if (frameId !== 0) {
-        return;
-      }
-
-      frameId = window.requestAnimationFrame(updateRevealProgress);
-    };
-
-    updateRevealProgress();
-    window.addEventListener('scroll', scheduleUpdate, { passive: true });
-    window.addEventListener('resize', scheduleUpdate);
-
-    return () => {
-      if (frameId !== 0) {
-        window.cancelAnimationFrame(frameId);
-      }
-
-      window.removeEventListener('scroll', scheduleUpdate);
-      window.removeEventListener('resize', scheduleUpdate);
-    };
-  }, [hasSearched, startupFocusDismissed]);
 
   useEffect(() => {
     if (!selectedEntryId || !bootStats) {
@@ -300,7 +225,7 @@ function App() {
         const response = (await callWorker({
           kind: 'context',
           entryId: selectedEntryId,
-          radius: contextRadius,
+          radius: DEFAULT_CONTEXT_RADIUS,
         })) as Extract<WorkerResponse, { kind: 'context:ok' }>;
 
         if (latestContextRef.current !== sequence) {
@@ -318,7 +243,7 @@ function App() {
         setErrorText(error instanceof Error ? error.message : String(error));
       }
     })();
-  }, [bootStats, contextRadius, selectedEntryId]);
+  }, [bootStats, selectedEntryId]);
 
   useEffect(() => {
     if (!transcriptVideoId) {
@@ -376,9 +301,7 @@ function App() {
       });
     });
 
-    return () => {
-      window.cancelAnimationFrame(frameId);
-    };
+    return () => window.cancelAnimationFrame(frameId);
   }, [selectedEntryId, transcriptFocusEntryId, transcriptItems, transcriptVideoId]);
 
   async function callWorker(payload: WorkerPayload): Promise<WorkerResponse> {
@@ -390,15 +313,13 @@ function App() {
     const requestId = requestIdRef.current;
     requestIdRef.current += 1;
 
-    const request = { ...payload, requestId };
-
     return new Promise((resolve, reject) => {
       pendingRef.current.set(requestId, { resolve, reject });
-      worker.postMessage(request);
+      worker.postMessage({ ...payload, requestId });
     });
   }
 
-  async function boot(): Promise<void> {
+  async function boot(isStale?: () => boolean): Promise<void> {
     setBooting(true);
     setErrorText(null);
     setBootProgress(createInitialBootProgressState());
@@ -409,12 +330,15 @@ function App() {
         dbUrl,
       })) as Extract<WorkerResponse, { kind: 'boot:ok' }>;
 
+      if (isStale?.()) {
+        return;
+      }
+
       startTransition(() => {
         setBootStats(response.stats);
         setBootProgress((current) => ({
           pairs: {
             ...current.pairs,
-            name: PAIRS_CHIP_LABEL,
             progress: 1,
             statusText: 'Ready',
             detail: `${response.stats.totalEntries.toLocaleString()} pairs loaded`,
@@ -430,6 +354,10 @@ function App() {
         setBooting(false);
       });
     } catch (error) {
+      if (isStale?.()) {
+        return;
+      }
+
       setBooting(false);
       setErrorText(error instanceof Error ? error.message : String(error));
     }
@@ -464,20 +392,18 @@ function App() {
     }
   }
 
-  async function runSearch(
-    nextQuery = query,
-    nextTopK = topK,
-    nextMinLength = minLength,
-    nextMinScore = minScore,
-  ): Promise<void> {
+  async function runSearch(nextQuery = query): Promise<void> {
     const trimmed = nextQuery.trim();
 
-    if (!trimmed || !bootStats) {
-      setHasSearched(false);
+    if (!trimmed) {
+      latestSearchRef.current += 1;
       setResults([]);
-      setSelectedEntryId(null);
-      setContextItems([]);
       setSearchNote(null);
+      return;
+    }
+
+    if (!bootStats) {
+      setErrorText('The TM database and embedding model are still loading.');
       return;
     }
 
@@ -487,15 +413,14 @@ function App() {
     setSearching(true);
     setErrorText(null);
     setSearchNote(null);
-    setHasSearched(true);
 
     try {
       const response = (await callWorker({
         kind: 'search',
         query: trimmed,
-        topK: nextTopK,
-        minLength: nextMinLength,
-        minScore: nextMinScore,
+        topK: DEFAULT_SEARCH_TOP_K,
+        minLength: 0,
+        minScore: 0,
       })) as Extract<WorkerResponse, { kind: 'search:ok' }>;
 
       if (latestSearchRef.current !== sequence) {
@@ -516,42 +441,6 @@ function App() {
       setSearching(false);
       setErrorText(error instanceof Error ? error.message : String(error));
     }
-  }
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>): void {
-    event.preventDefault();
-    void runSearch();
-  }
-
-  function handleTopKChange(value: string): void {
-    const nextTopK = clampNumericInput(value, 1);
-    setTopK(nextTopK);
-
-    if (hasSearched && query.trim()) {
-      void runSearch(query, nextTopK, minLength, minScore);
-    }
-  }
-
-  function handleMinLengthChange(value: string): void {
-    const nextMinLength = clampNumericInput(value, 0);
-    setMinLength(nextMinLength);
-
-    if (hasSearched && query.trim()) {
-      void runSearch(query, topK, nextMinLength, minScore);
-    }
-  }
-
-  function handleMinScoreChange(value: string): void {
-    const nextMinScore = clampNumericInput(value, 0);
-    setMinScore(nextMinScore);
-
-    if (hasSearched && query.trim()) {
-      void runSearch(query, topK, minLength, nextMinScore);
-    }
-  }
-
-  function handleContextRadiusChange(value: string): void {
-    setContextRadius(clampNumericInput(value, 0));
   }
 
   function setTranscriptItemRef(entryId: string, element: HTMLLIElement | null): void {
@@ -580,6 +469,11 @@ function App() {
   }
 
   async function openTranscript(videoId: string, focusEntryId: string): Promise<void> {
+    if (!bootStats) {
+      setErrorText('The TM database is still loading.');
+      return;
+    }
+
     const sequence = latestTranscriptRef.current + 1;
     latestTranscriptRef.current = sequence;
     transcriptItemRefs.current.clear();
@@ -626,403 +520,92 @@ function App() {
     setTranscriptErrorText(null);
   }
 
-  function goHome(): void {
+  function clearAtlas(): void {
     latestSearchRef.current += 1;
     latestContextRef.current += 1;
     closeTranscript();
     setQuery('');
-    setTopK(10);
-    setMinLength(0);
-    setMinScore(0);
-    setContextRadius(DEFAULT_CONTEXT_RADIUS);
-    setHasSearched(false);
     setSearching(false);
     setErrorText(null);
     setSearchNote(null);
     setResults([]);
     setSelectedEntryId(null);
     setContextItems([]);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function toggleTheme(): void {
     setTheme((currentTheme) => (currentTheme === 'dark' ? 'light' : 'dark'));
   }
 
-  const canSearch = !booting && !!query.trim();
+  const statusItems = [
+    {
+      label: 'Pairs',
+      value: bootStats
+        ? bootStats.totalEntries.toLocaleString()
+        : formatProgressPercent(bootProgress.pairs.progress),
+      detail: bootProgress.pairs.detail ?? bootProgress.pairs.statusText,
+      progress: bootProgress.pairs.progress,
+      ready: !booting && !!bootStats,
+    },
+    {
+      label: 'Model',
+      value: bootStats
+        ? getDisplayModelName(bootStats.embeddingModelId)
+        : formatProgressPercent(bootProgress.model.progress),
+      detail: bootProgress.model.detail ?? bootProgress.model.statusText,
+      progress: bootProgress.model.progress,
+      ready: !booting && !!bootStats,
+    },
+  ];
+
   const transcriptHasTimestamps = transcriptItems.some(
     (item) => item.startMs !== null || item.endMs !== null,
   );
-  const pairsChipValue = bootStats
-    ? bootStats.totalEntries.toLocaleString()
-    : formatProgressPercent(bootProgress.pairs.progress);
-  const pairsChipTitle = buildChipTitle(
-    bootStats
-      ? `${bootStats.totalEntries.toLocaleString()} English/中文 pairs`
-      : bootProgress.pairs.name,
-    bootProgress.pairs.statusText,
-    bootProgress.pairs.detail,
-  );
-  const modelChipValue = bootStats
-    ? getDisplayModelName(bootStats.embeddingModelId)
-    : bootProgress.model.name;
-  const modelChipTitle = buildChipTitle(
-    bootStats?.embeddingModelId ?? bootProgress.model.name,
-    bootProgress.model.statusText,
-    bootProgress.model.detail,
-  );
-  const startupFocusActive = !hasSearched && !startupFocusDismissed && startupRevealProgress < 0.999;
-  const startupFocusStyle =
-    hasSearched
-      ? undefined
-      : ({
-          ['--startup-focus-progress' as string]: startupRevealProgress.toFixed(3),
-          ['--startup-focus-opacity' as string]: (1 - startupRevealProgress).toFixed(3),
-          ['--startup-focus-blur' as string]: `${(5.4 - startupRevealProgress * 5.4).toFixed(2)}px`,
-        } satisfies React.CSSProperties);
 
   return (
     <main className="app-shell">
-      <section className="hero">
-        <h1 className="page-title">
-          <button className="title-home" type="button" onClick={goHome}>
-            <span className="title-home-track" aria-hidden="true">
-              <NordschleifeMark />
-            </span>
-            <span className="title-home-text">Translation Memory</span>
-          </button>
-        </h1>
-        <div className="hero-meta">
-          <span
-            className={classNames(
-              'hero-chip hero-chip--pairs hero-chip--progress',
-              booting ? 'is-loading' : 'is-ready',
-            )}
-            style={
-              {
-                ['--hero-chip-progress' as string]: bootProgress.pairs.progress.toFixed(3),
-              } satisfies React.CSSProperties
-            }
-            title={pairsChipTitle}
-          >
-            <span className="hero-chip-content">
-              <strong className="hero-chip-value">{pairsChipValue}</strong>
-              <span className="hero-chip-label">{PAIRS_CHIP_LABEL}</span>
-            </span>
-          </span>
-          <span
-            className={classNames(
-              'hero-chip hero-chip--progress hero-chip--model',
-              booting ? 'is-loading' : 'is-ready',
-            )}
-            style={
-              {
-                ['--hero-chip-progress' as string]: bootProgress.model.progress.toFixed(3),
-              } satisfies React.CSSProperties
-            }
-            title={modelChipTitle}
-          >
-            <span className="hero-chip-content">
-              <strong className="hero-chip-value">{modelChipValue}</strong>
-              <span className="hero-chip-label">{MODEL_CHIP_LABEL}</span>
-            </span>
-          </span>
-          <button
-            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-            className={classNames('theme-toggle', theme === 'dark' ? 'is-dark' : 'is-light')}
-            type="button"
-            onClick={toggleTheme}
-          >
-            <span
-              aria-hidden="true"
-              className={classNames('theme-option', theme === 'dark' && 'is-active')}
-            >
-              ☾
-            </span>
-            <span
-              aria-hidden="true"
-              className={classNames('theme-option', theme === 'light' && 'is-active')}
-            >
-              ☼
-            </span>
-          </button>
-        </div>
-      </section>
-
-      <section className="panel controls-panel">
-        <form className="search-form" onSubmit={handleSubmit}>
-          <div className="field query-field">
-            <input
-              aria-label="Search English subtitle lines"
-              autoFocus
-              type="text"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search English subtitle lines"
-            />
-          </div>
-
-          <button className="search-button" type="submit" disabled={!canSearch || searching}>
-            {searching ? 'Searching…' : 'Search'}
-          </button>
-        </form>
-      </section>
-
-      {errorText ? (
-        <section className="panel message error-message">
-          <strong>Error</strong>
-          <p>{errorText}</p>
-        </section>
-      ) : null}
-
-      {searchNote ? (
-        <section className="panel message note-message">
-          <strong>Note</strong>
-          <p>{searchNote}</p>
-        </section>
-      ) : null}
-
-      {!hasSearched ? (
-        <div className="startup-focus-shell" style={startupFocusStyle}>
-          <div
-            className={classNames('startup-focus-veil', startupFocusActive && 'is-active')}
-            aria-hidden="true"
-          />
-
-          <div className="startup-panels-stack">
-            {startupDataErrorText ? (
-              <section className="panel message error-message">
-                <strong>Startup Visualizations</strong>
-                <p>{startupDataErrorText}</p>
-              </section>
-            ) : startupDataLoading ? (
-              <section className="panel startup-panel semantic-panel semantic-panel--loading">
-                <div className="panel-header semantic-panel-header">
-                  <div className="results-heading">
-                    <h2>Startup Visualizations</h2>
-                    <span>Preparing the precomputed startup panels…</span>
-                  </div>
-                </div>
-                <div className="empty-state">
-                  <p>Loading semantic coordinates and video fingerprints…</p>
-                </div>
-              </section>
-            ) : startupData ? (
-              <SemanticLandscapePanel
-                data={startupData}
-                theme={theme}
-                onOpenTranscript={(videoId, focusEntryId) => {
-                  void openTranscript(videoId, focusEntryId);
-                }}
-              />
-            ) : null}
-
-            {booting ? (
-              <section className="panel semantic-panel time-distribution-panel time-distribution-panel--loading">
-                <div className="panel-header semantic-panel-header">
-                  <div className="results-heading">
-                    <h2>Time Distribution</h2>
-                    <span>Preparing the normalized subtitle-timing distribution…</span>
-                  </div>
-                </div>
-                <div className="empty-state">
-                  <p>Loading subtitle cues and warming the embedding model…</p>
-                </div>
-              </section>
-            ) : bootStats?.cueTimeDistribution ? (
-              <CueTimeDistributionPanel data={bootStats.cueTimeDistribution} />
-            ) : bootStats ? (
-              <section className="panel semantic-panel time-distribution-panel">
-                <div className="panel-header semantic-panel-header">
-                  <div className="results-heading">
-                    <h2>Time Distribution</h2>
-                    <span>No complete subtitle timing spans were found in this TM snapshot.</span>
-                  </div>
-                </div>
-                <div className="empty-state">
-                  <p>Load a database with cue-level `start_ms` and `end_ms` values to populate this view.</p>
-                </div>
-              </section>
-            ) : null}
-
-            {startupData ? (
-              <VideoFingerprintWallPanel
-                data={startupData.videoFingerprintWall}
-                clusters={startupData.clusters}
-                onOpenTranscript={(videoId, focusEntryId) => {
-                  void openTranscript(videoId, focusEntryId);
-                }}
-              />
-            ) : null}
-          </div>
-        </div>
-      ) : null}
-
-      {hasSearched ? (
-        <section className="workspace">
-          <div className="panel results-panel">
-            <div className="panel-header results-header">
-              <div className="results-heading">
-                <h2>Results</h2>
-              </div>
-
-              <div className="results-tools">
-                <label className="field compact-inline-field">
-                  <span>Top K</span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={100}
-                    value={topK}
-                    onChange={(event) => handleTopKChange(event.target.value)}
-                  />
-                </label>
-
-                <label className="field compact-inline-field">
-                  <span>Min Chars</span>
-                  <input
-                    type="number"
-                    min={0}
-                    max={500}
-                    value={minLength}
-                    onChange={(event) => handleMinLengthChange(event.target.value)}
-                  />
-                </label>
-
-                <label className="field compact-inline-field">
-                  <span>Score</span>
-                  <input
-                    type="number"
-                    min={0}
-                    max={2}
-                    step={0.05}
-                    value={minScore}
-                    onChange={(event) => handleMinScoreChange(event.target.value)}
-                  />
-                </label>
-              </div>
-            </div>
-
-            {results.length === 0 ? (
-              <div className="empty-state">
-                <p>No matches found for this query.</p>
-              </div>
-            ) : (
-              <ol className="results-list">
-                {results.map((result) => (
-                  <li key={result.entryId}>
-                    <article
-                      className={classNames(
-                        'result-card',
-                        result.entryId === selectedEntryId && 'is-active',
-                      )}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => setSelectedEntryId(result.entryId)}
-                      onKeyDown={(event) =>
-                        handleSelectKey(event, () => setSelectedEntryId(result.entryId))
-                      }
-                    >
-                      <div className="result-header">
-                        <span className="result-metric">
-                          <span className="result-metric-label">YouTube ID</span>
-                          <button
-                            className="video-id-button"
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              void openTranscript(result.videoId, result.entryId);
-                            }}
-                          >
-                            {result.videoId}
-                          </button>
-                        </span>
-                        <span className="result-metric">
-                          <span className="result-metric-label">Entry</span>
-                          <strong>#{result.segIndex}</strong>
-                        </span>
-                        <span className="result-metric result-score">
-                          <span className="result-metric-label">Score</span>
-                          <strong>{result.score.toFixed(4)}</strong>
-                        </span>
-                      </div>
-                      <div className="result-copy-group">
-                        <div className="result-copy">
-                          <div className="result-copy-line">
-                            <p className="result-en">{result.en}</p>
-                            <span className="result-char-count">{result.textLength} chars</span>
-                          </div>
-                        </div>
-                        <div className="result-copy">
-                          <p className="result-zh">{result.zh}</p>
-                        </div>
-                      </div>
-                      <p className="result-block">Block ID {result.blockName || 'No block'}</p>
-                    </article>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </div>
-
-          <div className="detail-column">
-            <section className="panel context-panel">
-              <div className="panel-header">
-                <h2>Context</h2>
-                <label className="field compact-inline-field">
-                  <span>Radius</span>
-                  <input
-                    type="number"
-                    min={0}
-                    max={20}
-                    value={contextRadius}
-                    onChange={(event) => handleContextRadiusChange(event.target.value)}
-                  />
-                </label>
-              </div>
-
-              {contextItems.length === 0 ? (
-                <div className="empty-state">
-                  <p>Context appears here after you select a result.</p>
-                </div>
-              ) : (
-                <ol className="context-list">
-                  {contextItems.map((item) => (
-                    <li
-                      key={item.entryId}
-                      className={classNames('context-item', item.isFocus && 'is-focus')}
-                    >
-                      <div className="context-meta">
-                        <span>{item.videoId}#{item.segIndex}</span>
-                        <span>{item.blockName || 'no block'}</span>
-                      </div>
-                      <p>{item.en}</p>
-                      <p>{item.zh}</p>
-                    </li>
-                  ))}
-                </ol>
-              )}
-            </section>
-          </div>
-        </section>
-      ) : null}
+      <TmAtlasPanel
+        data={startupData}
+        dataLoading={startupDataLoading}
+        dataErrorText={startupDataErrorText}
+        theme={theme}
+        statusItems={statusItems}
+        query={query}
+        searchReady={!booting && !!bootStats}
+        searching={searching}
+        searchResults={results}
+        searchNote={searchNote}
+        errorText={errorText}
+        selectedEntryId={selectedEntryId}
+        contextItems={contextItems}
+        onQueryChange={setQuery}
+        onSearch={() => {
+          void runSearch();
+        }}
+        onSelectEntry={setSelectedEntryId}
+        onOpenTranscript={(videoId, focusEntryId) => {
+          void openTranscript(videoId, focusEntryId);
+        }}
+        onClear={clearAtlas}
+        onToggleTheme={toggleTheme}
+      />
 
       {transcriptVideoId ? (
         <div className="modal-backdrop" role="presentation" onClick={closeTranscript}>
           <section
             aria-labelledby="transcript-dialog-title"
             aria-modal="true"
-            className="panel transcript-modal"
+            className="transcript-modal"
             role="dialog"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="transcript-modal-header">
               <div className="transcript-heading">
-                <span className="result-metric-label">YouTube ID</span>
+                <span>YouTube ID</span>
                 <h2 id="transcript-dialog-title">{transcriptVideoId}</h2>
-                <p className="transcript-heading-note">
+                <p>
                   {transcriptLoading
-                    ? 'Loading transcript cues…'
+                    ? 'Loading transcript cues...'
                     : `${transcriptItems.length.toLocaleString()} cues${
                         transcriptHasTimestamps ? ' with cue timestamps' : ''
                       }`}
@@ -1036,7 +619,7 @@ function App() {
 
             {transcriptLoading ? (
               <div className="empty-state">
-                <p>Loading the full transcript…</p>
+                <p>Loading the full transcript...</p>
               </div>
             ) : transcriptErrorText ? (
               <div className="empty-state">
@@ -1059,30 +642,17 @@ function App() {
                             item.startMs,
                             item.endMs,
                           )}.`}
-                          className={
-                            classNames('transcript-timeline-button', isSelected && 'is-selected')
-                          }
+                          className={classNames('transcript-time', isSelected && 'is-selected')}
                           type="button"
                           onClick={() => setTranscriptSelection(item.entryId)}
                         >
-                          <span className="transcript-timeline-index">#{item.segIndex}</span>
-                          <span className="transcript-timeline-time">
-                            {formatCueTimestamp(item.startMs)}
-                          </span>
-                          <span className="transcript-timeline-arrow" aria-hidden="true">
-                            to
-                          </span>
-                          <span className="transcript-timeline-time transcript-timeline-time--end">
-                            {formatCueTimestamp(item.endMs)}
-                          </span>
+                          <span>#{item.segIndex}</span>
+                          <strong>{formatCueTimestamp(item.startMs)}</strong>
+                          <em>{formatCueTimestamp(item.endMs)}</em>
                         </button>
 
                         <article
-                          className={classNames(
-                            'context-item',
-                            'transcript-entry',
-                            isSelected && 'is-selected',
-                          )}
+                          className={classNames('transcript-entry', isSelected && 'is-selected')}
                           role="button"
                           tabIndex={0}
                           onClick={() => setTranscriptSelection(item.entryId)}
@@ -1090,88 +660,24 @@ function App() {
                             handleSelectKey(event, () => setTranscriptSelection(item.entryId))
                           }
                         >
-                          <div className="context-meta transcript-entry-meta">
+                          <div className="transcript-entry-meta">
                             <span>{item.videoId}#{item.segIndex}</span>
                             <span>{item.blockName || 'no block'}</span>
                           </div>
                           <div className="transcript-entry-copy-line">
                             <p className="transcript-entry-line transcript-entry-line--en">{item.en}</p>
-                            <div className="transcript-entry-actions">
-                              <button
-                                aria-label={`Search using cue ${item.segIndex} English text`}
-                                className="transcript-entry-action"
-                                type="button"
-                                disabled={!item.en.trim()}
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  searchFromTranscriptLine(item.en);
-                                }}
-                              >
-                                <svg
-                                  aria-hidden="true"
-                                  className="transcript-entry-action-icon"
-                                  viewBox="0 0 16 16"
-                                >
-                                  <circle
-                                    cx="7"
-                                    cy="7"
-                                    r="4.25"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="1.5"
-                                  />
-                                  <path
-                                    d="M10.2 10.2L13.4 13.4"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeLinecap="round"
-                                    strokeWidth="1.5"
-                                  />
-                                </svg>
-                              </button>
-
-                              <span className="transcript-entry-action-shell" title="Editing is not supported yet">
-                                <button
-                                  aria-label="Editing is not supported yet"
-                                  className="transcript-entry-action transcript-entry-action--disabled"
-                                  type="button"
-                                  tabIndex={-1}
-                                  onClick={(event) => {
-                                    event.preventDefault();
-                                    event.stopPropagation();
-                                  }}
-                                >
-                                  <svg
-                                    aria-hidden="true"
-                                    className="transcript-entry-action-icon"
-                                    viewBox="0 0 16 16"
-                                  >
-                                    <path
-                                      d="M3 11.8L2.5 13.5L4.2 13L11.7 5.5L10.5 4.3L3 11.8Z"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      strokeLinejoin="round"
-                                      strokeWidth="1.4"
-                                    />
-                                    <path
-                                      d="M9.9 4.9L11.1 6.1"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      strokeLinecap="round"
-                                      strokeWidth="1.4"
-                                    />
-                                    <path
-                                      d="M10.9 3.9L12.1 2.7C12.4 2.4 12.9 2.4 13.2 2.7L13.3 2.8C13.6 3.1 13.6 3.6 13.3 3.9L12.1 5.1"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth="1.4"
-                                    />
-                                  </svg>
-                                </button>
-                              </span>
-                            </div>
+                            <button
+                              aria-label={`Search using cue ${item.segIndex} English text`}
+                              className="transcript-entry-action"
+                              type="button"
+                              disabled={!item.en.trim()}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                searchFromTranscriptLine(item.en);
+                              }}
+                            >
+                              Search
+                            </button>
                           </div>
                           <p className="transcript-entry-line transcript-entry-line--zh">{item.zh}</p>
                         </article>
