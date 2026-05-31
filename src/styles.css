@@ -553,11 +553,37 @@ button:disabled {
   gap: 12px;
   padding: 12px;
   border: 1px solid color-mix(in srgb, var(--cluster-color) 34%, var(--line));
+  border-left: 6px solid var(--cluster-color);
   border-radius: 8px;
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--cluster-color) 8%, transparent), transparent 50%),
-    color-mix(in srgb, var(--field) 68%, transparent);
+  background: color-mix(in srgb, var(--field) 68%, transparent);
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--cluster-color) 20%, transparent);
+}
+
+.atlas-island-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.atlas-island-heading strong {
+  color: var(--text);
+  font-size: 1.05rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.atlas-island-heading em {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--cluster-color);
+  color: #06130a;
+  font-size: 0.74rem;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .atlas-island-metrics {

@@ -851,8 +851,7 @@ export default function TmAtlasPanel({
             style={{ ['--cluster-color' as string]: selectedIslandPanel.cluster.color }}
           >
             <article className="atlas-island-card">
-              <div className="atlas-region-line">
-                <span />
+              <div className="atlas-island-heading">
                 <strong>{selectedIslandPanel.cluster.label}</strong>
                 <em>{selectedIslandPanel.cluster.labelMode}</em>
               </div>
