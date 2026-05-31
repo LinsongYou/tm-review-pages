@@ -345,6 +345,9 @@ export default function TmAtlasPanel({
   const dragRef = useRef<DragState | null>(null);
   const transcriptBodyRef = useRef<HTMLDivElement | null>(null);
   const transcriptItemRefs = useRef(new Map<string, HTMLLIElement>());
+  const cameraAnimRef = useRef(0);
+  const targetCenterRef = useRef<{ x: number; y: number; z: number } | null>(null);
+  const animatedCenterRef = useRef<{ x: number; y: number; z: number } | null>(null);
   const [size, setSize] = useState({ width: 1, height: 1 });
   const [view3d, setView3d] = useState<View3d>(INITIAL_VIEW_3D);
   const [hoverState, setHoverState] = useState<HoverState | null>(null);
@@ -458,10 +461,24 @@ export default function TmAtlasPanel({
 
     return null;
   }, [selectedIslandPanel, selectedPoint, showTranscriptPanel]);
-  const projectionGeometry = useMemo(
-    () => geometryWithFocus(visualGeometry, visualFocus),
-    [visualFocus, visualGeometry],
-  );
+
+  function updateTargetCenter(focus: VisualFocus | null, base: VisualGeometry): void {
+    const target = focus
+      ? { x: focus.centerX, y: focus.centerY, z: focus.centerZ }
+      : { x: base.centerX, y: base.centerY, z: base.centerZ };
+    targetCenterRef.current = target;
+    if (!animatedCenterRef.current) {
+      animatedCenterRef.current = target;
+    }
+  }
+
+  const projectionGeometry = useMemo(() => {
+    const center = animatedCenterRef.current;
+    if (!center) {
+      return geometryWithFocus(visualGeometry, visualFocus);
+    }
+    return { ...visualGeometry, centerX: center.x, centerY: center.y, centerZ: center.z };
+  }, [visualGeometry, visualFocus, view3d]);
   const projectedPoints = useMemo<ProjectedPoint[]>(() => {
     if (!data) {
       return [];
@@ -557,22 +574,47 @@ export default function TmAtlasPanel({
   }, [selectedEntryId, transcriptFocusEntryId, transcriptItems, transcriptVideoId]);
 
   useEffect(() => {
-    if (!visualFocus) {
-      setView3d((current) => ({
-        ...current,
-        zoom: INITIAL_VIEW_3D.zoom,
-        offsetX: 0,
-        offsetY: 0,
-      }));
-      return;
+    const targetZoom = visualFocus ? visualFocus.zoom : INITIAL_VIEW_3D.zoom;
+    updateTargetCenter(visualFocus, visualGeometry);
+
+    const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+    const epsilon = 0.001;
+    let running = true;
+
+    function step() {
+      if (!running) return;
+
+      const center = animatedCenterRef.current;
+      const target = targetCenterRef.current;
+      if (center && target) {
+        center.x = lerp(center.x, target.x, 0.1);
+        center.y = lerp(center.y, target.y, 0.1);
+        center.z = lerp(center.z, target.z, 0.1);
+      }
+
+      setView3d((current) => {
+        const nextZoom = lerp(current.zoom, targetZoom, 0.1);
+        const nextOffsetX = lerp(current.offsetX, 0, 0.1);
+        const nextOffsetY = lerp(current.offsetY, 0, 0.1);
+        const dx = Math.abs(current.offsetX) + Math.abs(current.offsetY);
+        const dz = Math.abs(current.zoom - targetZoom);
+        const cx = center && target
+          ? Math.abs(center.x - target.x) + Math.abs(center.y - target.y) + Math.abs(center.z - target.z)
+          : 0;
+        if (dx + dz + cx < epsilon) {
+          return { ...current, zoom: targetZoom, offsetX: 0, offsetY: 0 };
+        }
+        return { ...current, zoom: nextZoom, offsetX: nextOffsetX, offsetY: nextOffsetY };
+      });
+
+      cameraAnimRef.current = requestAnimationFrame(step);
     }
 
-    setView3d((current) => ({
-      ...current,
-      zoom: visualFocus.zoom,
-      offsetX: 0,
-      offsetY: 0,
-    }));
+    cameraAnimRef.current = requestAnimationFrame(step);
+    return () => {
+      running = false;
+      cancelAnimationFrame(cameraAnimRef.current);
+    };
   }, [visualFocus?.key]);
 
   useEffect(() => {
