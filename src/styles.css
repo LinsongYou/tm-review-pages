@@ -127,9 +127,8 @@ button:disabled {
   position: absolute;
   z-index: 2;
   border: 1px solid var(--line-soft);
-  background: color-mix(in srgb, var(--surface) 86%, transparent);
   box-shadow: var(--shadow);
-  backdrop-filter: blur(12px);
+  backdrop-filter: blur(14px) saturate(145%);
 }
 
 .atlas-hud {
@@ -144,6 +143,7 @@ button:disabled {
   min-height: 44px;
   padding: 6px;
   border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
   overflow-x: auto;
 }
 
@@ -308,6 +308,13 @@ button:disabled {
   width: 360px;
   padding: 10px 12px;
   border-radius: 8px;
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--line-soft));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent) 12%, transparent), transparent 42%),
+    color-mix(in srgb, var(--surface) 58%, transparent);
+  box-shadow:
+    0 18px 44px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 color-mix(in srgb, var(--accent) 18%, transparent);
   pointer-events: none;
 }
 
@@ -330,8 +337,19 @@ button:disabled {
   max-height: 100dvh;
   padding: 14px;
   overflow-y: auto;
-  border-left: 1px solid var(--line);
-  background: var(--surface);
+  border-left: 1px solid color-mix(in srgb, var(--accent) 18%, var(--line));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 88%, transparent), color-mix(in srgb, var(--surface-strong) 78%, transparent)),
+    repeating-linear-gradient(
+      90deg,
+      transparent 0,
+      transparent 44px,
+      color-mix(in srgb, var(--accent) 5%, transparent) 45px
+    );
+  box-shadow:
+    inset 1px 0 0 color-mix(in srgb, var(--accent) 12%, transparent),
+    -20px 0 52px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(18px) saturate(135%);
 }
 
 .atlas-sidebar.is-idle {
@@ -411,7 +429,7 @@ button:disabled {
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--field);
+  background: color-mix(in srgb, var(--field) 88%, transparent);
 }
 
 .atlas-region-line {
@@ -478,6 +496,8 @@ button:disabled {
 
 .atlas-entry-en,
 .atlas-entry-zh,
+.atlas-island-entry-en,
+.atlas-island-entry-zh,
 .atlas-context-item p,
 .transcript-entry-line,
 .empty-state p {
@@ -492,6 +512,7 @@ button:disabled {
 }
 
 .atlas-entry-zh,
+.atlas-island-entry-zh,
 .atlas-context-item p:last-child,
 .transcript-entry-line--zh {
   color: var(--muted-strong);
@@ -508,7 +529,7 @@ button:disabled {
   border: 1px solid var(--line);
   border-radius: 999px;
   color: var(--muted-strong);
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
   font-size: 0.78rem;
 }
 
@@ -520,6 +541,53 @@ button:disabled {
 
 .atlas-island-section {
   grid-template-rows: auto minmax(0, 1fr);
+}
+
+.atlas-island-focus {
+  grid-template-rows: auto auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.atlas-island-card {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--cluster-color) 34%, var(--line));
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--cluster-color) 12%, transparent), transparent 50%),
+    color-mix(in srgb, var(--field) 88%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--cluster-color) 20%, transparent);
+}
+
+.atlas-island-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.atlas-island-metrics div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, var(--cluster-color) 20%, var(--line));
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--surface) 68%, transparent);
+}
+
+.atlas-island-metrics dt {
+  color: var(--muted);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.atlas-island-metrics dd {
+  margin: 0;
+  color: var(--text);
+  font-weight: 750;
 }
 
 .atlas-section-header {
@@ -538,6 +606,7 @@ button:disabled {
 
 .atlas-result-list,
 .atlas-island-list,
+.atlas-island-entry-list,
 .atlas-context-list,
 .transcript-row-list {
   display: grid;
@@ -551,6 +620,13 @@ button:disabled {
   max-height: 280px;
   overflow: auto;
   padding-right: 3px;
+}
+
+.atlas-island-entry-list {
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 3px;
+  scrollbar-gutter: stable;
 }
 
 .atlas-sidebar.is-idle .atlas-island-list {
@@ -570,6 +646,34 @@ button:disabled {
   background: var(--field);
   color: inherit;
   text-align: left;
+}
+
+.atlas-island-entry {
+  display: grid;
+  gap: 7px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--field) 84%, transparent);
+  color: inherit;
+  cursor: pointer;
+}
+
+.atlas-island-entry-meta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.atlas-island-entry-meta span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.atlas-island-entry-en {
+  color: var(--text);
+  font-weight: 650;
 }
 
 .atlas-island-row:hover,
@@ -629,6 +733,9 @@ button:disabled {
 .atlas-result-row:hover,
 .atlas-result-row:focus-visible,
 .atlas-result-row.is-active,
+.atlas-island-entry:hover,
+.atlas-island-entry:focus-visible,
+.atlas-island-entry.is-focus,
 .atlas-context-item:hover,
 .atlas-context-item:focus-visible,
 .atlas-context-item.is-focus {

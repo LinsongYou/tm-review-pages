@@ -87,6 +87,13 @@ interface HoverState {
   y: number;
 }
 
+interface IslandPanelData {
+  cluster: SemanticLandscapeCluster;
+  entries: SemanticLandscapePoint[];
+  share: number;
+  zoom: number;
+}
+
 interface DragState {
   active: boolean;
   mode: 'rotate3d' | 'pan3d';
@@ -151,6 +158,26 @@ function geometryWithFocus(geometry: VisualGeometry, focus: VisualFocus | null):
     centerY: focus.centerY,
     centerZ: focus.centerZ,
   };
+}
+
+function getIslandZoom(
+  cluster: SemanticLandscapeCluster,
+  entries: SemanticLandscapePoint[],
+  geometry: VisualGeometry,
+): number {
+  const radius = Math.max(
+    percentile(
+      entries.map((point) =>
+        Math.hypot(point.x3d - cluster.x3d, point.y3d - cluster.y3d, point.z3d - cluster.z3d),
+      ),
+      0.92,
+    ),
+    geometry.radius * 0.06,
+  );
+  const islandSpan = radius * 2;
+  const atlasSpan = geometry.radius * 2;
+
+  return clamp((atlasSpan / islandSpan) * 0.72, 1.45, 4.2);
 }
 
 function project3dRaw(
@@ -289,6 +316,28 @@ export default function TmAtlasPanel({
     () => createVisualGeometry(data?.points ?? []),
     [data],
   );
+  const islandEntriesById = useMemo(() => {
+    const entriesById = new Map<number, SemanticLandscapePoint[]>();
+
+    if (!data) {
+      return entriesById;
+    }
+
+    for (const point of data.points) {
+      const entries = entriesById.get(point.clusterId);
+      if (entries) {
+        entries.push(point);
+      } else {
+        entriesById.set(point.clusterId, [point]);
+      }
+    }
+
+    for (const entries of entriesById.values()) {
+      entries.sort((left, right) => left.videoId.localeCompare(right.videoId) || left.segIndex - right.segIndex);
+    }
+
+    return entriesById;
+  }, [data]);
   const videoCount = useMemo(
     () => new Set(data?.points.map((point) => point.videoId) ?? []).size,
     [data],
@@ -298,16 +347,30 @@ export default function TmAtlasPanel({
   const selectedSearchResult = selectedEntryId ? searchResultById.get(selectedEntryId) ?? null : null;
   const selectedEntry = selectedPoint ?? selectedSearchResult ?? null;
   const selectedCluster = selectedPoint ? clusterById.get(selectedPoint.clusterId)! : null;
+  const selectedIsland = selectedIslandId !== null ? clusterById.get(selectedIslandId)! : null;
+  const selectedIslandEntries = selectedIsland ? islandEntriesById.get(selectedIsland.id)! : [];
+  const selectedIslandPanel = useMemo<IslandPanelData | null>(() => {
+    if (!selectedIsland || !data) {
+      return null;
+    }
+
+    return {
+      cluster: selectedIsland,
+      entries: selectedIslandEntries,
+      share: (selectedIsland.size / data.pointCount) * 100,
+      zoom: getIslandZoom(selectedIsland, selectedIslandEntries, visualGeometry),
+    };
+  }, [data, selectedIsland, selectedIslandEntries, visualGeometry]);
   const hoveredPoint = hoverState ? pointById.get(hoverState.entryId)! : null;
   const visualFocus = useMemo<VisualFocus | null>(() => {
-    if (selectedIslandId !== null) {
-      const cluster = clusterById.get(selectedIslandId)!;
+    if (selectedIslandPanel) {
+      const cluster = selectedIslandPanel.cluster;
       return {
         key: `island:${cluster.id}`,
         centerX: cluster.x3d,
         centerY: cluster.y3d,
         centerZ: cluster.z3d,
-        zoom: 2,
+        zoom: selectedIslandPanel.zoom,
       };
     }
 
@@ -322,7 +385,7 @@ export default function TmAtlasPanel({
     }
 
     return null;
-  }, [clusterById, selectedIslandId, selectedPoint]);
+  }, [selectedIslandPanel, selectedPoint]);
   const projectionGeometry = useMemo(
     () => geometryWithFocus(visualGeometry, visualFocus),
     [visualFocus, visualGeometry],
@@ -352,8 +415,8 @@ export default function TmAtlasPanel({
     points.sort((left, right) => left.depth - right.depth);
     return points;
   }, [clusterById, data, projectionGeometry, size.height, size.width, view3d, visualFocus]);
-  const showIslandBrowser = !!data && searchResults.length === 0 && !query.trim();
-  const showLocalContext = !showIslandBrowser || !!selectedEntry;
+  const showIslandBrowser = !!data && searchResults.length === 0 && !query.trim() && !selectedIslandPanel;
+  const showLocalContext = !selectedIslandPanel && (!showIslandBrowser || !!selectedEntry);
   const idleSidebar = showIslandBrowser && !selectedEntry && !errorText && !searchNote;
 
   useEffect(() => {
@@ -782,7 +845,85 @@ export default function TmAtlasPanel({
         {errorText ? <p className="atlas-message atlas-message--error">{errorText}</p> : null}
         {searchNote ? <p className="atlas-message">{searchNote}</p> : null}
 
-        {selectedEntry ? (
+        {selectedIslandPanel ? (
+          <section
+            className="atlas-section atlas-island-focus"
+            style={{ ['--cluster-color' as string]: selectedIslandPanel.cluster.color }}
+          >
+            <article className="atlas-island-card">
+              <div className="atlas-region-line">
+                <span />
+                <strong>{selectedIslandPanel.cluster.label}</strong>
+                <em>{selectedIslandPanel.cluster.labelMode}</em>
+              </div>
+              <p className="atlas-region-description">{selectedIslandPanel.cluster.description}</p>
+
+              <dl className="atlas-island-metrics">
+                <div>
+                  <dt>Lines</dt>
+                  <dd>{selectedIslandPanel.cluster.size.toLocaleString()}</dd>
+                </div>
+                <div>
+                  <dt>Videos</dt>
+                  <dd>{selectedIslandPanel.cluster.videoCount.toLocaleString()}</dd>
+                </div>
+                <div>
+                  <dt>Share</dt>
+                  <dd>{selectedIslandPanel.share.toFixed(1)}%</dd>
+                </div>
+                <div>
+                  <dt>Theme</dt>
+                  <dd>{Math.round(selectedIslandPanel.cluster.labelConfidence * 100)}%</dd>
+                </div>
+              </dl>
+
+              <div className="atlas-phrase-list">
+                {selectedIslandPanel.cluster.topPhrases.map((phrase) => (
+                  <span key={phrase}>{phrase}</span>
+                ))}
+              </div>
+            </article>
+
+            <div className="atlas-section-header">
+              <strong>Island Lines</strong>
+              <span>{selectedIslandPanel.entries.length.toLocaleString()}</span>
+            </div>
+            <ol className="atlas-island-entry-list">
+              {selectedIslandPanel.entries.map((entry) => (
+                <li key={entry.entryId}>
+                  <article
+                    className={classNames('atlas-island-entry', entry.entryId === selectedEntryId && 'is-focus')}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => selectEntry(entry.entryId)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        selectEntry(entry.entryId);
+                      }
+                    }}
+                  >
+                    <div className="atlas-island-entry-meta">
+                      <button
+                        className="video-id-button"
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onOpenTranscript(entry.videoId, entry.entryId);
+                        }}
+                      >
+                        {entry.videoId}
+                      </button>
+                      <span>#{entry.segIndex}</span>
+                    </div>
+                    <p className="atlas-island-entry-en">{entry.en}</p>
+                    <p className="atlas-island-entry-zh">{entry.zh}</p>
+                  </article>
+                </li>
+              ))}
+            </ol>
+          </section>
+        ) : selectedEntry ? (
           <div className="atlas-detail">
             <article className="atlas-entry-detail">
               {selectedCluster ? (
