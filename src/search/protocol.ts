@@ -62,6 +62,11 @@ export interface BootRequest {
   dbUrl: string;
 }
 
+export interface PrepareModelRequest {
+  kind: 'prepare-model';
+  requestId: number;
+}
+
 export interface SearchRequest {
   kind: 'search';
   requestId: number;
@@ -85,9 +90,10 @@ export interface TranscriptRequest {
   focusEntryId?: string;
 }
 
-export type WorkerRequest = BootRequest | SearchRequest | ContextRequest | TranscriptRequest;
+export type WorkerRequest = BootRequest | PrepareModelRequest | SearchRequest | ContextRequest | TranscriptRequest;
 export type WorkerPayload =
   | Omit<BootRequest, 'requestId'>
+  | Omit<PrepareModelRequest, 'requestId'>
   | Omit<SearchRequest, 'requestId'>
   | Omit<ContextRequest, 'requestId'>
   | Omit<TranscriptRequest, 'requestId'>;
@@ -102,6 +108,11 @@ export interface BootProgressResponse {
   kind: 'boot:progress';
   requestId: number;
   progress: BootProgressSnapshot;
+}
+
+export interface PrepareModelOkResponse {
+  kind: 'prepare-model:ok';
+  requestId: number;
 }
 
 export interface SearchOkResponse {
@@ -133,6 +144,7 @@ export interface ErrorResponse {
 export type WorkerResponse =
   | BootOkResponse
   | BootProgressResponse
+  | PrepareModelOkResponse
   | SearchOkResponse
   | ContextOkResponse
   | TranscriptOkResponse

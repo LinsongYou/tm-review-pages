@@ -95,8 +95,8 @@ function createInitialBootProgressState(): HeaderLoadState {
       target: 'model',
       name: MODEL_CHIP_LABEL,
       progress: 0,
-      statusText: 'Loads on search',
-      detail: 'Waiting for a search query',
+      statusText: 'Queued after pairs',
+      detail: 'Waiting for TM pairs',
     },
   };
 }
@@ -353,12 +353,13 @@ function App() {
             target: 'model',
             name: getDisplayModelName(response.stats.embeddingModelId),
             progress: 0,
-            statusText: 'Loads on search',
+            statusText: 'Warming cache',
             detail: response.stats.embeddingModelId,
           },
         }));
         setBooting(false);
       });
+      void prepareModel();
     } catch (error) {
       if (isStale?.()) {
         return;
@@ -366,6 +367,22 @@ function App() {
 
       setBooting(false);
       setErrorText(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function prepareModel(): Promise<void> {
+    try {
+      await callWorker({ kind: 'prepare-model' });
+      setModelReady(true);
+    } catch (error) {
+      setBootProgress((current) => ({
+        ...current,
+        model: {
+          ...current.model,
+          statusText: 'Model load failed',
+          detail: error instanceof Error ? error.message : String(error),
+        },
+      }));
     }
   }
 

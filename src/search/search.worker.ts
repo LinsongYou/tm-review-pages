@@ -1099,6 +1099,20 @@ workerScope.addEventListener('message', async (event: MessageEvent<WorkerRequest
         return;
       }
 
+      case 'prepare-model': {
+        const modelProgress = createProgressReporter(
+          request.requestId,
+          'model',
+          getDisplayModelName(QUERY_MODEL_ID),
+        );
+        await ensureExtractor(modelProgress);
+        post({
+          kind: 'prepare-model:ok',
+          requestId: request.requestId,
+        });
+        return;
+      }
+
       case 'search': {
         const modelProgress = createProgressReporter(
           request.requestId,
