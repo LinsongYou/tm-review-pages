@@ -186,7 +186,7 @@ function getIslandZoom(
   const islandSpan = radius * 2;
   const atlasSpan = geometry.radius * 2;
 
-  return clamp((atlasSpan / islandSpan) * 0.72, 1.45, 4.2);
+  return clamp((atlasSpan / islandSpan) * 0.72, 1.45, 8);
 }
 
 function project3dRaw(
@@ -436,7 +436,7 @@ export default function TmAtlasPanel({
         centerX: selectedPoint.x3d,
         centerY: selectedPoint.y3d,
         centerZ: selectedPoint.z3d,
-        zoom: 2.25,
+        zoom: 3.25,
       };
     }
 
@@ -677,7 +677,7 @@ export default function TmAtlasPanel({
                   ? 0.68
                   : 0.58;
 
-      context.fillStyle = isSelected || isSearchHit ? hexToRgba(selected, alpha) : hexToRgba(item.point.color, alpha);
+      context.fillStyle = hexToRgba(isSearchHit && !isSelected ? selected : item.point.color, alpha);
       context.beginPath();
       context.arc(item.x, item.y, radius, 0, Math.PI * 2);
       context.fill();
@@ -875,7 +875,7 @@ export default function TmAtlasPanel({
 
     setView3d((current) => ({
       ...current,
-      zoom: clamp(current.zoom * zoomFactor, 0.42, 4.2),
+      zoom: clamp(current.zoom * zoomFactor, 0.42, 12),
     }));
   }
 
