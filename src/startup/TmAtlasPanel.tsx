@@ -609,6 +609,13 @@ export default function TmAtlasPanel({
       .slice(0, 12)
       .map((result) => projectedByEntryId.get(result.entryId))
       .filter((item): item is ProjectedPoint => !!item && !item.culled);
+    const videoPathPoints = transcriptVideoId
+      ? transcriptItems
+          .map((item) => projectedByEntryId.get(item.entryId))
+          .filter((item): item is ProjectedPoint => !!item && !item.culled)
+      : [];
+    const videoPathEntryIds = new Set(videoPathPoints.map((item) => item.point.entryId));
+    const videoPathColor = selectedPoint?.color ?? videoPathPoints[0]?.point.color ?? selected;
 
     if (rankedSearchHits.length > 1) {
       context.save();
@@ -625,6 +632,20 @@ export default function TmAtlasPanel({
       context.restore();
     }
 
+    if (videoPathPoints.length > 1) {
+      context.save();
+      context.strokeStyle = hexToRgba(videoPathColor, 0.7);
+      context.lineWidth = 1.5;
+      context.beginPath();
+      const firstPoint = videoPathPoints[0]!;
+      context.moveTo(firstPoint.x, firstPoint.y);
+      for (const item of videoPathPoints.slice(1)) {
+        context.lineTo(item.x, item.y);
+      }
+      context.stroke();
+      context.restore();
+    }
+
     for (const item of projectedPoints) {
       if (item.culled) {
         continue;
@@ -633,17 +654,23 @@ export default function TmAtlasPanel({
       const isSelected = item.point.entryId === selectedEntryId;
       const isHovered = item.point.entryId === hoverState?.entryId;
       const isSearchHit = searchHitIds.has(item.point.entryId);
+      const isVideoPathPoint = videoPathEntryIds.has(item.point.entryId);
       const hasSearch = searchHitIds.size > 0;
+      const hasVideoPath = videoPathEntryIds.size > 0;
       const isOutsideSelectedIsland = selectedIslandId !== null && item.point.clusterId !== selectedIslandId;
-      const radius = isSelected ? 5.2 : isHovered ? 4.4 : isSearchHit ? 3.4 : 2.35;
+      const radius = isSelected ? 5.2 : isHovered ? 4.4 : isSearchHit || isVideoPathPoint ? 3.4 : 2.35;
       const alpha = isSelected
         ? 1
         : isHovered
           ? 0.95
           : isSearchHit
             ? 0.86
+            : isVideoPathPoint
+              ? 0.9
             : hasSearch
               ? 0.16
+              : hasVideoPath
+                ? 0.1
               : isOutsideSelectedIsland
                 ? 0.08
                 : selectedIslandId !== null
@@ -654,6 +681,14 @@ export default function TmAtlasPanel({
       context.beginPath();
       context.arc(item.x, item.y, radius, 0, Math.PI * 2);
       context.fill();
+
+      if (isVideoPathPoint && !isSelected && !isHovered) {
+        context.strokeStyle = hexToRgba(videoPathColor, 0.42);
+        context.lineWidth = 1;
+        context.beginPath();
+        context.arc(item.x, item.y, radius + 2.5, 0, Math.PI * 2);
+        context.stroke();
+      }
 
       if (isSelected || isHovered) {
         context.strokeStyle = hexToRgba(text, isSelected ? 0.92 : 0.7);
@@ -684,9 +719,12 @@ export default function TmAtlasPanel({
     searchResults,
     selectedEntryId,
     selectedIslandId,
+    selectedPoint?.color,
     size.height,
     size.width,
     theme,
+    transcriptItems,
+    transcriptVideoId,
     view3d.offsetX,
     view3d.offsetY,
   ]);
