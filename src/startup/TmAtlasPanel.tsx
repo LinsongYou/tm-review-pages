@@ -725,9 +725,7 @@ export default function TmAtlasPanel({
                 ? 0.1
               : isOutsideSelectedIsland
                 ? 0.08
-                : selectedIslandId !== null
-                  ? 0.68
-                  : 0.58;
+                : 0.68;
 
       context.fillStyle = hexToRgba(isSearchHit && !isSelected ? selected : item.point.color, alpha);
       context.beginPath();
@@ -1180,12 +1178,7 @@ export default function TmAtlasPanel({
                     role="button"
                     tabIndex={0}
                     onClick={() => selectEntry(entry.entryId)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        selectEntry(entry.entryId);
-                      }
-                    }}
+                    onKeyDown={(event) => handleSelectKey(event, () => selectEntry(entry.entryId))}
                   >
                     <div className="atlas-island-entry-meta">
                       <button

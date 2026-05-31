@@ -624,7 +624,10 @@ function createModelProgressCallback(reportProgress: ProgressReporter): (info: M
         current.loaded = current.total ?? 1;
         current.total = current.total ?? 1;
         files.set(key, current);
-        const completedFiles = Array.from(files.values()).filter((file) => file.done).length;
+        let completedFiles = 0;
+        for (const file of files.values()) {
+          if (file.done) completedFiles += 1;
+        }
         emit(
           completedFiles === files.size ? 'Finalizing embedding model' : 'Downloading model files',
           `${completedFiles} / ${files.size} files ready`,
@@ -681,10 +684,10 @@ async function ensureExtractor(reportProgress?: ProgressReporter): Promise<Extra
 
 async function embedQuery(query: string, reportProgress?: ProgressReporter): Promise<Float32Array> {
   const featureExtractor = await ensureExtractor(reportProgress);
-  const output = (await featureExtractor(query, {
+  const output = await featureExtractor(query, {
     pooling: 'mean',
     normalize: true,
-  })) as { data: Float32Array | number[] };
+  });
   const data = output.data;
   return data instanceof Float32Array ? data : Float32Array.from(data);
 }
