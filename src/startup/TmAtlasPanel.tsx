@@ -688,7 +688,8 @@ export default function TmAtlasPanel({
 
         <div className="atlas-hud">
           <button className="atlas-title" type="button" onClick={clearAtlas}>
-            TM Atlas
+            <span>Translation</span>
+            <span>Memory</span>
           </button>
 
           <div className="atlas-hud-status" aria-label="Load status">
@@ -713,6 +714,7 @@ export default function TmAtlasPanel({
 
           <button className="atlas-icon-button" type="button" onClick={resetView} title="Reset atlas" aria-label="Reset atlas">
             <ResetIcon className="atlas-button-icon" />
+            <span>Reset</span>
           </button>
 
           <button

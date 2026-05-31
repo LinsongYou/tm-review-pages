@@ -133,6 +133,7 @@ button:disabled {
 }
 
 .atlas-hud {
+  --hud-card-height: 54px;
   top: 14px;
   left: 14px;
   display: flex;
@@ -149,7 +150,7 @@ button:disabled {
 .atlas-title,
 .atlas-icon-button,
 .atlas-theme-toggle {
-  min-height: 52px;
+  height: var(--hud-card-height);
   border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;
@@ -160,19 +161,25 @@ button:disabled {
 .atlas-title {
   display: inline-grid;
   align-content: center;
-  padding: 0 8px;
+  gap: 1px;
+  min-width: 118px;
+  padding: 0 10px;
   color: var(--text);
   font-weight: 800;
   letter-spacing: 0.04em;
+  line-height: 1.05;
+  text-align: left;
   text-transform: uppercase;
 }
 
 .atlas-icon-button {
-  display: inline-grid;
-  width: 52px;
-  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 94px;
+  padding: 0 12px;
   border-color: var(--line);
-  place-items: center;
+  font-weight: 700;
 }
 
 .atlas-icon-button:hover,
@@ -195,7 +202,7 @@ button:disabled {
 }
 
 .atlas-theme-toggle {
-  width: 66px;
+  width: 70px;
   padding: 5px;
   border-color: var(--line);
 }
@@ -205,6 +212,7 @@ button:disabled {
   display: grid;
   grid-template-columns: 1fr 1fr;
   height: 100%;
+  width: 100%;
   border-radius: 5px;
   background: var(--field);
 }
@@ -212,10 +220,10 @@ button:disabled {
 .atlas-theme-toggle-track::before {
   content: '';
   position: absolute;
-  top: 4px;
-  bottom: 4px;
-  left: 4px;
-  width: calc(50% - 4px);
+  top: 5px;
+  bottom: 5px;
+  left: 5px;
+  width: calc(50% - 5px);
   border-radius: 4px;
   background: var(--accent);
   transition: transform 160ms ease;
@@ -251,7 +259,7 @@ button:disabled {
   isolation: isolate;
   display: grid;
   gap: 2px;
-  min-height: 52px;
+  height: var(--hud-card-height);
   min-width: 84px;
   padding: 8px 10px;
   overflow: hidden;
