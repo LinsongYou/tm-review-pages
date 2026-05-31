@@ -7,7 +7,7 @@ import type {
   SemanticLandscapeData,
   SemanticLandscapePoint,
 } from './semantic-landscape';
-import { hexToRgba } from './colors';
+import { hexToRgba, blendHexColors } from './colors';
 
 type ThemeMode = 'dark' | 'light';
 
@@ -716,7 +716,6 @@ export default function TmAtlasPanel({
       context.stroke();
 
       if (selectedVideoPathIndex >= 0) {
-        context.strokeStyle = hexToRgba(videoPathFocusColor, 0.72);
         context.lineWidth = 2;
         const highlightedSegments: Array<[number, number]> = [
           [selectedVideoPathIndex - 1, selectedVideoPathIndex],
@@ -726,6 +725,8 @@ export default function TmAtlasPanel({
           const fromPoint = videoPathPoints[fromIndex];
           const toPoint = videoPathPoints[toIndex];
           if (fromPoint && toPoint) {
+            const blended = blendHexColors(fromPoint.point.color, toPoint.point.color);
+            context.strokeStyle = `rgba(${blended}, 0.72)`;
             context.beginPath();
             context.moveTo(fromPoint.x, fromPoint.y);
             context.lineTo(toPoint.x, toPoint.y);
