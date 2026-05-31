@@ -95,7 +95,8 @@ function createInitialBootProgressState(): HeaderLoadState {
       target: 'model',
       name: MODEL_CHIP_LABEL,
       progress: 0,
-      statusText: 'Preparing embedding model',
+      statusText: 'Loads on search',
+      detail: 'Waiting for a search query',
     },
   };
 }
@@ -117,6 +118,7 @@ function App() {
 
   const [bootStats, setBootStats] = useState<BootStats | null>(null);
   const [bootProgress, setBootProgress] = useState<HeaderLoadState>(createInitialBootProgressState);
+  const [modelReady, setModelReady] = useState(false);
   const [booting, setBooting] = useState(true);
   const [searching, setSearching] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
@@ -163,6 +165,9 @@ function App() {
             ...current,
             [message.progress.target]: message.progress,
           }));
+          if (message.progress.target === 'model' && message.progress.statusText === 'Ready') {
+            setModelReady(true);
+          }
         });
         return;
       }
@@ -322,6 +327,7 @@ function App() {
   async function boot(isStale?: () => boolean): Promise<void> {
     setBooting(true);
     setErrorText(null);
+    setModelReady(false);
     setBootProgress(createInitialBootProgressState());
 
     try {
@@ -344,10 +350,10 @@ function App() {
             detail: `${response.stats.totalEntries.toLocaleString()} pairs loaded`,
           },
           model: {
-            ...current.model,
+            target: 'model',
             name: getDisplayModelName(response.stats.embeddingModelId),
-            progress: 1,
-            statusText: 'Ready',
+            progress: 0,
+            statusText: 'Loads on search',
             detail: response.stats.embeddingModelId,
           },
         }));
@@ -403,7 +409,7 @@ function App() {
     }
 
     if (!bootStats) {
-      setErrorText('The TM database and embedding model are still loading.');
+      setErrorText('The TM database is still loading.');
       return;
     }
 
@@ -549,12 +555,14 @@ function App() {
     },
     {
       label: 'Model',
-      value: bootStats
+      value: modelReady && bootStats
         ? getDisplayModelName(bootStats.embeddingModelId)
-        : formatProgressPercent(bootProgress.model.progress),
+        : bootProgress.model.progress > 0
+          ? formatProgressPercent(bootProgress.model.progress)
+          : 'Idle',
       detail: bootProgress.model.detail ?? bootProgress.model.statusText,
       progress: bootProgress.model.progress,
-      ready: !booting && !!bootStats,
+      ready: modelReady,
     },
   ];
 

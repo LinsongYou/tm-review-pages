@@ -821,30 +821,19 @@ function createModelProgressCallback(reportProgress: ProgressReporter): (info: M
   const files = new Map<string, { loaded: number; total: number | null; done: boolean }>();
 
   const emit = (statusText: string, detail: string, modelId = QUERY_MODEL_ID): void => {
-    let totalBytes = 0;
-    let loadedBytes = 0;
     let completedFiles = 0;
+    let progressTotal = 0;
 
     for (const file of files.values()) {
-      if (file.total !== null) {
-        totalBytes += file.total;
-        loadedBytes += Math.min(file.loaded, file.total);
-      } else if (file.done) {
-        totalBytes += 1;
-        loadedBytes += 1;
-      }
-
       if (file.done) {
         completedFiles += 1;
+        progressTotal += 1;
+      } else if (file.total !== null && file.total > 0) {
+        progressTotal += Math.min(file.loaded / file.total, 1);
       }
     }
 
-    const progress =
-      totalBytes > 0
-        ? loadedBytes / totalBytes
-        : files.size > 0
-          ? completedFiles / files.size
-          : 0;
+    const progress = files.size > 0 ? progressTotal / files.size : 0;
 
     reportProgress({
       name: getDisplayModelName(modelId),
@@ -955,8 +944,8 @@ async function ensureExtractor(reportProgress?: ProgressReporter): Promise<Extra
   return loadedExtractor;
 }
 
-async function embedQuery(query: string): Promise<Float32Array> {
-  const featureExtractor = await ensureExtractor();
+async function embedQuery(query: string, reportProgress?: ProgressReporter): Promise<Float32Array> {
+  const featureExtractor = await ensureExtractor(reportProgress);
   const output = (await featureExtractor(query, {
     pooling: 'mean',
     normalize: true,
@@ -1002,7 +991,10 @@ function searchSemantic(
   return topHits.map(({ entryIndex, score }) => toSearchResult(loaded.entries[entryIndex]!, score));
 }
 
-async function handleSearch(request: SearchRequest): Promise<{ results: SearchResult[]; note?: string }> {
+async function handleSearch(
+  request: SearchRequest,
+  reportProgress?: ProgressReporter,
+): Promise<{ results: SearchResult[]; note?: string }> {
   const loaded = ensureState();
   const query = request.query.trim();
 
@@ -1017,7 +1009,7 @@ async function handleSearch(request: SearchRequest): Promise<{ results: SearchRe
     };
   }
 
-  const queryVector = await embedQuery(query);
+  const queryVector = await embedQuery(query, reportProgress);
   if (queryVector.length !== loaded.vectorDim) {
     throw new Error(
       `Query vector dimension mismatch: expected ${loaded.vectorDim}, got ${queryVector.length}.`,
@@ -1097,16 +1089,8 @@ workerScope.addEventListener('message', async (event: MessageEvent<WorkerRequest
     switch (request.kind) {
       case 'boot': {
         const pairsProgress = createProgressReporter(request.requestId, 'pairs', PAIRS_LABEL);
-        const modelProgress = createProgressReporter(
-          request.requestId,
-          'model',
-          getDisplayModelName(QUERY_MODEL_ID),
-        );
 
-        const [stats] = await Promise.all([
-          loadDatabase(request, pairsProgress),
-          ensureExtractor(modelProgress),
-        ]);
+        const stats = await loadDatabase(request, pairsProgress);
         post({
           kind: 'boot:ok',
           requestId: request.requestId,
@@ -1116,7 +1100,12 @@ workerScope.addEventListener('message', async (event: MessageEvent<WorkerRequest
       }
 
       case 'search': {
-        const { results, note } = await handleSearch(request);
+        const modelProgress = createProgressReporter(
+          request.requestId,
+          'model',
+          getDisplayModelName(QUERY_MODEL_ID),
+        );
+        const { results, note } = await handleSearch(request, modelProgress);
         post({
           kind: 'search:ok',
           requestId: request.requestId,
