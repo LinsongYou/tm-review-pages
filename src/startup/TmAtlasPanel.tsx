@@ -412,6 +412,7 @@ export default function TmAtlasPanel({
   const selectedSearchResult = selectedEntryId ? searchResultById.get(selectedEntryId) ?? null : null;
   const selectedEntry = selectedPoint ?? selectedSearchResult ?? null;
   const selectedCluster = selectedPoint ? clusterById.get(selectedPoint.clusterId)! : null;
+  const showTranscriptPanel = !!transcriptVideoId;
   const selectedIsland = selectedIslandId !== null ? clusterById.get(selectedIslandId)! : null;
   const selectedIslandEntries = selectedIsland ? islandEntriesById.get(selectedIsland.id)! : [];
   const selectedIslandPanel = useMemo<IslandPanelData | null>(() => {
@@ -428,6 +429,16 @@ export default function TmAtlasPanel({
   }, [data, selectedIsland, selectedIslandEntries, visualGeometry]);
   const hoveredPoint = hoverState ? pointById.get(hoverState.entryId)! : null;
   const visualFocus = useMemo<VisualFocus | null>(() => {
+    if (showTranscriptPanel && selectedPoint) {
+      return {
+        key: `entry:${selectedPoint.entryId}`,
+        centerX: selectedPoint.x3d,
+        centerY: selectedPoint.y3d,
+        centerZ: selectedPoint.z3d,
+        zoom: 3.25,
+      };
+    }
+
     if (selectedIslandPanel) {
       const cluster = selectedIslandPanel.cluster;
       return {
@@ -450,7 +461,7 @@ export default function TmAtlasPanel({
     }
 
     return null;
-  }, [selectedIslandPanel, selectedPoint]);
+  }, [selectedIslandPanel, selectedPoint, showTranscriptPanel]);
   const projectionGeometry = useMemo(
     () => geometryWithFocus(visualGeometry, visualFocus),
     [visualFocus, visualGeometry],
@@ -480,7 +491,6 @@ export default function TmAtlasPanel({
     points.sort((left, right) => left.depth - right.depth);
     return points;
   }, [clusterById, data, projectionGeometry, size.height, size.width, view3d, visualFocus]);
-  const showTranscriptPanel = !!transcriptVideoId;
   const transcriptHasTimestamps = transcriptItems.some((item) => item.startMs !== null || item.endMs !== null);
   const showIslandBrowser =
     !!data && searchResults.length === 0 && !query.trim() && !selectedIslandPanel && !showTranscriptPanel;
@@ -626,12 +636,12 @@ export default function TmAtlasPanel({
       : [];
     const videoPathEntryIds = new Set(videoPathPoints.map((item) => item.point.entryId));
     const selectedVideoPathIndex = videoPathPoints.findIndex((item) => item.point.entryId === selectedEntryId);
+    const videoPathFocusColor = '#ffffff';
     const emphasizedVideoPathIds = new Set(
       [selectedVideoPathIndex - 1, selectedVideoPathIndex, selectedVideoPathIndex + 1]
         .filter((index) => index >= 0 && index < videoPathPoints.length)
         .map((index) => videoPathPoints[index]!.point.entryId),
     );
-    const videoPathFocusColor = selectedPoint?.color ?? videoPathPoints[0]?.point.color ?? selected;
 
     if (rankedSearchHits.length > 1) {
       context.save();
@@ -765,7 +775,6 @@ export default function TmAtlasPanel({
     searchResults,
     selectedEntryId,
     selectedIslandId,
-    selectedPoint?.color,
     size.height,
     size.width,
     theme,
