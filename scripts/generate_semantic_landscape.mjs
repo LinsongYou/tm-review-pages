@@ -19,24 +19,6 @@ const UMAP_EPOCHS = 220;
 const CLUSTER_ITERATIONS = 16;
 const SAMPLE_COUNT = 4;
 const PHRASE_COUNT = 8;
-const PALETTE = [
-  '#2fb7a5',
-  '#f06449',
-  '#8ab17d',
-  '#f2b84b',
-  '#7c6fd3',
-  '#4d96c8',
-  '#d668a5',
-  '#58a36d',
-  '#d98c45',
-  '#6fc2d0',
-  '#b28bd8',
-  '#c4a746',
-  '#e2766f',
-  '#5f9ea0',
-  '#a6a15e',
-  '#88b7e0',
-];
 const STOPWORDS = new Set(
   `
   a about actually after again all almost also am an and any anyway are around as at back be
@@ -130,98 +112,75 @@ function squaredDistance(left, right) {
   return total;
 }
 
-function dot(left, right) {
-  let total = 0;
-  for (let index = 0; index < left.length; index += 1) {
-    total += left[index] * right[index];
-  }
-  return total;
-}
-
-function initializeSemanticCenters(vectors, clusterCount) {
-  const random = seededRandom(RANDOM_SEED + 4_000);
-  const firstIndex = Math.floor(random() * vectors.length);
-  const centers = [vectors[firstIndex].slice()];
-  const nearestDistances = vectors.map((vector) => Math.max(0, 1 - dot(vector, centers[0])));
+function initializeVisualCenters(points, clusterCount) {
+  const centers = [points[0].slice()];
 
   while (centers.length < clusterCount) {
-    const totalDistance = nearestDistances.reduce((total, value) => total + value, 0);
-    let threshold = random() * totalDistance;
-    let nextIndex = vectors.length - 1;
+    let bestIndex = 0;
+    let bestDistance = -1;
 
-    for (let index = 0; index < nearestDistances.length; index += 1) {
-      threshold -= nearestDistances[index];
-      if (threshold <= 0) {
-        nextIndex = index;
-        break;
+    for (let index = 0; index < points.length; index += 1) {
+      const point = points[index];
+      let nearestDistance = Number.POSITIVE_INFINITY;
+      for (const center of centers) {
+        nearestDistance = Math.min(nearestDistance, squaredDistance(point, center));
+      }
+
+      if (nearestDistance > bestDistance) {
+        bestDistance = nearestDistance;
+        bestIndex = index;
       }
     }
 
-    const center = vectors[nextIndex].slice();
-    centers.push(center);
-
-    for (let index = 0; index < vectors.length; index += 1) {
-      const distance = Math.max(0, 1 - dot(vectors[index], center));
-      if (distance < nearestDistances[index]) {
-        nearestDistances[index] = distance;
-      }
-    }
+    centers.push(points[bestIndex].slice());
   }
 
   return centers;
 }
 
-function clusterSemanticVectors(vectors, scaled2d, clusterCount) {
-  let centers = initializeSemanticCenters(vectors, clusterCount);
-  let assignments = new Array(vectors.length).fill(0);
+function clusterVisualCoordinates(points, clusterCount) {
+  let centers = initializeVisualCenters(points, clusterCount);
+  let assignments = new Array(points.length).fill(0);
 
   for (let iteration = 0; iteration < CLUSTER_ITERATIONS; iteration += 1) {
-    const sums = Array.from({ length: clusterCount }, () => new Array(vectors[0].length).fill(0));
+    const sums = Array.from({ length: clusterCount }, () => new Array(points[0].length).fill(0));
     const counts = new Array(clusterCount).fill(0);
-    const bestScores = new Array(vectors.length).fill(-Infinity);
 
-    for (let vectorIndex = 0; vectorIndex < vectors.length; vectorIndex += 1) {
-      const vector = vectors[vectorIndex];
+    for (let pointIndex = 0; pointIndex < points.length; pointIndex += 1) {
+      const point = points[pointIndex];
       let bestCluster = 0;
-      let bestScore = -Infinity;
+      let bestDistance = Number.POSITIVE_INFINITY;
 
       for (let clusterId = 0; clusterId < clusterCount; clusterId += 1) {
-        const score = dot(vector, centers[clusterId]);
-        if (score > bestScore) {
-          bestScore = score;
+        const distance = squaredDistance(point, centers[clusterId]);
+        if (distance < bestDistance) {
+          bestDistance = distance;
           bestCluster = clusterId;
         }
       }
 
-      assignments[vectorIndex] = bestCluster;
-      bestScores[vectorIndex] = bestScore;
+      assignments[pointIndex] = bestCluster;
       counts[bestCluster] += 1;
-      for (let dimension = 0; dimension < vector.length; dimension += 1) {
-        sums[bestCluster][dimension] += vector[dimension];
+      for (let dimension = 0; dimension < point.length; dimension += 1) {
+        sums[bestCluster][dimension] += point[dimension];
       }
     }
 
     centers = centers.map((center, clusterId) => {
       if (counts[clusterId] === 0) {
-        const replacementIndex = bestScores.indexOf(Math.min(...bestScores));
-        return vectors[replacementIndex].slice();
+        return center;
       }
-      return normalizeVector(sums[clusterId]);
+      return sums[clusterId].map((value) => value / counts[clusterId]);
     });
   }
 
-  const clusterPositions = centers.map((center, id) => {
-    const members = assignments
-      .map((clusterId, index) => (clusterId === id ? index : -1))
-      .filter((index) => index >= 0);
-    return {
-      id,
-      x: members.reduce((total, index) => total + scaled2d[index][0], 0) / members.length,
-      y: members.reduce((total, index) => total + scaled2d[index][1], 0) / members.length,
-    };
-  });
-  const orderedClusterIds = clusterPositions
-    .sort((left, right) => left.x - right.x || left.y - right.y)
+  const orderedClusterIds = centers
+    .map((center, id) => ({ id, center }))
+    .sort((left, right) =>
+      left.center[0] - right.center[0] ||
+      left.center[1] - right.center[1] ||
+      left.center[2] - right.center[2],
+    )
     .map((cluster) => cluster.id);
   const remap = new Map(orderedClusterIds.map((clusterId, index) => [clusterId, index]));
 
@@ -229,6 +188,20 @@ function clusterSemanticVectors(vectors, scaled2d, clusterCount) {
   centers = orderedClusterIds.map((clusterId) => centers[clusterId]);
 
   return { assignments, centers };
+}
+
+function toHexChannel(value) {
+  return Math.round(value).toString(16).padStart(2, '0');
+}
+
+function visualColorFromCoordinate(coordinate) {
+  const x = coordinate[0] / 1000;
+  const y = coordinate[1] / 1000;
+  const z = coordinate[2] / 1000;
+  const red = 42 + x * 68 + z * 24;
+  const green = 112 + y * 92 + z * 40;
+  const blue = 72 + (1 - x) * 64 + z * 52;
+  return `#${toHexChannel(red)}${toHexChannel(green)}${toHexChannel(blue)}`;
 }
 
 function tokenize(text) {
@@ -313,7 +286,7 @@ function labelFromPhrases(phrases) {
   return selected.map(titleCasePhrase).join(' / ');
 }
 
-function buildClusters(entries, vectors, assignments, scaled2d, scaled3d, centers) {
+function buildClusters(entries, assignments, scaled2d, scaled3d, centers) {
   const clusterCount = centers.length;
   const phraseStats = buildPhraseStats(entries, assignments, clusterCount);
   const memberIndexes = Array.from({ length: clusterCount }, () => []);
@@ -337,9 +310,9 @@ function buildClusters(entries, vectors, assignments, scaled2d, scaled3d, center
     const sampleIndexes = members
       .map((index) => ({
         index,
-        score: dot(vectors[index], rawCenter),
+        distance: squaredDistance(scaled3d[index], rawCenter),
       }))
-      .sort((left, right) => right.score - left.score || entries[left.index].entryId.localeCompare(entries[right.index].entryId))
+      .sort((left, right) => left.distance - right.distance || entries[left.index].entryId.localeCompare(entries[right.index].entryId))
       .slice(0, SAMPLE_COUNT)
       .map((item) => item.index);
 
@@ -348,7 +321,7 @@ function buildClusters(entries, vectors, assignments, scaled2d, scaled3d, center
       label: labelFromPhrases(phraseStats[clusterId]),
       labelMode: 'descriptive',
       labelConfidence: 1,
-      color: PALETTE[clusterId % PALETTE.length],
+      color: visualColorFromCoordinate(center3d),
       size: members.length,
       videoCount: videoIds.size,
       x: center2d[0],
@@ -430,8 +403,8 @@ async function main() {
   const scaled2d = scaleCoordinates(coords2d);
   const scaled3d = scaleCoordinates(coords3d);
   const clusterCount = chooseClusterCount(entries.length);
-  const { assignments, centers } = clusterSemanticVectors(vectors, scaled2d, clusterCount);
-  const clusters = buildClusters(entries, vectors, assignments, scaled2d, scaled3d, centers);
+  const { assignments, centers } = clusterVisualCoordinates(scaled3d, clusterCount);
+  const clusters = buildClusters(entries, assignments, scaled2d, scaled3d, centers);
   const points = entries.map((entry, index) => ({
     entryId: entry.entryId,
     videoId: entry.videoId,
@@ -448,12 +421,14 @@ async function main() {
     y3d: scaled3d[index][1],
     z3d: scaled3d[index][2],
     clusterId: assignments[index],
+    color: visualColorFromCoordinate(scaled3d[index]),
   }));
 
   const payload = {
-    version: 6,
+    version: 7,
     projection: 'umap-2d-3d',
-    clusterAlgorithm: 'semantic-spherical-kmeans',
+    clusterAlgorithm: 'umap-3d-visual-kmeans',
+    clusterBasis: 'umap-3d-visual-island',
     generatedAt: new Date().toISOString(),
     sourceDb: path.basename(DB_PATH),
     modelId: MODEL_ID,

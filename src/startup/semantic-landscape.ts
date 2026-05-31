@@ -44,6 +44,7 @@ export interface SemanticLandscapePoint {
   x3d: number;
   y3d: number;
   z3d: number;
+  color: string;
   clusterId: number;
 }
 
@@ -88,6 +89,7 @@ export interface SemanticLandscapeData {
   version: number;
   projection: string;
   clusterAlgorithm: string;
+  clusterBasis?: 'semantic-vector' | 'umap-3d-visual-island';
   generatedAt: string;
   sourceDb: string;
   modelId: string;

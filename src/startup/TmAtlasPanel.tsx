@@ -55,6 +55,22 @@ interface View3d {
   offsetY: number;
 }
 
+interface VisualGeometry {
+  centerX: number;
+  centerY: number;
+  centerZ: number;
+  radius: number;
+}
+
+interface RawProjected3d {
+  point: SemanticLandscapePoint;
+  cluster: SemanticLandscapeCluster;
+  rawX: number;
+  rawY: number;
+  depth: number;
+  culled: boolean;
+}
+
 interface ProjectedPoint {
   point: SemanticLandscapePoint;
   cluster: SemanticLandscapeCluster;
@@ -99,10 +115,40 @@ function project2d(point: SemanticLandscapePoint, width: number, height: number,
   return { x, y, depth: 0, culled: false };
 }
 
-function project3d(point: SemanticLandscapePoint, width: number, height: number, view: View3d) {
-  const x = ((point.x3d / 1000) - 0.5) * view.zoom;
-  const y = (0.5 - (point.y3d / 1000)) * view.zoom;
-  const z = ((point.z3d / 1000) - 0.5) * view.zoom;
+function percentile(values: number[], share: number): number {
+  const sorted = [...values].sort((left, right) => left - right);
+  const index = Math.min(sorted.length - 1, Math.max(0, Math.round((sorted.length - 1) * share)));
+  return sorted[index] ?? 1;
+}
+
+function createVisualGeometry(points: SemanticLandscapePoint[]): VisualGeometry {
+  const count = Math.max(1, points.length);
+  const centerX = points.reduce((total, point) => total + point.x3d, 0) / count;
+  const centerY = points.reduce((total, point) => total + point.y3d, 0) / count;
+  const centerZ = points.reduce((total, point) => total + point.z3d, 0) / count;
+  const radius = Math.max(
+    percentile(points.map((point) => Math.abs(point.x3d - centerX)), 0.98),
+    percentile(points.map((point) => Math.abs(point.y3d - centerY)), 0.98),
+    percentile(points.map((point) => Math.abs(point.z3d - centerZ)), 0.98),
+    1,
+  );
+
+  return {
+    centerX,
+    centerY,
+    centerZ,
+    radius,
+  };
+}
+
+function project3dRaw(
+  point: SemanticLandscapePoint,
+  view: View3d,
+  geometry: VisualGeometry,
+) {
+  const x = (point.x3d - geometry.centerX) / (geometry.radius * 2);
+  const y = (geometry.centerY - point.y3d) / (geometry.radius * 2);
+  const z = (point.z3d - geometry.centerZ) / (geometry.radius * 2);
   const cosY = Math.cos(view.rotateY);
   const sinY = Math.sin(view.rotateY);
   const cosX = Math.cos(view.rotateX);
@@ -112,14 +158,30 @@ function project3d(point: SemanticLandscapePoint, width: number, height: number,
   const y1 = y * cosX - z1 * sinX;
   const z2 = y * sinX + z1 * cosX;
   const perspective = 1 / (1 + z2 * 0.72);
-  const span = Math.min(width, height) * 0.82;
 
   return {
-    x: x1 * perspective * span + width / 2 + view.offsetX,
-    y: y1 * perspective * span + height / 2 + view.offsetY,
+    rawX: x1 * perspective,
+    rawY: y1 * perspective,
     depth: z2,
     culled: z2 < -1.1,
   };
+}
+
+function fitProjected3d(items: RawProjected3d[], width: number, height: number) {
+  const visible = items.filter((item) => !item.culled);
+  const count = Math.max(1, visible.length);
+  const centerX = visible.reduce((total, item) => total + item.rawX, 0) / count;
+  const centerY = visible.reduce((total, item) => total + item.rawY, 0) / count;
+  const radius = Math.max(
+    percentile(
+      visible.map((item) => Math.hypot(item.rawX - centerX, item.rawY - centerY)),
+      0.98,
+    ),
+    0.01,
+  );
+  const scale = (Math.min(width, height) * 0.44) / radius;
+
+  return { centerX, centerY, scale };
 }
 
 function getEntryText(entry: SemanticLandscapePoint | SearchResult | null): string {
@@ -172,6 +234,10 @@ export default function TmAtlasPanel({
     () => new Map(searchResults.map((result) => [result.entryId, result])),
     [searchResults],
   );
+  const visualGeometry = useMemo(
+    () => createVisualGeometry(data?.points ?? []),
+    [data],
+  );
 
   const projectedPoints = useMemo<ProjectedPoint[]>(() => {
     if (!data) {
@@ -179,26 +245,37 @@ export default function TmAtlasPanel({
     }
 
     const firstCluster = data.clusters[0]!;
-    const points = data.points.map((point) => {
-      const cluster = clusterById.get(point.clusterId);
-      const projected =
-        mode === '3d'
-          ? project3d(point, size.width, size.height, view3d)
-          : project2d(point, size.width, size.height, view2d);
+    const points =
+      mode === '3d'
+        ? (() => {
+            const rawItems = data.points.map((point): RawProjected3d => ({
+              point,
+              cluster: clusterById.get(point.clusterId) ?? firstCluster,
+              ...project3dRaw(point, view3d, visualGeometry),
+            }));
+            const fitted = fitProjected3d(rawItems, size.width, size.height);
 
-      return {
-        point,
-        cluster: cluster ?? firstCluster,
-        ...projected,
-      };
-    });
+            return rawItems.map((item) => ({
+              point: item.point,
+              cluster: item.cluster,
+              x: (item.rawX - fitted.centerX) * fitted.scale * view3d.zoom + size.width / 2 + view3d.offsetX,
+              y: (item.rawY - fitted.centerY) * fitted.scale * view3d.zoom + size.height / 2 + view3d.offsetY,
+              depth: item.depth,
+              culled: item.culled,
+            }));
+          })()
+        : data.points.map((point) => ({
+            point,
+            cluster: clusterById.get(point.clusterId) ?? firstCluster,
+            ...project2d(point, size.width, size.height, view2d),
+          }));
 
     if (mode === '3d') {
       points.sort((left, right) => left.depth - right.depth);
     }
 
     return points;
-  }, [clusterById, data, mode, size.height, size.width, view2d, view3d]);
+  }, [clusterById, data, mode, size.height, size.width, view2d, view3d, visualGeometry]);
 
   const selectedPoint = selectedEntryId ? pointById.get(selectedEntryId) ?? null : null;
   const selectedSearchResult = selectedEntryId ? searchResultById.get(selectedEntryId) ?? null : null;
@@ -251,7 +328,8 @@ export default function TmAtlasPanel({
     const background = theme === 'dark' ? '#0b0e0d' : '#f7f4ef';
     const grid = theme === 'dark' ? 'rgba(238, 231, 216, 0.07)' : 'rgba(50, 44, 38, 0.11)';
     const text = theme === 'dark' ? '#f4efe5' : '#211f1b';
-    const selected = '#ffb000';
+    const computedStyle = window.getComputedStyle(document.documentElement);
+    const selected = computedStyle.getPropertyValue('--accent').trim();
 
     context.fillStyle = background;
     context.fillRect(0, 0, size.width, size.height);
@@ -305,7 +383,7 @@ export default function TmAtlasPanel({
       const radius = isSelected ? 5.2 : isHovered ? 4.4 : isSearchHit ? 3.4 : mode === '3d' ? 2.35 : 1.85;
       const alpha = isSelected ? 1 : isHovered ? 0.95 : isSearchHit ? 0.86 : hasSearch ? 0.16 : 0.58;
 
-      context.fillStyle = isSelected || isSearchHit ? hexToRgba(selected, alpha) : hexToRgba(item.cluster.color, alpha);
+      context.fillStyle = isSelected || isSearchHit ? hexToRgba(selected, alpha) : hexToRgba(item.point.color, alpha);
       context.beginPath();
       context.arc(item.x, item.y, radius, 0, Math.PI * 2);
       context.fill();
@@ -486,6 +564,8 @@ export default function TmAtlasPanel({
   function resetView(): void {
     setView2d(INITIAL_VIEW_2D);
     setView3d(INITIAL_VIEW_3D);
+    setHoveredEntryId(null);
+    onClear();
   }
 
   return (
@@ -530,7 +610,7 @@ export default function TmAtlasPanel({
             </button>
           </div>
 
-          <button className="atlas-icon-button" type="button" onClick={resetView} title="Reset view">
+          <button className="atlas-icon-button" type="button" onClick={resetView} title="Reset atlas">
             Reset
           </button>
 
