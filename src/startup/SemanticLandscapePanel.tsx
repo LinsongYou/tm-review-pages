@@ -43,16 +43,17 @@ function formatLabelConfidence(value: number): string {
 
 function describeClusterLabel(cluster: SemanticLandscapeCluster): string {
   const confidence = formatLabelConfidence(cluster.labelConfidence);
+  const prefix = `${cluster.description} | ${cluster.videoCount.toLocaleString()} videos`;
 
   if (cluster.labelMode === 'theme') {
-    return `Theme label | ${cluster.videoCount.toLocaleString()} videos | ${confidence} confidence`;
+    return `${prefix} | Theme label | ${confidence} confidence`;
   }
 
   if (cluster.labelMode === 'provisional') {
-    return `Provisional label | ${cluster.videoCount.toLocaleString()} videos | ${confidence} confidence`;
+    return `${prefix} | Provisional label | ${confidence} confidence`;
   }
 
-  return `Descriptive label | ${cluster.videoCount.toLocaleString()} videos | ${confidence} confidence`;
+  return `${prefix} | Descriptive label | ${confidence} confidence`;
 }
 
 export default function SemanticLandscapePanel({
@@ -245,7 +246,7 @@ export default function SemanticLandscapePanel({
       const radius = isSelected ? 4.2 : isHovered ? 3.8 : 1.7;
       const alpha = dimmed ? 0.08 : isSelected ? 0.98 : isHovered ? 0.82 : 0.34;
 
-      context.fillStyle = hexToRgba(cluster.color, alpha);
+      context.fillStyle = hexToRgba(point.color, alpha);
       context.beginPath();
       context.arc(x, y, radius, 0, Math.PI * 2);
       context.fill();

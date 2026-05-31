@@ -325,9 +325,9 @@ export default function TmAtlasPanel({
     context.setTransform(dpr, 0, 0, dpr, 0, 0);
     context.clearRect(0, 0, size.width, size.height);
 
-    const background = theme === 'dark' ? '#0b0e0d' : '#f7f4ef';
-    const grid = theme === 'dark' ? 'rgba(238, 231, 216, 0.07)' : 'rgba(50, 44, 38, 0.11)';
-    const text = theme === 'dark' ? '#f4efe5' : '#211f1b';
+    const background = theme === 'dark' ? '#06100b' : '#f2f8f1';
+    const grid = theme === 'dark' ? 'rgba(197, 228, 203, 0.08)' : 'rgba(51, 104, 72, 0.12)';
+    const text = theme === 'dark' ? '#edf8ef' : '#17251b';
     const computedStyle = window.getComputedStyle(document.documentElement);
     const selected = computedStyle.getPropertyValue('--accent').trim();
 
@@ -673,11 +673,14 @@ export default function TmAtlasPanel({
           {selectedEntry ? (
             <article className="atlas-entry-detail">
               {selectedCluster ? (
-                <div className="atlas-region-line" style={{ ['--cluster-color' as string]: selectedCluster.color }}>
-                  <span />
-                  <strong>{selectedCluster.label}</strong>
-                  <em>{selectedCluster.size.toLocaleString()} lines</em>
-                </div>
+                <>
+                  <div className="atlas-region-line" style={{ ['--cluster-color' as string]: selectedCluster.color }}>
+                    <span />
+                    <strong>{selectedCluster.label}</strong>
+                    <em>{selectedCluster.size.toLocaleString()} lines</em>
+                  </div>
+                  <p className="atlas-region-description">{selectedCluster.description}</p>
+                </>
               ) : null}
 
               <div className="atlas-entry-meta">

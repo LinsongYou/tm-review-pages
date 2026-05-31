@@ -405,6 +405,13 @@ button:disabled {
   white-space: nowrap;
 }
 
+.atlas-region-description {
+  margin: 0;
+  color: var(--muted-strong);
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+
 .atlas-entry-meta {
   display: flex;
   justify-content: space-between;

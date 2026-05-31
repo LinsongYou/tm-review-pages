@@ -16,7 +16,11 @@ const UMAP_NEIGHBORS = 22;
 const UMAP_MIN_DIST = 0.035;
 const UMAP_SPREAD = 1.2;
 const UMAP_EPOCHS = 220;
-const CLUSTER_ITERATIONS = 16;
+const ISLAND_NEIGHBOR_COUNT = 7;
+const ISLAND_EDGE_STRENGTH = 0.7;
+const ISLAND_GRID_CELL_SIZE = 44;
+const ISLAND_CANDIDATE_COUNT = 72;
+const ISLAND_MIN_SEED_SIZE = 40;
 const SAMPLE_COUNT = 4;
 const PHRASE_COUNT = 8;
 const STOPWORDS = new Set(
@@ -99,10 +103,6 @@ function runUmap(vectors, nComponents, seedOffset) {
   return umap.fit(vectors);
 }
 
-function chooseClusterCount(entryCount) {
-  return Math.max(14, Math.min(24, Math.round(Math.sqrt(entryCount / 48))));
-}
-
 function squaredDistance(left, right) {
   let total = 0;
   for (let index = 0; index < left.length; index += 1) {
@@ -112,96 +112,245 @@ function squaredDistance(left, right) {
   return total;
 }
 
-function initializeVisualCenters(points, clusterCount) {
-  const centers = [points[0].slice()];
-
-  while (centers.length < clusterCount) {
-    let bestIndex = 0;
-    let bestDistance = -1;
-
-    for (let index = 0; index < points.length; index += 1) {
-      const point = points[index];
-      let nearestDistance = Number.POSITIVE_INFINITY;
-      for (const center of centers) {
-        nearestDistance = Math.min(nearestDistance, squaredDistance(point, center));
-      }
-
-      if (nearestDistance > bestDistance) {
-        bestDistance = nearestDistance;
-        bestIndex = index;
-      }
-    }
-
-    centers.push(points[bestIndex].slice());
-  }
-
-  return centers;
+function cellKey(x, y, z) {
+  return `${x},${y},${z}`;
 }
 
-function clusterVisualCoordinates(points, clusterCount) {
-  let centers = initializeVisualCenters(points, clusterCount);
-  let assignments = new Array(points.length).fill(0);
+function buildCoordinateGrid(points) {
+  const buckets = new Map();
+  const pointCells = [];
 
-  for (let iteration = 0; iteration < CLUSTER_ITERATIONS; iteration += 1) {
-    const sums = Array.from({ length: clusterCount }, () => new Array(points[0].length).fill(0));
-    const counts = new Array(clusterCount).fill(0);
-
-    for (let pointIndex = 0; pointIndex < points.length; pointIndex += 1) {
-      const point = points[pointIndex];
-      let bestCluster = 0;
-      let bestDistance = Number.POSITIVE_INFINITY;
-
-      for (let clusterId = 0; clusterId < clusterCount; clusterId += 1) {
-        const distance = squaredDistance(point, centers[clusterId]);
-        if (distance < bestDistance) {
-          bestDistance = distance;
-          bestCluster = clusterId;
-        }
-      }
-
-      assignments[pointIndex] = bestCluster;
-      counts[bestCluster] += 1;
-      for (let dimension = 0; dimension < point.length; dimension += 1) {
-        sums[bestCluster][dimension] += point[dimension];
-      }
-    }
-
-    centers = centers.map((center, clusterId) => {
-      if (counts[clusterId] === 0) {
-        return center;
-      }
-      return sums[clusterId].map((value) => value / counts[clusterId]);
-    });
+  for (let index = 0; index < points.length; index += 1) {
+    const point = points[index];
+    const cell = point.map((value) => Math.floor(value / ISLAND_GRID_CELL_SIZE));
+    const key = cellKey(cell[0], cell[1], cell[2]);
+    const bucket = buckets.get(key) ?? [];
+    bucket.push(index);
+    buckets.set(key, bucket);
+    pointCells.push(cell);
   }
 
-  const orderedClusterIds = centers
-    .map((center, id) => ({ id, center }))
-    .sort((left, right) =>
-      left.center[0] - right.center[0] ||
-      left.center[1] - right.center[1] ||
-      left.center[2] - right.center[2],
-    )
-    .map((cluster) => cluster.id);
-  const remap = new Map(orderedClusterIds.map((clusterId, index) => [clusterId, index]));
+  return { buckets, pointCells };
+}
 
-  assignments = assignments.map((clusterId) => remap.get(clusterId));
-  centers = orderedClusterIds.map((clusterId) => centers[clusterId]);
+function nearbyCandidateIndexes(grid, cell) {
+  const candidates = [];
+  const maxShell = Math.ceil(1000 / ISLAND_GRID_CELL_SIZE) + 1;
 
-  return { assignments, centers };
+  for (let shell = 0; candidates.length < ISLAND_CANDIDATE_COUNT && shell <= maxShell; shell += 1) {
+    for (let dx = -shell; dx <= shell; dx += 1) {
+      for (let dy = -shell; dy <= shell; dy += 1) {
+        for (let dz = -shell; dz <= shell; dz += 1) {
+          if (Math.max(Math.abs(dx), Math.abs(dy), Math.abs(dz)) !== shell) {
+            continue;
+          }
+
+          const bucket = grid.buckets.get(cellKey(cell[0] + dx, cell[1] + dy, cell[2] + dz));
+          if (bucket) {
+            candidates.push(...bucket);
+          }
+        }
+      }
+    }
+  }
+
+  return candidates;
+}
+
+function buildNearestNeighbors(points) {
+  const grid = buildCoordinateGrid(points);
+  const neighbors = [];
+  const neighborDistances = [];
+
+  for (let index = 0; index < points.length; index += 1) {
+    const point = points[index];
+    const candidates = nearbyCandidateIndexes(grid, grid.pointCells[index]);
+    const nearest = candidates
+      .filter((candidateIndex) => candidateIndex !== index)
+      .map((candidateIndex) => ({
+        index: candidateIndex,
+        distance: squaredDistance(point, points[candidateIndex]),
+      }))
+      .sort((left, right) => left.distance - right.distance || left.index - right.index)
+      .slice(0, ISLAND_NEIGHBOR_COUNT);
+
+    neighbors.push(nearest.map((candidate) => candidate.index));
+    neighborDistances.push(nearest.at(-1)?.distance ?? Number.POSITIVE_INFINITY);
+  }
+
+  return { neighbors, neighborDistances };
+}
+
+function createDisjointSet(size) {
+  const parents = Array.from({ length: size }, (_, index) => index);
+
+  function find(index) {
+    while (parents[index] !== index) {
+      parents[index] = parents[parents[index]];
+      index = parents[index];
+    }
+    return index;
+  }
+
+  function union(left, right) {
+    const leftRoot = find(left);
+    const rightRoot = find(right);
+    if (leftRoot !== rightRoot) {
+      parents[rightRoot] = leftRoot;
+    }
+  }
+
+  return { find, union };
+}
+
+function centerOfMembers(points, members) {
+  const center = new Array(points[0].length).fill(0);
+  for (const member of members) {
+    const point = points[member];
+    for (let dimension = 0; dimension < point.length; dimension += 1) {
+      center[dimension] += point[dimension];
+    }
+  }
+  return center.map((value) => value / members.length);
+}
+
+function componentSort(left, right) {
+  return (
+    right.members.length - left.members.length ||
+    left.center[0] - right.center[0] ||
+    left.center[1] - right.center[1] ||
+    left.center[2] - right.center[2]
+  );
+}
+
+function mergeComponentIntoIsland(island, component) {
+  const islandSize = island.members.length;
+  const componentSize = component.members.length;
+  const nextSize = islandSize + componentSize;
+
+  island.center = island.center.map(
+    (value, dimension) => (value * islandSize + component.center[dimension] * componentSize) / nextSize,
+  );
+  island.members.push(...component.members);
+}
+
+function clusterMutualKnnIslands(points) {
+  const { neighbors, neighborDistances } = buildNearestNeighbors(points);
+  const neighborSets = neighbors.map((indexes) => new Set(indexes));
+  const disjointSet = createDisjointSet(points.length);
+
+  for (let index = 0; index < points.length; index += 1) {
+    for (const neighborIndex of neighbors[index]) {
+      if (neighborIndex <= index || !neighborSets[neighborIndex].has(index)) {
+        continue;
+      }
+
+      const distance = squaredDistance(points[index], points[neighborIndex]);
+      const localLimit = Math.min(neighborDistances[index], neighborDistances[neighborIndex]) * ISLAND_EDGE_STRENGTH;
+      if (distance <= localLimit) {
+        disjointSet.union(index, neighborIndex);
+      }
+    }
+  }
+
+  const componentMap = new Map();
+  for (let index = 0; index < points.length; index += 1) {
+    const root = disjointSet.find(index);
+    const members = componentMap.get(root) ?? [];
+    members.push(index);
+    componentMap.set(root, members);
+  }
+
+  const components = [...componentMap.values()].map((members) => ({
+    members,
+    center: centerOfMembers(points, members),
+  }));
+  const islands = components
+    .filter((component) => component.members.length >= ISLAND_MIN_SEED_SIZE)
+    .sort(componentSort)
+    .map((component) => ({
+      members: [...component.members],
+      center: component.center.slice(),
+    }));
+  const fragments = components
+    .filter((component) => component.members.length < ISLAND_MIN_SEED_SIZE)
+    .sort(componentSort);
+
+  for (const fragment of fragments) {
+    let bestIsland = islands[0];
+    let bestDistance = Number.POSITIVE_INFINITY;
+    for (const island of islands) {
+      const distance = squaredDistance(fragment.center, island.center);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestIsland = island;
+      }
+    }
+    mergeComponentIntoIsland(bestIsland, fragment);
+  }
+
+  islands.sort((left, right) =>
+    left.center[0] - right.center[0] ||
+    left.center[1] - right.center[1] ||
+    left.center[2] - right.center[2],
+  );
+
+  const assignments = new Array(points.length);
+  for (let islandId = 0; islandId < islands.length; islandId += 1) {
+    for (const member of islands[islandId].members) {
+      assignments[member] = islandId;
+    }
+  }
+
+  return {
+    assignments,
+    centers: islands.map((island) => island.center),
+  };
 }
 
 function toHexChannel(value) {
   return Math.round(value).toString(16).padStart(2, '0');
 }
 
+function hueToRgb(p, q, t) {
+  if (t < 0) {
+    t += 1;
+  }
+  if (t > 1) {
+    t -= 1;
+  }
+  if (t < 1 / 6) {
+    return p + (q - p) * 6 * t;
+  }
+  if (t < 1 / 2) {
+    return q;
+  }
+  if (t < 2 / 3) {
+    return p + (q - p) * (2 / 3 - t) * 6;
+  }
+  return p;
+}
+
+function hslToHex(hue, saturation, lightness) {
+  const h = (((hue % 360) + 360) % 360) / 360;
+  const s = saturation / 100;
+  const l = lightness / 100;
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  const p = 2 * l - q;
+  const red = hueToRgb(p, q, h + 1 / 3) * 255;
+  const green = hueToRgb(p, q, h) * 255;
+  const blue = hueToRgb(p, q, h - 1 / 3) * 255;
+  return `#${toHexChannel(red)}${toHexChannel(green)}${toHexChannel(blue)}`;
+}
+
 function visualColorFromCoordinate(coordinate) {
   const x = coordinate[0] / 1000;
   const y = coordinate[1] / 1000;
   const z = coordinate[2] / 1000;
-  const red = 42 + x * 68 + z * 24;
-  const green = 112 + y * 92 + z * 40;
-  const blue = 72 + (1 - x) * 64 + z * 52;
-  return `#${toHexChannel(red)}${toHexChannel(green)}${toHexChannel(blue)}`;
+  const hue = x * 310 + y * 145 + z * 230 + 24;
+  const saturation = 64 + z * 18;
+  const lightness = 49 + y * 8 - x * 5;
+  return hslToHex(hue, saturation, lightness);
 }
 
 function tokenize(text) {
@@ -271,19 +420,29 @@ function titleCasePhrase(phrase) {
     .join(' ');
 }
 
-function labelFromPhrases(phrases) {
+function selectDistinctPhrases(phrases, limit) {
   const selected = [];
   for (const phrase of phrases) {
     if (selected.some((item) => item.includes(phrase) || phrase.includes(item))) {
       continue;
     }
     selected.push(phrase);
-    if (selected.length === 2) {
+    if (selected.length === limit) {
       break;
     }
   }
+  return selected;
+}
 
-  return selected.map(titleCasePhrase).join(' / ');
+function labelFromPhrases(phrases) {
+  const selected = selectDistinctPhrases(phrases, 2);
+  return selected.length ? selected.map(titleCasePhrase).join(' / ') : 'Mixed Lines';
+}
+
+function descriptionFromPhrases(phrases, size, videoCount) {
+  const themeWords = selectDistinctPhrases(phrases, 5).map(titleCasePhrase);
+  const scope = `${size.toLocaleString('en-US')} lines from ${videoCount.toLocaleString('en-US')} videos`;
+  return themeWords.length ? `${themeWords.join(', ')}. ${scope}.` : scope;
 }
 
 function buildClusters(entries, assignments, scaled2d, scaled3d, centers) {
@@ -319,8 +478,9 @@ function buildClusters(entries, assignments, scaled2d, scaled3d, centers) {
     return {
       id: clusterId,
       label: labelFromPhrases(phraseStats[clusterId]),
-      labelMode: 'descriptive',
-      labelConfidence: 1,
+      description: descriptionFromPhrases(phraseStats[clusterId], members.length, videoIds.size),
+      labelMode: 'theme',
+      labelConfidence: 0.75,
       color: visualColorFromCoordinate(center3d),
       size: members.length,
       videoCount: videoIds.size,
@@ -402,8 +562,8 @@ async function main() {
 
   const scaled2d = scaleCoordinates(coords2d);
   const scaled3d = scaleCoordinates(coords3d);
-  const clusterCount = chooseClusterCount(entries.length);
-  const { assignments, centers } = clusterVisualCoordinates(scaled3d, clusterCount);
+  const { assignments, centers } = clusterMutualKnnIslands(scaled3d);
+  const clusterCount = centers.length;
   const clusters = buildClusters(entries, assignments, scaled2d, scaled3d, centers);
   const points = entries.map((entry, index) => ({
     entryId: entry.entryId,
@@ -425,10 +585,10 @@ async function main() {
   }));
 
   const payload = {
-    version: 7,
+    version: 8,
     projection: 'umap-2d-3d',
-    clusterAlgorithm: 'umap-3d-visual-kmeans',
-    clusterBasis: 'umap-3d-visual-island',
+    clusterAlgorithm: 'umap-3d-mutual-knn-islands',
+    clusterBasis: 'umap-3d-mutual-knn-island',
     generatedAt: new Date().toISOString(),
     sourceDb: path.basename(DB_PATH),
     modelId: MODEL_ID,
@@ -441,6 +601,13 @@ async function main() {
       spread: UMAP_SPREAD,
       epochs: UMAP_EPOCHS,
       randomSeed: RANDOM_SEED,
+    },
+    mutualKnn: {
+      neighbors: ISLAND_NEIGHBOR_COUNT,
+      edgeStrength: ISLAND_EDGE_STRENGTH,
+      gridCellSize: ISLAND_GRID_CELL_SIZE,
+      candidateCount: ISLAND_CANDIDATE_COUNT,
+      minSeedSize: ISLAND_MIN_SEED_SIZE,
     },
     clusters,
     points,

@@ -12,6 +12,7 @@ export type SemanticLandscapeLabelMode = 'theme' | 'provisional' | 'descriptive'
 export interface SemanticLandscapeCluster {
   id: number;
   label: string;
+  description: string;
   labelMode: SemanticLandscapeLabelMode;
   labelConfidence: number;
   color: string;
@@ -89,7 +90,7 @@ export interface SemanticLandscapeData {
   version: number;
   projection: string;
   clusterAlgorithm: string;
-  clusterBasis?: 'semantic-vector' | 'umap-3d-visual-island';
+  clusterBasis?: 'semantic-vector' | 'umap-3d-visual-island' | 'umap-3d-mutual-knn-island';
   generatedAt: string;
   sourceDb: string;
   modelId: string;
@@ -102,6 +103,13 @@ export interface SemanticLandscapeData {
     spread: number;
     epochs: number;
     randomSeed: number;
+  };
+  mutualKnn?: {
+    neighbors: number;
+    edgeStrength: number;
+    gridCellSize: number;
+    candidateCount: number;
+    minSeedSize: number;
   };
   clusterSelection?: SemanticLandscapeClusterSelection;
   clusters: SemanticLandscapeCluster[];
