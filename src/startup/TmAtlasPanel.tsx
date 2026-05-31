@@ -9,7 +9,6 @@ import type {
 import { hexToRgba } from './colors';
 
 type ThemeMode = 'dark' | 'light';
-type AtlasMode = '2d' | '3d';
 
 interface StatusItem {
   label: string;
@@ -39,12 +38,6 @@ interface TmAtlasPanelProps {
   onOpenTranscript: (videoId: string, focusEntryId: string) => void;
   onClear: () => void;
   onToggleTheme: () => void;
-}
-
-interface View2d {
-  scale: number;
-  offsetX: number;
-  offsetY: number;
 }
 
 interface View3d {
@@ -82,7 +75,7 @@ interface ProjectedPoint {
 
 interface DragState {
   active: boolean;
-  mode: 'pan2d' | 'rotate3d' | 'pan3d';
+  mode: 'rotate3d' | 'pan3d';
   pointerId: number;
   lastX: number;
   lastY: number;
@@ -90,12 +83,6 @@ interface DragState {
   startY: number;
   moved: boolean;
 }
-
-const INITIAL_VIEW_2D: View2d = {
-  scale: 0.92,
-  offsetX: 0,
-  offsetY: 0,
-};
 
 const INITIAL_VIEW_3D: View3d = {
   rotateX: 0.4,
@@ -107,12 +94,6 @@ const INITIAL_VIEW_3D: View3d = {
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
-}
-
-function project2d(point: SemanticLandscapePoint, width: number, height: number, view: View2d) {
-  const x = ((point.x / 1000) - 0.5) * width * view.scale + width / 2 + view.offsetX;
-  const y = (0.5 - (point.y / 1000)) * height * view.scale + height / 2 + view.offsetY;
-  return { x, y, depth: 0, culled: false };
 }
 
 function percentile(values: number[], share: number): number {
@@ -212,9 +193,7 @@ export default function TmAtlasPanel({
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
-  const [mode, setMode] = useState<AtlasMode>('2d');
   const [size, setSize] = useState({ width: 1, height: 1 });
-  const [view2d, setView2d] = useState<View2d>(INITIAL_VIEW_2D);
   const [view3d, setView3d] = useState<View3d>(INITIAL_VIEW_3D);
   const [hoveredEntryId, setHoveredEntryId] = useState<string | null>(null);
 
@@ -245,6 +224,10 @@ export default function TmAtlasPanel({
     () => createVisualGeometry(data?.points ?? []),
     [data],
   );
+  const videoCount = useMemo(
+    () => new Set(data?.points.map((point) => point.videoId) ?? []).size,
+    [data],
+  );
 
   const projectedPoints = useMemo<ProjectedPoint[]>(() => {
     if (!data) {
@@ -252,45 +235,33 @@ export default function TmAtlasPanel({
     }
 
     const firstCluster = data.clusters[0]!;
-    const points =
-      mode === '3d'
-        ? (() => {
-            const rawItems = data.points.map((point): RawProjected3d => ({
-              point,
-              cluster: clusterById.get(point.clusterId) ?? firstCluster,
-              ...project3dRaw(point, view3d, visualGeometry),
-            }));
-            const fitted = fitProjected3d(rawItems, size.width, size.height);
+    const rawItems = data.points.map((point): RawProjected3d => ({
+      point,
+      cluster: clusterById.get(point.clusterId) ?? firstCluster,
+      ...project3dRaw(point, view3d, visualGeometry),
+    }));
+    const fitted = fitProjected3d(rawItems, size.width, size.height);
+    const points = rawItems.map((item) => ({
+      point: item.point,
+      cluster: item.cluster,
+      x: (item.rawX - fitted.centerX) * fitted.scale * view3d.zoom + size.width / 2 + view3d.offsetX,
+      y: (item.rawY - fitted.centerY) * fitted.scale * view3d.zoom + size.height / 2 + view3d.offsetY,
+      depth: item.depth,
+      culled: item.culled,
+    }));
 
-            return rawItems.map((item) => ({
-              point: item.point,
-              cluster: item.cluster,
-              x: (item.rawX - fitted.centerX) * fitted.scale * view3d.zoom + size.width / 2 + view3d.offsetX,
-              y: (item.rawY - fitted.centerY) * fitted.scale * view3d.zoom + size.height / 2 + view3d.offsetY,
-              depth: item.depth,
-              culled: item.culled,
-            }));
-          })()
-        : data.points.map((point) => ({
-            point,
-            cluster: clusterById.get(point.clusterId) ?? firstCluster,
-            ...project2d(point, size.width, size.height, view2d),
-          }));
-
-    if (mode === '3d') {
-      points.sort((left, right) => left.depth - right.depth);
-    }
-
+    points.sort((left, right) => left.depth - right.depth);
     return points;
-  }, [clusterById, data, mode, size.height, size.width, view2d, view3d, visualGeometry]);
+  }, [clusterById, data, size.height, size.width, view3d, visualGeometry]);
 
   const selectedPoint = selectedEntryId ? pointById.get(selectedEntryId) ?? null : null;
   const selectedSearchResult = selectedEntryId ? searchResultById.get(selectedEntryId) ?? null : null;
   const selectedEntry = selectedPoint ?? selectedSearchResult ?? null;
   const selectedCluster = selectedPoint ? clusterById.get(selectedPoint.clusterId) ?? null : null;
   const hoveredPoint = hoveredEntryId ? pointById.get(hoveredEntryId) ?? null : null;
-  const visiblePointCount = projectedPoints.filter((item) => !item.culled).length;
   const showIslandBrowser = !!data && searchResults.length === 0 && !query.trim();
+  const showLocalContext = !showIslandBrowser || !!selectedEntry;
+  const idleSidebar = showIslandBrowser && !selectedEntry && !errorText && !searchNote;
 
   useEffect(() => {
     const container = wrapRef.current;
@@ -345,13 +316,13 @@ export default function TmAtlasPanel({
     context.strokeStyle = grid;
     context.lineWidth = 1;
     const gridStep = Math.max(80, Math.round(Math.min(size.width, size.height) / 7));
-    for (let x = (view2d.offsetX % gridStep) - gridStep; x < size.width + gridStep; x += gridStep) {
+    for (let x = (view3d.offsetX % gridStep) - gridStep; x < size.width + gridStep; x += gridStep) {
       context.beginPath();
       context.moveTo(x, 0);
       context.lineTo(x, size.height);
       context.stroke();
     }
-    for (let y = (view2d.offsetY % gridStep) - gridStep; y < size.height + gridStep; y += gridStep) {
+    for (let y = (view3d.offsetY % gridStep) - gridStep; y < size.height + gridStep; y += gridStep) {
       context.beginPath();
       context.moveTo(0, y);
       context.lineTo(size.width, y);
@@ -388,7 +359,7 @@ export default function TmAtlasPanel({
       const isHovered = item.point.entryId === hoveredEntryId;
       const isSearchHit = searchHitIds.has(item.point.entryId);
       const hasSearch = searchHitIds.size > 0;
-      const radius = isSelected ? 5.2 : isHovered ? 4.4 : isSearchHit ? 3.4 : mode === '3d' ? 2.35 : 1.85;
+      const radius = isSelected ? 5.2 : isHovered ? 4.4 : isSearchHit ? 3.4 : 2.35;
       const alpha = isSelected ? 1 : isHovered ? 0.95 : isSearchHit ? 0.86 : hasSearch ? 0.16 : 0.58;
 
       context.fillStyle = isSelected || isSearchHit ? hexToRgba(selected, alpha) : hexToRgba(item.point.color, alpha);
@@ -420,7 +391,6 @@ export default function TmAtlasPanel({
   }, [
     data,
     hoveredEntryId,
-    mode,
     projectedPoints,
     searchHitIds,
     searchResults,
@@ -428,7 +398,8 @@ export default function TmAtlasPanel({
     size.height,
     size.width,
     theme,
-    view2d,
+    view3d.offsetX,
+    view3d.offsetY,
   ]);
 
   function findPoint(clientX: number, clientY: number): ProjectedPoint | null {
@@ -475,7 +446,7 @@ export default function TmAtlasPanel({
     canvas.setPointerCapture(event.pointerId);
     dragRef.current = {
       active: true,
-      mode: mode === '2d' ? 'pan2d' : event.ctrlKey || event.metaKey ? 'pan3d' : 'rotate3d',
+      mode: event.ctrlKey || event.metaKey ? 'pan3d' : 'rotate3d',
       pointerId: event.pointerId,
       lastX: event.clientX,
       lastY: event.clientY,
@@ -495,13 +466,7 @@ export default function TmAtlasPanel({
       drag.lastY = event.clientY;
       drag.moved = drag.moved || Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > 4;
 
-      if (drag.mode === 'pan2d') {
-        setView2d((current) => ({
-          ...current,
-          offsetX: current.offsetX + dx,
-          offsetY: current.offsetY + dy,
-        }));
-      } else if (drag.mode === 'pan3d') {
+      if (drag.mode === 'pan3d') {
         setView3d((current) => ({
           ...current,
           offsetX: current.offsetX + dx,
@@ -547,30 +512,13 @@ export default function TmAtlasPanel({
     event.preventDefault();
     const zoomFactor = Math.exp(-event.deltaY * 0.001);
 
-    if (mode === '3d') {
-      setView3d((current) => ({
-        ...current,
-        zoom: clamp(current.zoom * zoomFactor, 0.42, 4.2),
-      }));
-      return;
-    }
-
-    const bounds = event.currentTarget.getBoundingClientRect();
-    const cursorX = event.clientX - bounds.left;
-    const cursorY = event.clientY - bounds.top;
-    setView2d((current) => {
-      const nextScale = clamp(current.scale * zoomFactor, 0.32, 8);
-      const scaleChange = nextScale / current.scale;
-      return {
-        scale: nextScale,
-        offsetX: cursorX - size.width / 2 - (cursorX - size.width / 2 - current.offsetX) * scaleChange,
-        offsetY: cursorY - size.height / 2 - (cursorY - size.height / 2 - current.offsetY) * scaleChange,
-      };
-    });
+    setView3d((current) => ({
+      ...current,
+      zoom: clamp(current.zoom * zoomFactor, 0.42, 4.2),
+    }));
   }
 
   function resetView(): void {
-    setView2d(INITIAL_VIEW_2D);
     setView3d(INITIAL_VIEW_3D);
     setHoveredEntryId(null);
     onClear();
@@ -601,21 +549,32 @@ export default function TmAtlasPanel({
             TM Atlas
           </button>
 
-          <div className="atlas-mode-control" aria-label="Projection mode">
-            <button
-              className={classNames(mode === '2d' && 'is-active')}
-              type="button"
-              onClick={() => setMode('2d')}
-            >
-              2D
-            </button>
-            <button
-              className={classNames(mode === '3d' && 'is-active')}
-              type="button"
-              onClick={() => setMode('3d')}
-            >
-              3D
-            </button>
+          <span className="atlas-projection-chip">3D</span>
+
+          <div className="atlas-hud-status" aria-label="Load status">
+            {statusItems.map((item) => (
+              <div
+                key={item.label}
+                className={classNames('atlas-status-item', item.ready && 'is-ready')}
+                title={item.detail}
+                style={{ ['--progress' as string]: String(item.progress) }}
+              >
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+              </div>
+            ))}
+            {data ? (
+              <>
+                <div className="atlas-status-item is-ready">
+                  <span>Videos</span>
+                  <strong>{videoCount.toLocaleString()}</strong>
+                </div>
+                <div className="atlas-status-item is-ready">
+                  <span>UMAP</span>
+                  <strong>{data.pointCount.toLocaleString()}</strong>
+                </div>
+              </>
+            ) : null}
           </div>
 
           <button className="atlas-icon-button" type="button" onClick={resetView} title="Reset atlas">
@@ -632,26 +591,6 @@ export default function TmAtlasPanel({
           </button>
         </div>
 
-        <div className="atlas-status" aria-label="Load status">
-          {statusItems.map((item) => (
-            <div
-              key={item.label}
-              className={classNames('atlas-status-item', item.ready && 'is-ready')}
-              title={item.detail}
-              style={{ ['--progress' as string]: String(item.progress) }}
-            >
-              <span>{item.label}</span>
-              <strong>{item.value}</strong>
-            </div>
-          ))}
-          {data ? (
-            <div className="atlas-status-item is-ready">
-              <span>UMAP</span>
-              <strong>{visiblePointCount.toLocaleString()}</strong>
-            </div>
-          ) : null}
-        </div>
-
         {hoveredPoint ? (
           <div className="atlas-tooltip">
             <strong>{hoveredPoint.videoId}#{hoveredPoint.segIndex}</strong>
@@ -660,7 +599,7 @@ export default function TmAtlasPanel({
         ) : null}
       </div>
 
-      <aside className="atlas-sidebar">
+      <aside className={classNames('atlas-sidebar', idleSidebar && 'is-idle')}>
         <form className="atlas-search" onSubmit={handleSubmit}>
           <input
             aria-label="Search English subtitle lines"
@@ -677,8 +616,8 @@ export default function TmAtlasPanel({
         {errorText ? <p className="atlas-message atlas-message--error">{errorText}</p> : null}
         {searchNote ? <p className="atlas-message">{searchNote}</p> : null}
 
-        <div className="atlas-detail">
-          {selectedEntry ? (
+        {selectedEntry ? (
+          <div className="atlas-detail">
             <article className="atlas-entry-detail">
               {selectedCluster ? (
                 <>
@@ -713,13 +652,8 @@ export default function TmAtlasPanel({
                 </div>
               ) : null}
             </article>
-          ) : (
-            <article className="atlas-entry-detail atlas-entry-detail--empty">
-              <strong>{data ? data.pointCount.toLocaleString() : '0'} English lines</strong>
-              <span>{data ? `${data.clusterCount ?? data.clusters.length} UMAP regions` : 'UMAP data is loading'}</span>
-            </article>
-          )}
-        </div>
+          </div>
+        ) : null}
 
         {searchResults.length ? (
           <section className="atlas-section">
@@ -774,49 +708,51 @@ export default function TmAtlasPanel({
           </section>
         ) : null}
 
-        <section className="atlas-section atlas-context-section">
-          <div className="atlas-section-header">
-            <strong>Local Context</strong>
-            <span>{contextItems.length}</span>
-          </div>
-          {contextItems.length ? (
-            <ol className="atlas-context-list">
-              {contextItems.map((item) => (
-                <li key={item.entryId}>
-                  <article
-                    className={classNames('atlas-context-item', item.isFocus && 'is-focus')}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => onSelectEntry(item.entryId)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        onSelectEntry(item.entryId);
-                      }
-                    }}
-                  >
-                    <div>
-                      <span>{item.videoId}#{item.segIndex}</span>
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onOpenTranscript(item.videoId, item.entryId);
-                        }}
-                      >
-                        Open
-                      </button>
-                    </div>
-                    <p>{item.en}</p>
-                    <p>{item.zh}</p>
-                  </article>
-                </li>
-              ))}
-            </ol>
-          ) : (
-            <p className="atlas-muted">{getEntryText(selectedEntry) ? 'Loading context.' : 'Select a dot or search result.'}</p>
-          )}
-        </section>
+        {showLocalContext ? (
+          <section className="atlas-section atlas-context-section">
+            <div className="atlas-section-header">
+              <strong>Local Context</strong>
+              <span>{contextItems.length}</span>
+            </div>
+            {contextItems.length ? (
+              <ol className="atlas-context-list">
+                {contextItems.map((item) => (
+                  <li key={item.entryId}>
+                    <article
+                      className={classNames('atlas-context-item', item.isFocus && 'is-focus')}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => onSelectEntry(item.entryId)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          onSelectEntry(item.entryId);
+                        }
+                      }}
+                    >
+                      <div>
+                        <span>{item.videoId}#{item.segIndex}</span>
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onOpenTranscript(item.videoId, item.entryId);
+                          }}
+                        >
+                          Open
+                        </button>
+                      </div>
+                      <p>{item.en}</p>
+                      <p>{item.zh}</p>
+                    </article>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="atlas-muted">{getEntryText(selectedEntry) ? 'Loading context.' : 'Select a dot or search result.'}</p>
+            )}
+          </section>
+        ) : null}
       </aside>
     </section>
   );
