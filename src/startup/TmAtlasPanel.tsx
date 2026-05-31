@@ -804,6 +804,9 @@ export default function TmAtlasPanel({
 
   function selectEntry(entryId: string | null): void {
     setSelectedIslandId(null);
+    if (transcriptVideoId) {
+      onCloseTranscript();
+    }
     onSelectEntry(entryId);
   }
 
