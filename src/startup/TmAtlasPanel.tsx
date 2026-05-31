@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { classNames } from '../classes';
+import { handleSelectKey } from '../keyboard';
 import type { ContextItem, SearchResult } from '../search/protocol';
 import type {
   SemanticLandscapeCluster,
@@ -32,10 +33,18 @@ interface TmAtlasPanelProps {
   errorText: string | null;
   selectedEntryId: string | null;
   contextItems: ContextItem[];
+  transcriptVideoId: string | null;
+  transcriptItems: ContextItem[];
+  transcriptFocusEntryId: string | null;
+  transcriptLoading: boolean;
+  transcriptErrorText: string | null;
   onQueryChange: (query: string) => void;
   onSearch: () => void;
   onSelectEntry: (entryId: string | null) => void;
   onOpenTranscript: (videoId: string, focusEntryId: string) => void;
+  onSelectTranscriptEntry: (entryId: string) => void;
+  onSearchTranscriptLine: (line: string) => void;
+  onCloseTranscript: () => void;
   onClear: () => void;
   onToggleTheme: () => void;
 }
@@ -227,6 +236,43 @@ function getEntryText(entry: SemanticLandscapePoint | SearchResult | null): stri
   return entry?.en.trim() ?? '';
 }
 
+function formatCueTimestamp(ms: number | null): string {
+  if (ms === null || !Number.isFinite(ms)) {
+    return '--:--.---';
+  }
+
+  const totalMs = Math.max(0, Math.round(ms));
+  const hours = Math.floor(totalMs / 3_600_000);
+  const minutes = Math.floor((totalMs % 3_600_000) / 60_000);
+  const seconds = Math.floor((totalMs % 60_000) / 1_000);
+  const milliseconds = totalMs % 1_000;
+  const secondFragment = `${seconds.toString().padStart(2, '0')}.${milliseconds
+    .toString()
+    .padStart(3, '0')}`;
+
+  if (hours > 0) {
+    return `${hours}:${minutes.toString().padStart(2, '0')}:${secondFragment}`;
+  }
+
+  return `${minutes.toString().padStart(2, '0')}:${secondFragment}`;
+}
+
+function formatCueRange(startMs: number | null, endMs: number | null): string {
+  if (startMs === null && endMs === null) {
+    return 'No timestamps';
+  }
+
+  if (startMs === null) {
+    return `Ends ${formatCueTimestamp(endMs)}`;
+  }
+
+  if (endMs === null) {
+    return `Starts ${formatCueTimestamp(startMs)}`;
+  }
+
+  return `${formatCueTimestamp(startMs)} - ${formatCueTimestamp(endMs)}`;
+}
+
 function ResetIcon({ className }: IconProps) {
   return (
     <svg className={className} aria-hidden="true" viewBox="0 0 24 24">
@@ -274,16 +320,26 @@ export default function TmAtlasPanel({
   errorText,
   selectedEntryId,
   contextItems,
+  transcriptVideoId,
+  transcriptItems,
+  transcriptFocusEntryId,
+  transcriptLoading,
+  transcriptErrorText,
   onQueryChange,
   onSearch,
   onSelectEntry,
   onOpenTranscript,
+  onSelectTranscriptEntry,
+  onSearchTranscriptLine,
+  onCloseTranscript,
   onClear,
   onToggleTheme,
 }: TmAtlasPanelProps) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
+  const transcriptBodyRef = useRef<HTMLDivElement | null>(null);
+  const transcriptItemRefs = useRef(new Map<string, HTMLLIElement>());
   const [size, setSize] = useState({ width: 1, height: 1 });
   const [view3d, setView3d] = useState<View3d>(INITIAL_VIEW_3D);
   const [hoverState, setHoverState] = useState<HoverState | null>(null);
@@ -415,8 +471,11 @@ export default function TmAtlasPanel({
     points.sort((left, right) => left.depth - right.depth);
     return points;
   }, [clusterById, data, projectionGeometry, size.height, size.width, view3d, visualFocus]);
-  const showIslandBrowser = !!data && searchResults.length === 0 && !query.trim() && !selectedIslandPanel;
-  const showLocalContext = !selectedIslandPanel && (!showIslandBrowser || !!selectedEntry);
+  const showTranscriptPanel = !!transcriptVideoId;
+  const transcriptHasTimestamps = transcriptItems.some((item) => item.startMs !== null || item.endMs !== null);
+  const showIslandBrowser =
+    !!data && searchResults.length === 0 && !query.trim() && !selectedIslandPanel && !showTranscriptPanel;
+  const showLocalContext = !showTranscriptPanel && !selectedIslandPanel && (!showIslandBrowser || !!selectedEntry);
   const idleSidebar = showIslandBrowser && !selectedEntry && !errorText && !searchNote;
 
   useEffect(() => {
@@ -446,6 +505,41 @@ export default function TmAtlasPanel({
       setSelectedIslandId(null);
     }
   }, [searchResults.length]);
+
+  useEffect(() => {
+    if (!transcriptVideoId || transcriptItems.length === 0) {
+      return;
+    }
+
+    const nextEntryId =
+      transcriptFocusEntryId ??
+      transcriptItems.find((item) => item.entryId === selectedEntryId)?.entryId ??
+      transcriptItems[0]?.entryId ??
+      null;
+
+    if (!nextEntryId) {
+      return;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      const container = transcriptBodyRef.current;
+      const entry = transcriptItemRefs.current.get(nextEntryId);
+
+      if (!container || !entry) {
+        return;
+      }
+
+      const containerBounds = container.getBoundingClientRect();
+      const entryBounds = entry.getBoundingClientRect();
+      const top =
+        container.scrollTop +
+        (entryBounds.top - containerBounds.top) -
+        (container.clientHeight - entryBounds.height) / 2;
+      container.scrollTo({ top: Math.max(0, top), behavior: 'auto' });
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [selectedEntryId, transcriptFocusEntryId, transcriptItems, transcriptVideoId]);
 
   useEffect(() => {
     if (!visualFocus) {
@@ -648,6 +742,15 @@ export default function TmAtlasPanel({
     onClear();
   }
 
+  function setTranscriptItemRef(entryId: string, element: HTMLLIElement | null): void {
+    if (element) {
+      transcriptItemRefs.current.set(entryId, element);
+      return;
+    }
+
+    transcriptItemRefs.current.delete(entryId);
+  }
+
   function handlePointerDown(event: React.PointerEvent<HTMLCanvasElement>): void {
     if (event.button !== 0) {
       return;
@@ -825,7 +928,7 @@ export default function TmAtlasPanel({
         ) : null}
       </div>
 
-      <aside className={classNames('atlas-sidebar', idleSidebar && 'is-idle')}>
+      <aside className={classNames('atlas-sidebar', idleSidebar && 'is-idle', showTranscriptPanel && 'is-transcript')}>
         <form className="atlas-search" onSubmit={handleSubmit}>
           <input
             aria-label="Search English subtitle lines"
@@ -845,7 +948,96 @@ export default function TmAtlasPanel({
         {errorText ? <p className="atlas-message atlas-message--error">{errorText}</p> : null}
         {searchNote ? <p className="atlas-message">{searchNote}</p> : null}
 
-        {selectedIslandPanel ? (
+        {showTranscriptPanel ? (
+          <section className="atlas-section atlas-video-transcript">
+            <div className="atlas-video-header">
+              <div className="transcript-heading">
+                <span>YouTube ID</span>
+                <h2>{transcriptVideoId}</h2>
+                <p>
+                  {transcriptLoading
+                    ? 'Loading transcript cues...'
+                    : `${transcriptItems.length.toLocaleString()} cues${
+                        transcriptHasTimestamps ? ' with timestamps' : ''
+                      }`}
+                </p>
+              </div>
+
+              <button className="atlas-panel-close" type="button" onClick={onCloseTranscript}>
+                Close
+              </button>
+            </div>
+
+            {transcriptLoading ? (
+              <div className="empty-state">
+                <p>Loading the full transcript...</p>
+              </div>
+            ) : transcriptErrorText ? (
+              <div className="empty-state">
+                <p>{transcriptErrorText}</p>
+              </div>
+            ) : (
+              <div ref={transcriptBodyRef} className="transcript-panel-body">
+                <ol className="transcript-row-list">
+                  {transcriptItems.map((item) => {
+                    const isSelected = item.entryId === selectedEntryId;
+
+                    return (
+                      <li
+                        key={item.entryId}
+                        ref={(element) => setTranscriptItemRef(item.entryId, element)}
+                        className="transcript-row"
+                      >
+                        <button
+                          aria-label={`Jump to ${item.videoId} cue ${item.segIndex}. ${formatCueRange(
+                            item.startMs,
+                            item.endMs,
+                          )}.`}
+                          className={classNames('transcript-time', isSelected && 'is-selected')}
+                          type="button"
+                          onClick={() => onSelectTranscriptEntry(item.entryId)}
+                        >
+                          <span>#{item.segIndex}</span>
+                          <strong>{formatCueTimestamp(item.startMs)}</strong>
+                          <em>{formatCueTimestamp(item.endMs)}</em>
+                        </button>
+
+                        <article
+                          className={classNames('transcript-entry', isSelected && 'is-selected')}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => onSelectTranscriptEntry(item.entryId)}
+                          onKeyDown={(event) => handleSelectKey(event, () => onSelectTranscriptEntry(item.entryId))}
+                        >
+                          <div className="transcript-entry-meta">
+                            <span>{item.videoId}#{item.segIndex}</span>
+                            <span>{item.blockName || 'no block'}</span>
+                          </div>
+                          <div className="transcript-entry-copy-line">
+                            <p className="transcript-entry-line transcript-entry-line--en">{item.en}</p>
+                            <button
+                              aria-label={`Search using cue ${item.segIndex} English text`}
+                              className="transcript-entry-action"
+                              type="button"
+                              disabled={!item.en.trim()}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onSearchTranscriptLine(item.en);
+                              }}
+                            >
+                              Search
+                            </button>
+                          </div>
+                          <p className="transcript-entry-line transcript-entry-line--zh">{item.zh}</p>
+                        </article>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </div>
+            )}
+          </section>
+        ) : selectedIslandPanel ? (
           <section
             className="atlas-section atlas-island-focus"
             style={{ ['--cluster-color' as string]: selectedIslandPanel.cluster.color }}

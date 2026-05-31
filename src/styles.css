@@ -380,9 +380,9 @@ button:disabled {
 }
 
 .atlas-search button,
-.modal-close,
 .transcript-entry-action,
-.atlas-context-item button {
+.atlas-context-item button,
+.atlas-panel-close {
   min-height: 42px;
   padding: 0 12px;
   border: 1px solid var(--line);
@@ -843,36 +843,20 @@ button:disabled {
   line-height: 1.45;
 }
 
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 20;
-  display: grid;
-  place-items: center;
-  padding: 18px;
-  overflow-y: auto;
-  background: rgba(5, 7, 6, 0.76);
-  backdrop-filter: blur(10px);
-}
-
-.transcript-modal {
-  display: grid;
+.atlas-sidebar.is-transcript {
   grid-template-rows: auto minmax(0, 1fr);
-  gap: 14px;
-  width: min(1080px, 100%);
-  max-height: min(88dvh, 980px);
-  padding: 16px;
   overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface);
-  box-shadow: var(--shadow);
 }
 
-.transcript-modal-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
+.atlas-video-transcript {
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.atlas-video-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
   align-items: start;
 }
 
@@ -895,8 +879,8 @@ button:disabled {
   color: var(--muted);
 }
 
-.modal-close:hover,
-.modal-close:focus-visible,
+.atlas-panel-close:hover,
+.atlas-panel-close:focus-visible,
 .transcript-entry-action:hover,
 .transcript-entry-action:focus-visible,
 .atlas-context-item button:hover,
@@ -904,7 +888,7 @@ button:disabled {
   border-color: var(--accent);
 }
 
-.transcript-modal-body {
+.transcript-panel-body {
   min-height: 0;
   overflow-y: auto;
   padding-right: 4px;
@@ -913,7 +897,7 @@ button:disabled {
 
 .transcript-row {
   display: grid;
-  grid-template-columns: 112px minmax(0, 1fr);
+  grid-template-columns: 82px minmax(0, 1fr);
   gap: 10px;
   align-items: stretch;
 }
@@ -1029,7 +1013,7 @@ button:disabled {
   }
 
   .atlas-search button,
-  .modal-close {
+  .atlas-panel-close {
     width: 100%;
   }
 
@@ -1037,12 +1021,7 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
-  .transcript-modal {
-    max-height: calc(100dvh - 20px);
-    padding: 12px;
-  }
-
-  .transcript-modal-header {
+  .atlas-video-header {
     display: grid;
   }
 

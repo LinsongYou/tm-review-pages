@@ -1,7 +1,5 @@
 import { startTransition, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { classNames } from './classes';
 import { getDisplayModelName } from './format';
-import { handleSelectKey } from './keyboard';
 import type {
   BootProgressSnapshot,
   BootStats,
@@ -46,43 +44,6 @@ function getInitialTheme(): Theme {
   return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
 }
 
-function formatCueTimestamp(ms: number | null): string {
-  if (ms === null || !Number.isFinite(ms)) {
-    return '--:--.---';
-  }
-
-  const totalMs = Math.max(0, Math.round(ms));
-  const hours = Math.floor(totalMs / 3_600_000);
-  const minutes = Math.floor((totalMs % 3_600_000) / 60_000);
-  const seconds = Math.floor((totalMs % 60_000) / 1_000);
-  const milliseconds = totalMs % 1_000;
-  const secondFragment = `${seconds.toString().padStart(2, '0')}.${milliseconds
-    .toString()
-    .padStart(3, '0')}`;
-
-  if (hours > 0) {
-    return `${hours}:${minutes.toString().padStart(2, '0')}:${secondFragment}`;
-  }
-
-  return `${minutes.toString().padStart(2, '0')}:${secondFragment}`;
-}
-
-function formatCueRange(startMs: number | null, endMs: number | null): string {
-  if (startMs === null && endMs === null) {
-    return 'No timestamps';
-  }
-
-  if (startMs === null) {
-    return `Ends ${formatCueTimestamp(endMs)}`;
-  }
-
-  if (endMs === null) {
-    return `Starts ${formatCueTimestamp(startMs)}`;
-  }
-
-  return `${formatCueTimestamp(startMs)} - ${formatCueTimestamp(endMs)}`;
-}
-
 function createInitialBootProgressState(): HeaderLoadState {
   return {
     pairs: {
@@ -113,8 +74,6 @@ function App() {
   const latestSearchRef = useRef(0);
   const latestContextRef = useRef(0);
   const latestTranscriptRef = useRef(0);
-  const transcriptBodyRef = useRef<HTMLDivElement | null>(null);
-  const transcriptItemRefs = useRef(new Map<string, HTMLLIElement>());
 
   const [bootStats, setBootStats] = useState<BootStats | null>(null);
   const [bootProgress, setBootProgress] = useState<HeaderLoadState>(createInitialBootProgressState);
@@ -249,65 +208,6 @@ function App() {
       }
     })();
   }, [bootStats, selectedEntryId]);
-
-  useEffect(() => {
-    if (!transcriptVideoId) {
-      return;
-    }
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        closeTranscript();
-      }
-    };
-
-    window.addEventListener('keydown', handleEscape);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener('keydown', handleEscape);
-    };
-  }, [transcriptVideoId]);
-
-  useEffect(() => {
-    if (!transcriptVideoId || transcriptItems.length === 0) {
-      return;
-    }
-
-    const nextEntryId =
-      transcriptFocusEntryId ??
-      transcriptItems.find((item) => item.entryId === selectedEntryId)?.entryId ??
-      transcriptItems[0]?.entryId ??
-      null;
-
-    if (!nextEntryId) {
-      return;
-    }
-
-    const frameId = window.requestAnimationFrame(() => {
-      const container = transcriptBodyRef.current;
-      const entry = transcriptItemRefs.current.get(nextEntryId);
-
-      if (!container || !entry) {
-        return;
-      }
-
-      const containerBounds = container.getBoundingClientRect();
-      const entryBounds = entry.getBoundingClientRect();
-      const top =
-        container.scrollTop +
-        (entryBounds.top - containerBounds.top) -
-        (container.clientHeight - entryBounds.height) / 2;
-      container.scrollTo({
-        top: Math.max(0, top),
-        behavior: 'auto',
-      });
-    });
-
-    return () => window.cancelAnimationFrame(frameId);
-  }, [selectedEntryId, transcriptFocusEntryId, transcriptItems, transcriptVideoId]);
 
   async function callWorker(payload: WorkerPayload): Promise<WorkerResponse> {
     const worker = workerRef.current;
@@ -466,15 +366,6 @@ function App() {
     }
   }
 
-  function setTranscriptItemRef(entryId: string, element: HTMLLIElement | null): void {
-    if (element) {
-      transcriptItemRefs.current.set(entryId, element);
-      return;
-    }
-
-    transcriptItemRefs.current.delete(entryId);
-  }
-
   function setTranscriptSelection(entryId: string): void {
     setSelectedEntryId(entryId);
     setTranscriptFocusEntryId(entryId);
@@ -499,7 +390,6 @@ function App() {
 
     const sequence = latestTranscriptRef.current + 1;
     latestTranscriptRef.current = sequence;
-    transcriptItemRefs.current.clear();
 
     setSelectedEntryId(focusEntryId);
     setTranscriptVideoId(videoId);
@@ -535,7 +425,6 @@ function App() {
 
   function closeTranscript(): void {
     latestTranscriptRef.current += 1;
-    transcriptItemRefs.current.clear();
     setTranscriptVideoId(null);
     setTranscriptItems([]);
     setTranscriptFocusEntryId(null);
@@ -583,10 +472,6 @@ function App() {
     },
   ];
 
-  const transcriptHasTimestamps = transcriptItems.some(
-    (item) => item.startMs !== null || item.endMs !== null,
-  );
-
   return (
     <main className="app-shell">
       <TmAtlasPanel
@@ -603,6 +488,11 @@ function App() {
         errorText={errorText}
         selectedEntryId={selectedEntryId}
         contextItems={contextItems}
+        transcriptVideoId={transcriptVideoId}
+        transcriptItems={transcriptItems}
+        transcriptFocusEntryId={transcriptFocusEntryId}
+        transcriptLoading={transcriptLoading}
+        transcriptErrorText={transcriptErrorText}
         onQueryChange={setQuery}
         onSearch={() => {
           void runSearch();
@@ -611,110 +501,12 @@ function App() {
         onOpenTranscript={(videoId, focusEntryId) => {
           void openTranscript(videoId, focusEntryId);
         }}
+        onSelectTranscriptEntry={setTranscriptSelection}
+        onSearchTranscriptLine={searchFromTranscriptLine}
+        onCloseTranscript={closeTranscript}
         onClear={clearAtlas}
         onToggleTheme={toggleTheme}
       />
-
-      {transcriptVideoId ? (
-        <div className="modal-backdrop" role="presentation" onClick={closeTranscript}>
-          <section
-            aria-labelledby="transcript-dialog-title"
-            aria-modal="true"
-            className="transcript-modal"
-            role="dialog"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="transcript-modal-header">
-              <div className="transcript-heading">
-                <span>YouTube ID</span>
-                <h2 id="transcript-dialog-title">{transcriptVideoId}</h2>
-                <p>
-                  {transcriptLoading
-                    ? 'Loading transcript cues...'
-                    : `${transcriptItems.length.toLocaleString()} cues${
-                        transcriptHasTimestamps ? ' with cue timestamps' : ''
-                      }`}
-                </p>
-              </div>
-
-              <button className="modal-close" type="button" onClick={closeTranscript}>
-                Close
-              </button>
-            </div>
-
-            {transcriptLoading ? (
-              <div className="empty-state">
-                <p>Loading the full transcript...</p>
-              </div>
-            ) : transcriptErrorText ? (
-              <div className="empty-state">
-                <p>{transcriptErrorText}</p>
-              </div>
-            ) : (
-              <div ref={transcriptBodyRef} className="transcript-modal-body">
-                <ol className="transcript-row-list">
-                  {transcriptItems.map((item) => {
-                    const isSelected = item.entryId === selectedEntryId;
-
-                    return (
-                      <li
-                        key={item.entryId}
-                        ref={(element) => setTranscriptItemRef(item.entryId, element)}
-                        className="transcript-row"
-                      >
-                        <button
-                          aria-label={`Jump to ${item.videoId} cue ${item.segIndex}. ${formatCueRange(
-                            item.startMs,
-                            item.endMs,
-                          )}.`}
-                          className={classNames('transcript-time', isSelected && 'is-selected')}
-                          type="button"
-                          onClick={() => setTranscriptSelection(item.entryId)}
-                        >
-                          <span>#{item.segIndex}</span>
-                          <strong>{formatCueTimestamp(item.startMs)}</strong>
-                          <em>{formatCueTimestamp(item.endMs)}</em>
-                        </button>
-
-                        <article
-                          className={classNames('transcript-entry', isSelected && 'is-selected')}
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => setTranscriptSelection(item.entryId)}
-                          onKeyDown={(event) =>
-                            handleSelectKey(event, () => setTranscriptSelection(item.entryId))
-                          }
-                        >
-                          <div className="transcript-entry-meta">
-                            <span>{item.videoId}#{item.segIndex}</span>
-                            <span>{item.blockName || 'no block'}</span>
-                          </div>
-                          <div className="transcript-entry-copy-line">
-                            <p className="transcript-entry-line transcript-entry-line--en">{item.en}</p>
-                            <button
-                              aria-label={`Search using cue ${item.segIndex} English text`}
-                              className="transcript-entry-action"
-                              type="button"
-                              disabled={!item.en.trim()}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                searchFromTranscriptLine(item.en);
-                              }}
-                            >
-                              Search
-                            </button>
-                          </div>
-                          <p className="transcript-entry-line transcript-entry-line--zh">{item.zh}</p>
-                        </article>
-                      </li>
-                    );
-                  })}
-                </ol>
-              </div>
-            )}
-          </section>
-        </div>
-      ) : null}
     </main>
   );
 }
