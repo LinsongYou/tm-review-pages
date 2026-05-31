@@ -213,6 +213,7 @@ button:disabled {
   grid-template-columns: 1fr 1fr;
   height: 100%;
   width: 100%;
+  padding: 3px;
   border-radius: 5px;
   background: var(--field);
 }
@@ -220,10 +221,10 @@ button:disabled {
 .atlas-theme-toggle-track::before {
   content: '';
   position: absolute;
-  top: 5px;
-  bottom: 5px;
-  left: 5px;
-  width: calc(50% - 5px);
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc((100% - 6px) / 2);
   border-radius: 4px;
   background: var(--accent);
   transition: transform 160ms ease;
@@ -236,8 +237,7 @@ button:disabled {
 .atlas-theme-icon {
   position: relative;
   z-index: 1;
-  align-self: center;
-  justify-self: center;
+  place-self: center;
   color: var(--muted);
 }
 
