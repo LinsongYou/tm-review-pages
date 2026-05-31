@@ -84,6 +84,10 @@ interface DragState {
   moved: boolean;
 }
 
+interface IconProps {
+  className?: string;
+}
+
 const INITIAL_VIEW_3D: View3d = {
   rotateX: 0.4,
   rotateY: -0.65,
@@ -169,6 +173,39 @@ function getEntryText(entry: SemanticLandscapePoint | SearchResult | null): stri
   return entry?.en.trim() ?? '';
 }
 
+function ResetIcon({ className }: IconProps) {
+  return (
+    <svg className={className} aria-hidden="true" viewBox="0 0 24 24">
+      <path d="M5 12a7 7 0 1 0 2.1-5H4" />
+      <path d="M4 3v4h4" />
+    </svg>
+  );
+}
+
+function SunIcon({ className }: IconProps) {
+  return (
+    <svg className={className} aria-hidden="true" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2" />
+      <path d="M12 20v2" />
+      <path d="m4.9 4.9 1.4 1.4" />
+      <path d="m17.7 17.7 1.4 1.4" />
+      <path d="M2 12h2" />
+      <path d="M20 12h2" />
+      <path d="m4.9 19.1 1.4-1.4" />
+      <path d="m17.7 6.3 1.4-1.4" />
+    </svg>
+  );
+}
+
+function MoonIcon({ className }: IconProps) {
+  return (
+    <svg className={className} aria-hidden="true" viewBox="0 0 24 24">
+      <path d="M20 14.5A8 8 0 0 1 9.5 4a7 7 0 1 0 10.5 10.5Z" />
+    </svg>
+  );
+}
+
 export default function TmAtlasPanel({
   data,
   dataLoading,
@@ -234,10 +271,9 @@ export default function TmAtlasPanel({
       return [];
     }
 
-    const firstCluster = data.clusters[0]!;
     const rawItems = data.points.map((point): RawProjected3d => ({
       point,
-      cluster: clusterById.get(point.clusterId) ?? firstCluster,
+      cluster: clusterById.get(point.clusterId)!,
       ...project3dRaw(point, view3d, visualGeometry),
     }));
     const fitted = fitProjected3d(rawItems, size.width, size.height);
@@ -257,7 +293,7 @@ export default function TmAtlasPanel({
   const selectedPoint = selectedEntryId ? pointById.get(selectedEntryId) ?? null : null;
   const selectedSearchResult = selectedEntryId ? searchResultById.get(selectedEntryId) ?? null : null;
   const selectedEntry = selectedPoint ?? selectedSearchResult ?? null;
-  const selectedCluster = selectedPoint ? clusterById.get(selectedPoint.clusterId) ?? null : null;
+  const selectedCluster = selectedPoint ? clusterById.get(selectedPoint.clusterId)! : null;
   const hoveredPoint = hoveredEntryId ? pointById.get(hoveredEntryId) ?? null : null;
   const showIslandBrowser = !!data && searchResults.length === 0 && !query.trim();
   const showLocalContext = !showIslandBrowser || !!selectedEntry;
@@ -549,8 +585,6 @@ export default function TmAtlasPanel({
             TM Atlas
           </button>
 
-          <span className="atlas-projection-chip">3D</span>
-
           <div className="atlas-hud-status" aria-label="Load status">
             {statusItems.map((item) => (
               <div
@@ -564,30 +598,30 @@ export default function TmAtlasPanel({
               </div>
             ))}
             {data ? (
-              <>
-                <div className="atlas-status-item is-ready">
-                  <span>Videos</span>
-                  <strong>{videoCount.toLocaleString()}</strong>
-                </div>
-                <div className="atlas-status-item is-ready">
-                  <span>UMAP</span>
-                  <strong>{data.pointCount.toLocaleString()}</strong>
-                </div>
-              </>
+              <div className="atlas-status-item is-ready">
+                <span>Videos</span>
+                <strong>{videoCount.toLocaleString()}</strong>
+              </div>
             ) : null}
           </div>
 
-          <button className="atlas-icon-button" type="button" onClick={resetView} title="Reset atlas">
-            Reset
+          <button className="atlas-icon-button" type="button" onClick={resetView} title="Reset atlas" aria-label="Reset atlas">
+            <ResetIcon className="atlas-button-icon" />
           </button>
 
           <button
-            className="atlas-icon-button"
+            className={classNames('atlas-theme-toggle', theme === 'dark' && 'is-dark')}
             type="button"
             onClick={onToggleTheme}
+            role="switch"
+            aria-checked={theme === 'dark'}
+            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
             title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
           >
-            {theme === 'dark' ? 'Light' : 'Dark'}
+            <span className="atlas-theme-toggle-track" aria-hidden="true">
+              <SunIcon className="atlas-theme-icon atlas-theme-icon--sun" />
+              <MoonIcon className="atlas-theme-icon atlas-theme-icon--moon" />
+            </span>
           </button>
         </div>
 

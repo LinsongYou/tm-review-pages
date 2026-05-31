@@ -138,7 +138,7 @@ button:disabled {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   max-width: calc(100% - 28px);
   min-height: 44px;
   padding: 6px;
@@ -148,8 +148,8 @@ button:disabled {
 
 .atlas-title,
 .atlas-icon-button,
-.atlas-projection-chip {
-  min-height: 32px;
+.atlas-theme-toggle {
+  min-height: 52px;
   border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;
@@ -158,32 +158,84 @@ button:disabled {
 }
 
 .atlas-title {
-  padding: 0 10px;
+  display: inline-grid;
+  align-content: center;
+  padding: 0 8px;
   color: var(--text);
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
-.atlas-projection-chip {
-  display: inline-grid;
-  min-width: 42px;
-  padding: 0 10px;
-  place-items: center;
-  background: var(--accent);
-  color: var(--accent-contrast);
-  font-weight: 750;
-}
-
 .atlas-icon-button {
-  padding: 0 10px;
+  display: inline-grid;
+  width: 52px;
+  padding: 0;
   border-color: var(--line);
+  place-items: center;
 }
 
 .atlas-icon-button:hover,
-.atlas-icon-button:focus-visible {
+.atlas-icon-button:focus-visible,
+.atlas-theme-toggle:hover,
+.atlas-theme-toggle:focus-visible {
   color: var(--text);
   border-color: color-mix(in srgb, var(--accent) 62%, var(--line));
+}
+
+.atlas-button-icon,
+.atlas-theme-icon {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.atlas-theme-toggle {
+  width: 66px;
+  padding: 5px;
+  border-color: var(--line);
+}
+
+.atlas-theme-toggle-track {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  height: 100%;
+  border-radius: 5px;
+  background: var(--field);
+}
+
+.atlas-theme-toggle-track::before {
+  content: '';
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc(50% - 4px);
+  border-radius: 4px;
+  background: var(--accent);
+  transition: transform 160ms ease;
+}
+
+.atlas-theme-toggle.is-dark .atlas-theme-toggle-track::before {
+  transform: translateX(100%);
+}
+
+.atlas-theme-icon {
+  position: relative;
+  z-index: 1;
+  align-self: center;
+  justify-self: center;
+  color: var(--muted);
+}
+
+.atlas-theme-toggle:not(.is-dark) .atlas-theme-icon--sun,
+.atlas-theme-toggle.is-dark .atlas-theme-icon--moon {
+  color: var(--accent-contrast);
 }
 
 .atlas-hud-status {
@@ -199,7 +251,8 @@ button:disabled {
   isolation: isolate;
   display: grid;
   gap: 2px;
-  min-width: 104px;
+  min-height: 52px;
+  min-width: 84px;
   padding: 8px 10px;
   overflow: hidden;
   border: 1px solid var(--line);
