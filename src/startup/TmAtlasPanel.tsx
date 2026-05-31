@@ -234,6 +234,13 @@ export default function TmAtlasPanel({
     () => new Map(searchResults.map((result) => [result.entryId, result])),
     [searchResults],
   );
+  const rankedIslands = useMemo(
+    () =>
+      [...(data?.clusters ?? [])].sort(
+        (left, right) => right.size - left.size || left.label.localeCompare(right.label),
+      ),
+    [data],
+  );
   const visualGeometry = useMemo(
     () => createVisualGeometry(data?.points ?? []),
     [data],
@@ -283,6 +290,7 @@ export default function TmAtlasPanel({
   const selectedCluster = selectedPoint ? clusterById.get(selectedPoint.clusterId) ?? null : null;
   const hoveredPoint = hoveredEntryId ? pointById.get(hoveredEntryId) ?? null : null;
   const visiblePointCount = projectedPoints.filter((item) => !item.culled).length;
+  const showIslandBrowser = !!data && searchResults.length === 0 && !query.trim();
 
   useEffect(() => {
     const container = wrapRef.current;
@@ -730,6 +738,35 @@ export default function TmAtlasPanel({
                     <span>{result.videoId}#{result.segIndex}</span>
                     <strong>{result.score.toFixed(3)}</strong>
                     <em>{result.en}</em>
+                  </button>
+                </li>
+              ))}
+            </ol>
+          </section>
+        ) : showIslandBrowser ? (
+          <section className="atlas-section atlas-island-section">
+            <div className="atlas-section-header">
+              <strong>Visual Islands</strong>
+              <span>{rankedIslands.length}</span>
+            </div>
+            <ol className="atlas-island-list">
+              {rankedIslands.map((cluster) => (
+                <li key={cluster.id}>
+                  <button
+                    className={classNames(
+                      'atlas-island-row',
+                      selectedCluster?.id === cluster.id && 'is-active',
+                    )}
+                    style={{ ['--cluster-color' as string]: cluster.color }}
+                    type="button"
+                    onClick={() => onSelectEntry(cluster.medoidEntryId)}
+                  >
+                    <span className="atlas-island-dot" aria-hidden="true" />
+                    <span className="atlas-island-copy">
+                      <strong>{cluster.label}</strong>
+                      <em>{cluster.description}</em>
+                    </span>
+                    <span className="atlas-island-count">{cluster.size.toLocaleString()}</span>
                   </button>
                 </li>
               ))}

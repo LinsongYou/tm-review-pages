@@ -343,13 +343,109 @@ function hslToHex(hue, saturation, lightness) {
   return `#${toHexChannel(red)}${toHexChannel(green)}${toHexChannel(blue)}`;
 }
 
-function visualColorFromCoordinate(coordinate) {
+function buildColorCandidates(count) {
+  return Array.from({ length: Math.max(72, count * 2) }, (_, index) => ({
+    hue: (index * 137.508 + 18) % 360,
+    saturation: 68 + (index % 3) * 7,
+    lightness: 47 + ((index * 5) % 17),
+  }));
+}
+
+function colorDistance(left, right) {
+  const hueDelta = Math.abs(left.hue - right.hue);
+  const hueDistance = Math.min(hueDelta, 360 - hueDelta) / 180;
+  const saturationDistance = Math.abs(left.saturation - right.saturation) / 100;
+  const lightnessDistance = Math.abs(left.lightness - right.lightness) / 100;
+  return hueDistance * 8 + saturationDistance + lightnessDistance;
+}
+
+function hueSeparation(left, right) {
+  const hueDelta = Math.abs(left.hue - right.hue);
+  return Math.min(hueDelta, 360 - hueDelta);
+}
+
+function assignIslandColors(centers) {
+  const candidates = buildColorCandidates(centers.length);
+  const assigned = new Array(centers.length);
+  const remainingIndexes = new Set(candidates.map((_, index) => index));
+  const nearestIds = centers.map((center, index) =>
+    centers
+      .map((otherCenter, otherIndex) => ({
+        index: otherIndex,
+        distance: otherIndex === index ? Number.POSITIVE_INFINITY : squaredDistance(center, otherCenter),
+      }))
+      .sort((left, right) => left.distance - right.distance || left.index - right.index)
+      .slice(0, 8)
+      .map((item) => item.index),
+  );
+  const order = centers
+    .map((_, index) => {
+      const nearestDistances = nearestIds[index].map((otherIndex) => squaredDistance(centers[index], centers[otherIndex]));
+      return {
+        index,
+        crowding: nearestDistances.reduce((total, distance) => total + Math.sqrt(distance), 0),
+      };
+    })
+    .sort((left, right) => left.crowding - right.crowding || left.index - right.index)
+    .map((item) => item.index);
+
+  for (const clusterId of order) {
+    let bestCandidateIndex = [...remainingIndexes][0];
+    let bestScore = Number.NEGATIVE_INFINITY;
+
+    for (const candidateIndex of remainingIndexes) {
+      const candidate = candidates[candidateIndex];
+      let weightedContrast = 0;
+      let nearestContrast = Number.POSITIVE_INFINITY;
+      let nearestHueSeparation = Number.POSITIVE_INFINITY;
+      let globalContrast = Number.POSITIVE_INFINITY;
+
+      for (let otherId = 0; otherId < assigned.length; otherId += 1) {
+        const otherColor = assigned[otherId];
+        if (!otherColor) {
+          continue;
+        }
+
+        const visualDistance = Math.sqrt(squaredDistance(centers[clusterId], centers[otherId]));
+        const nearbyWeight = 1 / (1 + visualDistance / 180);
+        const contrast = colorDistance(candidate, otherColor);
+        weightedContrast += contrast * nearbyWeight;
+        globalContrast = Math.min(globalContrast, contrast);
+        if (nearestIds[clusterId].includes(otherId) || nearestIds[otherId].includes(clusterId)) {
+          nearestContrast = Math.min(nearestContrast, contrast);
+          nearestHueSeparation = Math.min(nearestHueSeparation, hueSeparation(candidate, otherColor));
+        }
+      }
+
+      const score =
+        weightedContrast +
+        (Number.isFinite(nearestContrast) ? nearestContrast * 100 : 0) +
+        (Number.isFinite(nearestHueSeparation) ? nearestHueSeparation * 10 : 0) +
+        (Number.isFinite(globalContrast) ? globalContrast * 2 : 0);
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestCandidateIndex = candidateIndex;
+      }
+    }
+
+    assigned[clusterId] = candidates[bestCandidateIndex];
+    remainingIndexes.delete(bestCandidateIndex);
+  }
+
+  return assigned.map((color) => ({
+    ...color,
+    hex: hslToHex(color.hue, color.saturation, color.lightness),
+  }));
+}
+
+function pointColorFromIsland(coordinate, islandColor) {
   const x = coordinate[0] / 1000;
   const y = coordinate[1] / 1000;
   const z = coordinate[2] / 1000;
-  const hue = x * 310 + y * 145 + z * 230 + 24;
-  const saturation = 64 + z * 18;
-  const lightness = 49 + y * 8 - x * 5;
+  const hue = islandColor.hue + (z - 0.5) * 10;
+  const saturation = islandColor.saturation + (x - 0.5) * 10;
+  const lightness = islandColor.lightness + (y - 0.5) * 12;
   return hslToHex(hue, saturation, lightness);
 }
 
@@ -445,7 +541,7 @@ function descriptionFromPhrases(phrases, size, videoCount) {
   return themeWords.length ? `${themeWords.join(', ')}. ${scope}.` : scope;
 }
 
-function buildClusters(entries, assignments, scaled2d, scaled3d, centers) {
+function buildClusters(entries, assignments, scaled2d, scaled3d, centers, islandColors) {
   const clusterCount = centers.length;
   const phraseStats = buildPhraseStats(entries, assignments, clusterCount);
   const memberIndexes = Array.from({ length: clusterCount }, () => []);
@@ -481,7 +577,7 @@ function buildClusters(entries, assignments, scaled2d, scaled3d, centers) {
       description: descriptionFromPhrases(phraseStats[clusterId], members.length, videoIds.size),
       labelMode: 'theme',
       labelConfidence: 0.75,
-      color: visualColorFromCoordinate(center3d),
+      color: islandColors[clusterId].hex,
       size: members.length,
       videoCount: videoIds.size,
       x: center2d[0],
@@ -564,7 +660,8 @@ async function main() {
   const scaled3d = scaleCoordinates(coords3d);
   const { assignments, centers } = clusterMutualKnnIslands(scaled3d);
   const clusterCount = centers.length;
-  const clusters = buildClusters(entries, assignments, scaled2d, scaled3d, centers);
+  const islandColors = assignIslandColors(centers);
+  const clusters = buildClusters(entries, assignments, scaled2d, scaled3d, centers, islandColors);
   const points = entries.map((entry, index) => ({
     entryId: entry.entryId,
     videoId: entry.videoId,
@@ -581,7 +678,7 @@ async function main() {
     y3d: scaled3d[index][1],
     z3d: scaled3d[index][2],
     clusterId: assignments[index],
-    color: visualColorFromCoordinate(scaled3d[index]),
+    color: pointColorFromIsland(scaled3d[index], islandColors[assignments[index]]),
   }));
 
   const payload = {
