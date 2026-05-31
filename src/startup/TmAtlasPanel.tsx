@@ -919,6 +919,7 @@ export default function TmAtlasPanel({
       drag.lastX = event.clientX;
       drag.lastY = event.clientY;
       drag.moved = drag.moved || Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > 4;
+      cancelAnimationFrame(cameraAnimRef.current);
 
       if (drag.mode === 'pan3d') {
         setView3d((current) => ({
@@ -973,6 +974,7 @@ export default function TmAtlasPanel({
 
   function handleWheel(event: React.WheelEvent<HTMLCanvasElement>): void {
     event.preventDefault();
+    cancelAnimationFrame(cameraAnimRef.current);
     const zoomFactor = Math.exp(-event.deltaY * 0.001);
 
     setView3d((current) => ({
