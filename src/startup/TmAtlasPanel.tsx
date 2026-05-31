@@ -81,6 +81,12 @@ interface ProjectedPoint {
   culled: boolean;
 }
 
+interface HoverState {
+  entryId: string;
+  x: number;
+  y: number;
+}
+
 interface DragState {
   active: boolean;
   mode: 'rotate3d' | 'pan3d';
@@ -253,7 +259,7 @@ export default function TmAtlasPanel({
   const dragRef = useRef<DragState | null>(null);
   const [size, setSize] = useState({ width: 1, height: 1 });
   const [view3d, setView3d] = useState<View3d>(INITIAL_VIEW_3D);
-  const [hoveredEntryId, setHoveredEntryId] = useState<string | null>(null);
+  const [hoverState, setHoverState] = useState<HoverState | null>(null);
   const [selectedIslandId, setSelectedIslandId] = useState<number | null>(null);
 
   const clusterById = useMemo(
@@ -292,7 +298,7 @@ export default function TmAtlasPanel({
   const selectedSearchResult = selectedEntryId ? searchResultById.get(selectedEntryId) ?? null : null;
   const selectedEntry = selectedPoint ?? selectedSearchResult ?? null;
   const selectedCluster = selectedPoint ? clusterById.get(selectedPoint.clusterId)! : null;
-  const hoveredPoint = hoveredEntryId ? pointById.get(hoveredEntryId) ?? null : null;
+  const hoveredPoint = hoverState ? pointById.get(hoverState.entryId)! : null;
   const visualFocus = useMemo<VisualFocus | null>(() => {
     if (selectedIslandId !== null) {
       const cluster = clusterById.get(selectedIslandId)!;
@@ -468,7 +474,7 @@ export default function TmAtlasPanel({
       }
 
       const isSelected = item.point.entryId === selectedEntryId;
-      const isHovered = item.point.entryId === hoveredEntryId;
+      const isHovered = item.point.entryId === hoverState?.entryId;
       const isSearchHit = searchHitIds.has(item.point.entryId);
       const hasSearch = searchHitIds.size > 0;
       const isOutsideSelectedIsland = selectedIslandId !== null && item.point.clusterId !== selectedIslandId;
@@ -515,7 +521,7 @@ export default function TmAtlasPanel({
     }
   }, [
     data,
-    hoveredEntryId,
+    hoverState?.entryId,
     projectedPoints,
     searchHitIds,
     searchResults,
@@ -625,7 +631,16 @@ export default function TmAtlasPanel({
     }
 
     const nearest = findPoint(event.clientX, event.clientY);
-    setHoveredEntryId(nearest?.point.entryId ?? null);
+    const bounds = event.currentTarget.getBoundingClientRect();
+    setHoverState(
+      nearest
+        ? {
+            entryId: nearest.point.entryId,
+            x: event.clientX - bounds.left,
+            y: event.clientY - bounds.top,
+          }
+        : null,
+    );
   }
 
   function handlePointerUp(event: React.PointerEvent<HTMLCanvasElement>): void {
@@ -646,7 +661,7 @@ export default function TmAtlasPanel({
 
   function handlePointerLeave(): void {
     if (!dragRef.current?.active) {
-      setHoveredEntryId(null);
+      setHoverState(null);
     }
   }
 
@@ -662,7 +677,7 @@ export default function TmAtlasPanel({
 
   function resetView(): void {
     setView3d(INITIAL_VIEW_3D);
-    setHoveredEntryId(null);
+    setHoverState(null);
     clearAtlas();
   }
 
@@ -734,7 +749,13 @@ export default function TmAtlasPanel({
         </div>
 
         {hoveredPoint ? (
-          <div className="atlas-tooltip">
+          <div
+            className="atlas-tooltip"
+            style={{
+              left: `${Math.max(12, Math.min(hoverState!.x + 14, size.width - 372))}px`,
+              top: `${Math.max(12, Math.min(hoverState!.y + 14, size.height - 118))}px`,
+            }}
+          >
             <strong>{hoveredPoint.videoId}#{hoveredPoint.segIndex}</strong>
             <span>{hoveredPoint.en}</span>
           </div>
