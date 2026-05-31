@@ -22,7 +22,7 @@ type HeaderLoadState = Record<BootProgressSnapshot['target'], BootProgressSnapsh
 const DB_ASSET = 'data/tm_misha_minilm.db';
 const STARTUP_DATA_ASSET = 'data/startup-visualizations.json';
 const THEME_STORAGE_KEY = 'tm-review-theme';
-const DEFAULT_CONTEXT_RADIUS = 4;
+const DEFAULT_CONTEXT_RADIUS = 1;
 const DEFAULT_SEARCH_TOP_K = 24;
 const PAIRS_CHIP_LABEL = 'English/中文 Pairs';
 const MODEL_CHIP_LABEL = 'Embedding Model';
@@ -390,7 +390,13 @@ function App() {
 
     const sequence = latestTranscriptRef.current + 1;
     latestTranscriptRef.current = sequence;
+    latestSearchRef.current += 1;
 
+    setQuery('');
+    setSearching(false);
+    setErrorText(null);
+    setSearchNote(null);
+    setResults([]);
     setSelectedEntryId(focusEntryId);
     setTranscriptVideoId(videoId);
     setTranscriptItems([]);
