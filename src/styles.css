@@ -30,6 +30,12 @@
   --glow-strong: 0 0 8px rgba(74, 222, 128, 0.4), 0 0 24px rgba(74, 222, 128, 0.12), 0 0 48px rgba(74, 222, 128, 0.04);
   --glass-bg: rgba(10, 22, 16, 0.82);
   --glass-border: rgba(74, 222, 128, 0.1);
+  --card-bg: linear-gradient(135deg, rgba(7, 18, 16, 0.6), rgba(15, 32, 24, 0.4));
+  --card-bg-strong: linear-gradient(135deg, rgba(7, 18, 16, 0.5), rgba(15, 32, 24, 0.3));
+  --card-inset: inset 0 1px 0 rgba(74, 222, 128, 0.03);
+  --sidebar-bg: linear-gradient(180deg, rgba(10, 22, 16, 0.92), rgba(15, 32, 24, 0.88));
+  --sidebar-shadow: inset 1px 0 0 rgba(74, 222, 128, 0.04), -20px 0 52px rgba(0, 0, 0, 0.25);
+  --entry-bg: rgba(7, 18, 16, 0.4);
   --scanline: repeating-linear-gradient(
     0deg,
     transparent 0,
@@ -62,6 +68,12 @@
   --glow-strong: 0 0 6px rgba(22, 163, 74, 0.3), 0 0 20px rgba(22, 163, 74, 0.08);
   --glass-bg: rgba(248, 252, 249, 0.88);
   --glass-border: rgba(22, 163, 74, 0.12);
+  --card-bg: linear-gradient(135deg, rgba(244, 250, 246, 0.7), rgba(228, 240, 232, 0.5));
+  --card-bg-strong: linear-gradient(135deg, rgba(244, 250, 246, 0.8), rgba(228, 240, 232, 0.6));
+  --card-inset: inset 0 1px 0 rgba(22, 163, 74, 0.06);
+  --sidebar-bg: linear-gradient(180deg, rgba(248, 252, 249, 0.95), rgba(240, 247, 242, 0.92));
+  --sidebar-shadow: inset 1px 0 0 rgba(22, 163, 74, 0.06), -20px 0 52px rgba(49, 42, 34, 0.06);
+  --entry-bg: rgba(244, 250, 246, 0.6);
   --scanline: none;
 }
 
@@ -430,13 +442,9 @@ button:disabled {
   max-height: 100dvh;
   padding: 14px;
   overflow-y: auto;
-  border-left: 1px solid rgba(74, 222, 128, 0.08);
-  background:
-    linear-gradient(180deg, rgba(10, 22, 16, 0.92), rgba(15, 32, 24, 0.88)),
-    var(--scanline);
-  box-shadow:
-    inset 1px 0 0 rgba(74, 222, 128, 0.04),
-    -20px 0 52px rgba(0, 0, 0, 0.25);
+  border-left: 1px solid var(--glass-border);
+  background: var(--sidebar-bg), var(--scanline);
+  box-shadow: var(--sidebar-shadow);
   backdrop-filter: blur(24px) saturate(140%);
 }
 
@@ -548,8 +556,8 @@ button:disabled {
   padding: 14px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: linear-gradient(135deg, rgba(7, 18, 16, 0.6), rgba(15, 32, 24, 0.4));
-  box-shadow: inset 0 1px 0 rgba(74, 222, 128, 0.03);
+  background: var(--card-bg);
+  box-shadow: var(--card-inset);
 }
 
 .atlas-region-line {
@@ -707,10 +715,8 @@ button:disabled {
   border: 1px solid rgba(74, 222, 128, 0.12);
   border-left: 3px solid var(--cluster-color);
   border-radius: 10px;
-  background: linear-gradient(135deg, rgba(7, 18, 16, 0.5), rgba(15, 32, 24, 0.3));
-  box-shadow:
-    inset 0 1px 0 rgba(74, 222, 128, 0.04),
-    0 0 20px rgba(0, 0, 0, 0.15);
+  background: var(--card-bg-strong);
+  box-shadow: var(--card-inset), var(--shadow);
   transition: border-color 300ms ease;
 }
 
@@ -855,7 +861,7 @@ button:disabled {
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: rgba(7, 18, 16, 0.4);
+  background: var(--entry-bg);
   color: inherit;
   cursor: pointer;
   transition: all 200ms ease;
