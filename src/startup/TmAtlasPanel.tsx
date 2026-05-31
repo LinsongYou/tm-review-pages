@@ -580,9 +580,10 @@ export default function TmAtlasPanel({
     const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
     const epsilon = 0.001;
     let running = true;
+    let settled = false;
 
     function step() {
-      if (!running) return;
+      if (!running || settled) return;
 
       const center = animatedCenterRef.current;
       const target = targetCenterRef.current;
@@ -593,23 +594,29 @@ export default function TmAtlasPanel({
       }
 
       setView3d((current) => {
-        const nextZoom = lerp(current.zoom, targetZoom, 0.1);
-        const nextOffsetX = lerp(current.offsetX, 0, 0.1);
-        const nextOffsetY = lerp(current.offsetY, 0, 0.1);
         const dx = Math.abs(current.offsetX) + Math.abs(current.offsetY);
         const dz = Math.abs(current.zoom - targetZoom);
         const cx = center && target
           ? Math.abs(center.x - target.x) + Math.abs(center.y - target.y) + Math.abs(center.z - target.z)
           : 0;
         if (dx + dz + cx < epsilon) {
+          settled = true;
           return { ...current, zoom: targetZoom, offsetX: 0, offsetY: 0 };
         }
-        return { ...current, zoom: nextZoom, offsetX: nextOffsetX, offsetY: nextOffsetY };
+        return {
+          ...current,
+          zoom: lerp(current.zoom, targetZoom, 0.1),
+          offsetX: lerp(current.offsetX, 0, 0.1),
+          offsetY: lerp(current.offsetY, 0, 0.1),
+        };
       });
 
-      cameraAnimRef.current = requestAnimationFrame(step);
+      if (!settled) {
+        cameraAnimRef.current = requestAnimationFrame(step);
+      }
     }
 
+    settled = false;
     cameraAnimRef.current = requestAnimationFrame(step);
     return () => {
       running = false;
