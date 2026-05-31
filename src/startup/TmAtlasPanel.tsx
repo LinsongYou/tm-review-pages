@@ -581,6 +581,7 @@ export default function TmAtlasPanel({
 
     const background = theme === 'dark' ? '#06100b' : '#f2f8f1';
     const grid = theme === 'dark' ? 'rgba(197, 228, 203, 0.08)' : 'rgba(51, 104, 72, 0.12)';
+    const muted = theme === 'dark' ? '#9fb2a5' : '#617266';
     const text = theme === 'dark' ? '#edf8ef' : '#17251b';
     const computedStyle = window.getComputedStyle(document.documentElement);
     const selected = computedStyle.getPropertyValue('--accent').trim();
@@ -615,7 +616,13 @@ export default function TmAtlasPanel({
           .filter((item): item is ProjectedPoint => !!item && !item.culled)
       : [];
     const videoPathEntryIds = new Set(videoPathPoints.map((item) => item.point.entryId));
-    const videoPathColor = selectedPoint?.color ?? videoPathPoints[0]?.point.color ?? selected;
+    const selectedVideoPathIndex = videoPathPoints.findIndex((item) => item.point.entryId === selectedEntryId);
+    const emphasizedVideoPathIds = new Set(
+      [selectedVideoPathIndex - 1, selectedVideoPathIndex, selectedVideoPathIndex + 1]
+        .filter((index) => index >= 0 && index < videoPathPoints.length)
+        .map((index) => videoPathPoints[index]!.point.entryId),
+    );
+    const videoPathFocusColor = selectedPoint?.color ?? videoPathPoints[0]?.point.color ?? selected;
 
     if (rankedSearchHits.length > 1) {
       context.save();
@@ -634,8 +641,8 @@ export default function TmAtlasPanel({
 
     if (videoPathPoints.length > 1) {
       context.save();
-      context.strokeStyle = hexToRgba(videoPathColor, 0.7);
-      context.lineWidth = 1.5;
+      context.strokeStyle = hexToRgba(muted, 0.2);
+      context.lineWidth = 1;
       context.beginPath();
       const firstPoint = videoPathPoints[0]!;
       context.moveTo(firstPoint.x, firstPoint.y);
@@ -643,6 +650,25 @@ export default function TmAtlasPanel({
         context.lineTo(item.x, item.y);
       }
       context.stroke();
+
+      if (selectedVideoPathIndex >= 0) {
+        context.strokeStyle = hexToRgba(videoPathFocusColor, 0.72);
+        context.lineWidth = 2;
+        const highlightedSegments: Array<[number, number]> = [
+          [selectedVideoPathIndex - 1, selectedVideoPathIndex],
+          [selectedVideoPathIndex, selectedVideoPathIndex + 1],
+        ];
+        for (const [fromIndex, toIndex] of highlightedSegments) {
+          const fromPoint = videoPathPoints[fromIndex];
+          const toPoint = videoPathPoints[toIndex];
+          if (fromPoint && toPoint) {
+            context.beginPath();
+            context.moveTo(fromPoint.x, fromPoint.y);
+            context.lineTo(toPoint.x, toPoint.y);
+            context.stroke();
+          }
+        }
+      }
       context.restore();
     }
 
@@ -655,18 +681,29 @@ export default function TmAtlasPanel({
       const isHovered = item.point.entryId === hoverState?.entryId;
       const isSearchHit = searchHitIds.has(item.point.entryId);
       const isVideoPathPoint = videoPathEntryIds.has(item.point.entryId);
+      const isEmphasizedVideoPathPoint = emphasizedVideoPathIds.has(item.point.entryId);
       const hasSearch = searchHitIds.size > 0;
       const hasVideoPath = videoPathEntryIds.size > 0;
       const isOutsideSelectedIsland = selectedIslandId !== null && item.point.clusterId !== selectedIslandId;
-      const radius = isSelected ? 5.2 : isHovered ? 4.4 : isSearchHit || isVideoPathPoint ? 3.4 : 2.35;
+      const radius = isSelected
+        ? 5.2
+        : isHovered
+          ? 4.4
+          : isSearchHit || isEmphasizedVideoPathPoint
+            ? 3.4
+            : isVideoPathPoint
+              ? 2.7
+              : 2.35;
       const alpha = isSelected
         ? 1
         : isHovered
           ? 0.95
           : isSearchHit
             ? 0.86
+            : isEmphasizedVideoPathPoint
+              ? 0.78
             : isVideoPathPoint
-              ? 0.9
+              ? 0.38
             : hasSearch
               ? 0.16
               : hasVideoPath
@@ -682,8 +719,8 @@ export default function TmAtlasPanel({
       context.arc(item.x, item.y, radius, 0, Math.PI * 2);
       context.fill();
 
-      if (isVideoPathPoint && !isSelected && !isHovered) {
-        context.strokeStyle = hexToRgba(videoPathColor, 0.42);
+      if (isEmphasizedVideoPathPoint && !isSelected && !isHovered) {
+        context.strokeStyle = hexToRgba(videoPathFocusColor, 0.45);
         context.lineWidth = 1;
         context.beginPath();
         context.arc(item.x, item.y, radius + 2.5, 0, Math.PI * 2);
