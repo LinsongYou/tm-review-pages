@@ -97,8 +97,8 @@ interface IconProps {
 }
 
 const INITIAL_VIEW_3D: View3d = {
-  rotateX: 0.4,
-  rotateY: -0.65,
+  rotateX: -0.05,
+  rotateY: 0.6,
   zoom: 1.18,
   offsetX: 0,
   offsetY: 0,
