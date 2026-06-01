@@ -71,6 +71,12 @@ interface VisualFocus {
   zoom: number;
 }
 
+interface Spatial3d {
+  x3d: number;
+  y3d: number;
+  z3d: number;
+}
+
 interface RawProjected3d {
   point: SemanticLandscapePoint;
   cluster: SemanticLandscapeCluster;
@@ -87,6 +93,19 @@ interface ProjectedPoint {
   y: number;
   depth: number;
   culled: boolean;
+}
+
+interface ProjectedIsland {
+  cluster: SemanticLandscapeCluster;
+  x: number;
+  y: number;
+  depth: number;
+}
+
+interface IslandFlow {
+  fromClusterId: number;
+  toClusterId: number;
+  count: number;
 }
 
 interface HoverState {
@@ -131,6 +150,8 @@ const INITIAL_VIEW_3D: View3d = {
   offsetX: 0,
   offsetY: 0,
 };
+const GLOBAL_ISLAND_FLOW_LIMIT = 42;
+const FOCUSED_ISLAND_FLOW_LIMIT = 24;
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
@@ -212,7 +233,7 @@ function computeTrig(view: View3d): TrigCache {
 }
 
 function project3dRaw(
-  point: SemanticLandscapePoint,
+  point: Spatial3d,
   geometry: VisualGeometry,
   trig: TrigCache,
 ) {
@@ -256,6 +277,118 @@ function getDepthRadiusScale(depth: number): number {
 
 function getDepthAlphaScale(depth: number): number {
   return clamp(1 - depth * 0.78, 0.45, 1.36);
+}
+
+function buildIslandFlows(points: SemanticLandscapePoint[]): IslandFlow[] {
+  const pointsByVideo = new Map<string, SemanticLandscapePoint[]>();
+  const flowCounts = new Map<string, IslandFlow>();
+
+  for (const point of points) {
+    const videoPoints = pointsByVideo.get(point.videoId);
+    if (videoPoints) {
+      videoPoints.push(point);
+    } else {
+      pointsByVideo.set(point.videoId, [point]);
+    }
+  }
+
+  for (const videoPoints of pointsByVideo.values()) {
+    videoPoints.sort(
+      (left, right) =>
+        left.segIndex - right.segIndex ||
+        (left.startMs ?? Number.MAX_SAFE_INTEGER) - (right.startMs ?? Number.MAX_SAFE_INTEGER) ||
+        left.entryId.localeCompare(right.entryId),
+    );
+
+    for (let index = 0; index < videoPoints.length - 1; index += 1) {
+      const fromClusterId = videoPoints[index]!.clusterId;
+      const toClusterId = videoPoints[index + 1]!.clusterId;
+      if (fromClusterId === toClusterId) {
+        continue;
+      }
+
+      const key = `${fromClusterId}:${toClusterId}`;
+      const existing = flowCounts.get(key);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        flowCounts.set(key, { fromClusterId, toClusterId, count: 1 });
+      }
+    }
+  }
+
+  return [...flowCounts.values()].sort(
+    (left, right) =>
+      right.count - left.count ||
+      left.fromClusterId - right.fromClusterId ||
+      left.toClusterId - right.toClusterId,
+  );
+}
+
+function drawIslandFlowArc(
+  context: CanvasRenderingContext2D,
+  flow: IslandFlow,
+  from: ProjectedIsland,
+  to: ProjectedIsland,
+  maxCount: number,
+  theme: ThemeMode,
+  focused: boolean,
+): void {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const distance = Math.hypot(dx, dy);
+  if (distance < 8) {
+    return;
+  }
+
+  const strength = Math.sqrt(flow.count / Math.max(1, maxCount));
+  const depthAlpha = clamp(getDepthAlphaScale((from.depth + to.depth) / 2), 0.55, 1.14);
+  const baseAlpha = focused ? 0.26 + strength * 0.44 : 0.06 + strength * 0.22;
+  const alpha = clamp(baseAlpha * depthAlpha * (theme === 'light' ? 0.78 : 1), 0.035, 0.72);
+  const lineWidth = focused ? 1.4 + strength * 4.2 : 0.8 + strength * 3.2;
+  const reciprocalOffset = flow.fromClusterId < flow.toClusterId ? 1 : -1;
+  const curve = clamp(distance * 0.2, 28, focused ? 130 : 95) * reciprocalOffset;
+  const controlX = (from.x + to.x) / 2 - (dy / distance) * curve;
+  const controlY = (from.y + to.y) / 2 + (dx / distance) * curve;
+  const gradient = context.createLinearGradient(from.x, from.y, to.x, to.y);
+
+  gradient.addColorStop(0, hexToRgba(from.cluster.color, alpha * 0.48));
+  gradient.addColorStop(1, hexToRgba(to.cluster.color, alpha));
+
+  context.save();
+  context.globalCompositeOperation = theme === 'dark' ? 'lighter' : 'source-over';
+  context.strokeStyle = gradient;
+  context.lineWidth = lineWidth;
+  context.lineCap = 'round';
+  context.lineJoin = 'round';
+  context.shadowColor = hexToRgba(to.cluster.color, alpha * 0.8);
+  context.shadowBlur = focused ? 10 : 6;
+  context.beginPath();
+  context.moveTo(from.x, from.y);
+  context.quadraticCurveTo(controlX, controlY, to.x, to.y);
+  context.stroke();
+
+  if (focused || strength > 0.72) {
+    const t = 0.64;
+    const arrowX = (1 - t) ** 2 * from.x + 2 * (1 - t) * t * controlX + t ** 2 * to.x;
+    const arrowY = (1 - t) ** 2 * from.y + 2 * (1 - t) * t * controlY + t ** 2 * to.y;
+    const tangentX = 2 * (1 - t) * (controlX - from.x) + 2 * t * (to.x - controlX);
+    const tangentY = 2 * (1 - t) * (controlY - from.y) + 2 * t * (to.y - controlY);
+    const arrowSize = clamp(lineWidth * 2.2 + 2.5, 5.5, 12);
+
+    context.translate(arrowX, arrowY);
+    context.rotate(Math.atan2(tangentY, tangentX));
+    context.fillStyle = hexToRgba(to.cluster.color, alpha * 0.9);
+    context.shadowBlur = focused ? 8 : 4;
+    context.beginPath();
+    context.moveTo(arrowSize, 0);
+    context.lineTo(-arrowSize * 0.58, -arrowSize * 0.42);
+    context.lineTo(-arrowSize * 0.58, arrowSize * 0.42);
+    context.closePath();
+    context.fill();
+  }
+
+  context.restore();
 }
 
 function formatCueTimestamp(ms: number | null): string {
@@ -518,6 +651,10 @@ export default function TmAtlasPanel({
 
     return entriesById;
   }, [data]);
+  const islandFlows = useMemo(
+    () => buildIslandFlows(data?.points ?? []),
+    [data],
+  );
   const videoCount = useMemo(
     () => new Set(data?.points.map((point) => point.videoId) ?? []).size,
     [data],
@@ -620,6 +757,42 @@ export default function TmAtlasPanel({
     points.sort((left, right) => right.depth - left.depth);
     return points;
   }, [clusterById, data, projectionGeometry, size.height, size.width, view3d, visualFocus]);
+  const projectedIslandById = useMemo(() => {
+    const totals = new Map<number, { x: number; y: number; depth: number; count: number }>();
+
+    for (const item of projectedPoints) {
+      if (item.culled) {
+        continue;
+      }
+
+      const total = totals.get(item.point.clusterId);
+      if (total) {
+        total.x += item.x;
+        total.y += item.y;
+        total.depth += item.depth;
+        total.count += 1;
+      } else {
+        totals.set(item.point.clusterId, { x: item.x, y: item.y, depth: item.depth, count: 1 });
+      }
+    }
+
+    const islands = new Map<number, ProjectedIsland>();
+    for (const [clusterId, total] of totals) {
+      const cluster = clusterById.get(clusterId);
+      if (!cluster) {
+        continue;
+      }
+
+      islands.set(clusterId, {
+        cluster,
+        x: total.x / total.count,
+        y: total.y / total.count,
+        depth: total.depth / total.count,
+      });
+    }
+
+    return islands;
+  }, [clusterById, projectedPoints]);
   const transcriptHasTimestamps = transcriptItems.some((item) => item.startMs !== null || item.endMs !== null);
 
   const isInSearchResults = selectedEntryId ? searchResultById.has(selectedEntryId) : false;
@@ -806,6 +979,42 @@ export default function TmAtlasPanel({
     }
     context.stroke();
 
+    if (sidebarMode !== 'search' && sidebarMode !== 'transcript' && islandFlows.length > 0) {
+      const activeFlowIslandId = selectedIslandId ?? (sidebarMode === 'entry' ? selectedPoint?.clusterId ?? null : null);
+      const flowLimit = activeFlowIslandId === null ? GLOBAL_ISLAND_FLOW_LIMIT : FOCUSED_ISLAND_FLOW_LIMIT;
+      const drawableFlows: IslandFlow[] = [];
+      let maxFlowCount = 1;
+
+      for (const flow of islandFlows) {
+        if (
+          activeFlowIslandId !== null &&
+          flow.fromClusterId !== activeFlowIslandId &&
+          flow.toClusterId !== activeFlowIslandId
+        ) {
+          continue;
+        }
+
+        if (!projectedIslandById.has(flow.fromClusterId) || !projectedIslandById.has(flow.toClusterId)) {
+          continue;
+        }
+
+        drawableFlows.push(flow);
+        maxFlowCount = Math.max(maxFlowCount, flow.count);
+        if (drawableFlows.length >= flowLimit) {
+          break;
+        }
+      }
+
+      for (let index = drawableFlows.length - 1; index >= 0; index -= 1) {
+        const flow = drawableFlows[index]!;
+        const from = projectedIslandById.get(flow.fromClusterId);
+        const to = projectedIslandById.get(flow.toClusterId);
+        if (from && to) {
+          drawIslandFlowArc(context, flow, from, to, maxFlowCount, theme, activeFlowIslandId !== null);
+        }
+      }
+    }
+
     const projectedByEntryId = new Map(projectedPoints.map((item) => [item.point.entryId, item]));
     const rankedSearchHits = topSearchResults
       .map((result) => projectedByEntryId.get(result.entryId))
@@ -964,10 +1173,14 @@ export default function TmAtlasPanel({
   }, [
     data,
     hoverState?.entryId,
+    islandFlows,
+    projectedIslandById,
     projectedPoints,
     searchHitIds,
     selectedEntryId,
     selectedIslandId,
+    selectedPoint?.clusterId,
+    selectedPoint?.color,
     sidebarMode,
     size.height,
     size.width,
