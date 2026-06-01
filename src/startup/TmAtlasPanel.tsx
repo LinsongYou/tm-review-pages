@@ -1018,6 +1018,9 @@ export default function TmAtlasPanel({
     if (transcriptVideoId) {
       onCloseTranscript();
     }
+    if (searchResults.length > 0 && entryId && !searchHitIds.has(entryId)) {
+      onClear();
+    }
     onSelectEntry(entryId);
   }
 
