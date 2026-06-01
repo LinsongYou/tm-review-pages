@@ -1021,7 +1021,8 @@ export default function TmAtlasPanel({
     if (!stayInIsland) {
       setSelectedIslandId(null);
     }
-    if (transcriptVideoId) {
+    const differentVideo = transcriptVideoId && clickedPoint?.videoId !== transcriptVideoId;
+    if (differentVideo) {
       onCloseTranscript();
     }
     onSelectEntry(entryId);
@@ -1313,7 +1314,10 @@ export default function TmAtlasPanel({
                         en={item.en}
                         zh={item.zh}
                         isFocus={item.entryId === selectedEntryId}
-                        onSelect={onSelectTranscriptEntry}
+                        onSelect={(entryId) => {
+                          pushHistory();
+                          onSelectTranscriptEntry(entryId);
+                        }}
                         onOpenTranscript={onOpenTranscript}
                         onSearchLine={onSearchTranscriptLine}
                         startMs={item.startMs}
