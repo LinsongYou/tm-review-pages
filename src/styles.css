@@ -1117,13 +1117,25 @@ button:disabled {
   width: calc(100% + 24px);
   margin: 0 -12px 4px -12px;
   padding: 4px 12px;
+  border-radius: 0;
   background: var(--surface-strong);
-  border-top: 1px solid var(--line);
   font-family: 'IBM Plex Mono', monospace;
   font-size: 0.78rem;
   font-weight: 500;
   color: var(--muted-strong);
   letter-spacing: 0.02em;
+}
+
+.pair-card-timestamps:first-child {
+  border-radius: 10px 10px 0 0;
+}
+
+.pair-card-timestamps:last-child {
+  border-radius: 0 0 10px 10px;
+}
+
+.pair-card-timestamps:first-child:last-child {
+  border-radius: 10px;
 }
 
 .pair-card-timestamps span {
