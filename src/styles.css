@@ -1007,12 +1007,12 @@ button:disabled {
 .atlas-back-btn {
   display: grid;
   place-items: center;
-  width: 34px;
-  min-width: 34px;
-  min-height: 34px;
+  width: 42px;
+  min-width: 42px;
+  min-height: 42px;
   padding: 0;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 8px;
   background: var(--surface-strong);
   color: var(--text);
   cursor: pointer;
@@ -1026,8 +1026,8 @@ button:disabled {
 }
 
 .atlas-back-btn svg {
-  width: 15px;
-  height: 15px;
+  width: 18px;
+  height: 18px;
 }
 
 /* ─── Pair Card ────────────────────────────────────────────────── */
