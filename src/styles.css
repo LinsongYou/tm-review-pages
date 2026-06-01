@@ -1002,7 +1002,7 @@ button:disabled {
 
 /* ─── Back Button ──────────────────────────────────────────────── */
 
-.atlas-back-btn {
+.atlas-search .atlas-back-btn {
   display: grid;
   place-items: center;
   width: 21px;
@@ -1017,13 +1017,13 @@ button:disabled {
   transition: all 200ms ease;
 }
 
-.atlas-back-btn:hover,
-.atlas-back-btn:focus-visible {
+.atlas-search .atlas-back-btn:hover,
+.atlas-search .atlas-back-btn:focus-visible {
   border-color: rgba(74, 222, 128, 0.4);
   box-shadow: var(--glow);
 }
 
-.atlas-back-btn svg {
+.atlas-search .atlas-back-btn svg {
   width: 18px;
   height: 18px;
 }
