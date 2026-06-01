@@ -232,6 +232,14 @@ function fitProjected3d(items: RawProjected3d[], width: number, height: number) 
   return { centerX, centerY, scale };
 }
 
+function getDepthRadiusScale(depth: number): number {
+  return clamp(1 - depth * 0.9, 0.55, 1.45);
+}
+
+function getDepthAlphaScale(depth: number): number {
+  return clamp(1 - depth * 0.78, 0.45, 1.36);
+}
+
 function formatCueTimestamp(ms: number | null): string {
   if (ms === null || !Number.isFinite(ms)) {
     return '--:--.---';
@@ -501,7 +509,7 @@ export default function TmAtlasPanel({
       culled: item.culled,
     }));
 
-    points.sort((left, right) => left.depth - right.depth);
+    points.sort((left, right) => right.depth - left.depth);
     return points;
   }, [clusterById, data, projectionGeometry, size.height, size.width, view3d, visualFocus]);
   const transcriptHasTimestamps = transcriptItems.some((item) => item.startMs !== null || item.endMs !== null);
@@ -762,7 +770,9 @@ export default function TmAtlasPanel({
       const hasSearch = searchHitIds.size > 0;
       const hasVideoPath = videoPathEntryIds.size > 0;
       const isOutsideSelectedIsland = selectedIslandId !== null && item.point.clusterId !== selectedIslandId;
-      const radius = isSelected
+      const depthRadiusScale = getDepthRadiusScale(item.depth);
+      const depthAlphaScale = getDepthAlphaScale(item.depth);
+      const baseRadius = isSelected
         ? 5.2
         : isHovered
           ? 4.4
@@ -771,7 +781,8 @@ export default function TmAtlasPanel({
             : isVideoPathPoint
               ? 2.7
               : 2.35;
-      const alpha = isSelected
+      const radius = baseRadius * (isSelected || isHovered ? clamp(depthRadiusScale, 0.92, 1.14) : depthRadiusScale);
+      const baseAlpha = isSelected
         ? 1
         : isHovered
           ? 0.95
@@ -788,6 +799,7 @@ export default function TmAtlasPanel({
               : isOutsideSelectedIsland
                 ? 0.08
                 : 0.68;
+      const alpha = isSelected ? 1 : clamp(baseAlpha * depthAlphaScale, 0.035, 1);
 
       context.fillStyle = hexToRgba(isSearchHit && !isSelected ? selected : item.point.color, alpha);
       context.beginPath();
