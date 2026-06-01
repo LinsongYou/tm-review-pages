@@ -648,10 +648,10 @@ export default function TmAtlasPanel({
     ? 'transcript'
     : selectedIslandPanel
       ? 'island'
-      : selectedEntry
-        ? 'entry'
-        : searchResults.length > 0
-          ? 'search'
+      : searchResults.length > 0
+        ? 'search'
+        : selectedEntry
+          ? 'entry'
           : 'idle';
 
   const canGoBack = sidebarMode !== 'idle';
