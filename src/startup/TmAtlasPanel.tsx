@@ -627,14 +627,15 @@ export default function TmAtlasPanel({
   }, [clusterById, data, projectionGeometry, size.height, size.width, view3d, visualFocus]);
   const transcriptHasTimestamps = transcriptItems.some((item) => item.startMs !== null || item.endMs !== null);
 
+  const isInSearchResults = selectedEntryId ? searchResultById.has(selectedEntryId) : false;
   const sidebarMode: SidebarMode = showTranscriptPanel
     ? 'transcript'
     : selectedIslandPanel
       ? 'island'
-      : searchResults.length > 0
-        ? 'search'
-        : selectedEntry
-          ? 'entry'
+      : selectedEntry && (!searchResults.length || !isInSearchResults)
+        ? 'entry'
+        : searchResults.length > 0
+          ? 'search'
           : 'idle';
   const topSearchResults = useMemo(() => searchResults.slice(0, 12), [searchResults]);
 
@@ -1017,9 +1018,6 @@ export default function TmAtlasPanel({
     }
     if (transcriptVideoId) {
       onCloseTranscript();
-    }
-    if (searchResults.length > 0 && entryId && !searchHitIds.has(entryId)) {
-      onClear();
     }
     onSelectEntry(entryId);
   }
