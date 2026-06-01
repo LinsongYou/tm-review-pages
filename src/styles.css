@@ -28,12 +28,12 @@
   --shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
   --glow: 0 0 12px rgba(74, 222, 128, 0.25), 0 0 40px rgba(74, 222, 128, 0.06);
   --glow-strong: 0 0 8px rgba(74, 222, 128, 0.4), 0 0 24px rgba(74, 222, 128, 0.12), 0 0 48px rgba(74, 222, 128, 0.04);
-  --glass-bg: rgba(10, 22, 16, 0.82);
+  --glass-bg: rgba(10, 22, 16, 0.55);
   --glass-border: rgba(74, 222, 128, 0.1);
   --card-bg: linear-gradient(135deg, rgba(7, 18, 16, 0.6), rgba(15, 32, 24, 0.4));
   --card-bg-strong: linear-gradient(135deg, rgba(7, 18, 16, 0.5), rgba(15, 32, 24, 0.3));
   --card-inset: inset 0 1px 0 rgba(74, 222, 128, 0.03);
-  --sidebar-bg: linear-gradient(180deg, rgba(10, 22, 16, 0.92), rgba(15, 32, 24, 0.88));
+  --sidebar-bg: linear-gradient(180deg, rgba(10, 22, 16, 0.6), rgba(15, 32, 24, 0.55));
   --sidebar-shadow: inset 1px 0 0 rgba(74, 222, 128, 0.04), -20px 0 52px rgba(0, 0, 0, 0.25);
   --entry-bg: rgba(7, 18, 16, 0.4);
   --scanline: repeating-linear-gradient(
@@ -66,12 +66,12 @@
   --shadow: 0 18px 44px rgba(49, 42, 34, 0.1);
   --glow: 0 0 8px rgba(22, 163, 74, 0.15), 0 0 32px rgba(22, 163, 74, 0.04);
   --glow-strong: 0 0 6px rgba(22, 163, 74, 0.3), 0 0 20px rgba(22, 163, 74, 0.08);
-  --glass-bg: rgba(248, 252, 249, 0.88);
+  --glass-bg: rgba(248, 252, 249, 0.6);
   --glass-border: rgba(22, 163, 74, 0.12);
   --card-bg: linear-gradient(135deg, rgba(244, 250, 246, 0.7), rgba(228, 240, 232, 0.5));
   --card-bg-strong: linear-gradient(135deg, rgba(244, 250, 246, 0.8), rgba(228, 240, 232, 0.6));
   --card-inset: inset 0 1px 0 rgba(22, 163, 74, 0.06);
-  --sidebar-bg: linear-gradient(180deg, rgba(248, 252, 249, 0.95), rgba(240, 247, 242, 0.92));
+  --sidebar-bg: linear-gradient(180deg, rgba(248, 252, 249, 0.65), rgba(240, 247, 242, 0.6));
   --sidebar-shadow: inset 1px 0 0 rgba(22, 163, 74, 0.06), -20px 0 52px rgba(49, 42, 34, 0.06);
   --entry-bg: rgba(244, 250, 246, 0.6);
   --scanline: none;
