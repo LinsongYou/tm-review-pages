@@ -891,7 +891,11 @@ export default function TmAtlasPanel({
   }
 
   function selectEntry(entryId: string | null): void {
-    setSelectedIslandId(null);
+    const clickedPoint = entryId ? pointById.get(entryId) : null;
+    const stayInIsland = selectedIslandId !== null && clickedPoint?.clusterId === selectedIslandId;
+    if (!stayInIsland) {
+      setSelectedIslandId(null);
+    }
     if (transcriptVideoId) {
       onCloseTranscript();
     }
