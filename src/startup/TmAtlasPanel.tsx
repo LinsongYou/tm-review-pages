@@ -818,7 +818,7 @@ export default function TmAtlasPanel({
         .map((index) => videoPathPoints[index]!.point.entryId),
     );
 
-    if (rankedSearchHits.length > 1) {
+    if (sidebarMode === 'search' && rankedSearchHits.length > 1) {
       context.save();
       context.strokeStyle = hexToRgba(selected, 0.44);
       context.lineWidth = 1.25;
@@ -867,7 +867,7 @@ export default function TmAtlasPanel({
       context.restore();
     }
 
-    const hasSearch = searchHitIds.size > 0;
+    const hasSearch = searchHitIds.size > 0 && sidebarMode === 'search';
     const hasVideoPath = videoPathEntryIds.size > 0;
 
     for (const item of projectedPoints) {
@@ -934,7 +934,7 @@ export default function TmAtlasPanel({
       }
     }
 
-    if (rankedSearchHits.length > 0) {
+    if (sidebarMode === 'search' && rankedSearchHits.length > 0) {
       context.save();
       context.strokeStyle = hexToRgba(selected, 0.9);
       context.lineWidth = 1.5;
@@ -953,6 +953,7 @@ export default function TmAtlasPanel({
     searchHitIds,
     selectedEntryId,
     selectedIslandId,
+    sidebarMode,
     size.height,
     size.width,
     theme,
