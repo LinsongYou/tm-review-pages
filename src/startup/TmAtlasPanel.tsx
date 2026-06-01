@@ -7,7 +7,7 @@ import type {
   SemanticLandscapeData,
   SemanticLandscapePoint,
 } from './semantic-landscape';
-import { hexToRgba, blendHexColors } from './colors';
+import { hexToRgba, blendHexColors, isLightHex } from './colors';
 
 type ThemeMode = 'dark' | 'light';
 
@@ -1331,10 +1331,19 @@ export default function TmAtlasPanel({
           </section>
         )}
 
-        {sidebarMode === 'island' && selectedIslandPanel && (
+        {sidebarMode === 'island' && selectedIslandPanel && (() => {
+          const light = isLightHex(selectedIslandPanel.cluster.color);
+          return (
           <section
             className="atlas-section atlas-island-focus"
-            style={{ ['--cluster-color' as string]: selectedIslandPanel.cluster.color }}
+            style={{
+              ['--cluster-color' as string]: selectedIslandPanel.cluster.color,
+              ['--island-text' as string]: light ? '#020a06' : '#e2f5ea',
+              ['--island-text-muted' as string]: light ? 'rgba(2, 10, 6, 0.6)' : 'rgba(226, 245, 234, 0.6)',
+              ['--island-text-strong' as string]: light ? 'rgba(2, 10, 6, 0.75)' : 'rgba(226, 245, 234, 0.75)',
+              ['--island-overlay' as string]: light ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.1)',
+              ['--island-overlay-border' as string]: light ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.15)',
+            }}
           >
             <div className="atlas-island-sticky">
               <article className="atlas-island-card">
@@ -1392,7 +1401,8 @@ export default function TmAtlasPanel({
               ))}
             </ol>
           </section>
-        )}
+          );
+        })()}
 
         {sidebarMode === 'entry' && selectedEntry && (
           <div className="atlas-detail">

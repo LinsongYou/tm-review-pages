@@ -635,46 +635,46 @@ button:disabled {
   border: 1px solid rgba(74, 222, 128, 0.15);
   border-radius: 10px;
   background: var(--cluster-color);
-  color: #020a06;
+  color: var(--island-text, #020a06);
   box-shadow: var(--card-inset), var(--shadow);
   transition: border-color 300ms ease;
 }
 
 .atlas-island-card .atlas-island-heading strong {
-  color: #020a06;
+  color: var(--island-text, #020a06);
 }
 
 .atlas-island-card .atlas-island-heading em {
-  background: rgba(0, 0, 0, 0.15);
-  color: #020a06;
+  background: var(--island-overlay, rgba(0, 0, 0, 0.15));
+  color: var(--island-text, #020a06);
 }
 
 .atlas-island-card .atlas-region-description {
-  color: rgba(2, 10, 6, 0.7);
+  color: var(--island-text-strong, rgba(2, 10, 6, 0.7));
 }
 
 .atlas-island-card .atlas-island-metrics div {
-  border-color: rgba(0, 0, 0, 0.1);
-  background: rgba(0, 0, 0, 0.06);
+  border-color: var(--island-overlay-border, rgba(0, 0, 0, 0.1));
+  background: var(--island-overlay, rgba(0, 0, 0, 0.06));
 }
 
 .atlas-island-card .atlas-island-metrics dt {
-  color: rgba(2, 10, 6, 0.6);
+  color: var(--island-text-muted, rgba(2, 10, 6, 0.6));
 }
 
 .atlas-island-card .atlas-island-metrics dd {
-  color: #020a06;
+  color: var(--island-text, #020a06);
 }
 
 .atlas-island-card .atlas-phrase-list span {
-  border-color: rgba(0, 0, 0, 0.12);
-  color: rgba(2, 10, 6, 0.75);
-  background: rgba(0, 0, 0, 0.06);
+  border-color: var(--island-overlay-border, rgba(0, 0, 0, 0.12));
+  color: var(--island-text-strong, rgba(2, 10, 6, 0.75));
+  background: var(--island-overlay, rgba(0, 0, 0, 0.06));
 }
 
 .atlas-island-card .atlas-phrase-list span:hover {
-  border-color: rgba(0, 0, 0, 0.2);
-  background: rgba(0, 0, 0, 0.1);
+  border-color: var(--island-overlay-border, rgba(0, 0, 0, 0.2));
+  background: var(--island-overlay, rgba(0, 0, 0, 0.1));
 }
 
 .atlas-island-heading {
