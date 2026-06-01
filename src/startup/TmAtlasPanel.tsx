@@ -190,22 +190,34 @@ function getIslandZoom(
   return clamp((atlasSpan / islandSpan) * 0.72, 1.45, 8);
 }
 
+interface TrigCache {
+  cosX: number;
+  sinX: number;
+  cosY: number;
+  sinY: number;
+}
+
+function computeTrig(view: View3d): TrigCache {
+  return {
+    cosX: Math.cos(view.rotateX),
+    sinX: Math.sin(view.rotateX),
+    cosY: Math.cos(view.rotateY),
+    sinY: Math.sin(view.rotateY),
+  };
+}
+
 function project3dRaw(
   point: SemanticLandscapePoint,
-  view: View3d,
   geometry: VisualGeometry,
+  trig: TrigCache,
 ) {
   const x = (point.x3d - geometry.centerX) / (geometry.radius * 2);
   const y = (geometry.centerY - point.y3d) / (geometry.radius * 2);
   const z = (point.z3d - geometry.centerZ) / (geometry.radius * 2);
-  const cosY = Math.cos(view.rotateY);
-  const sinY = Math.sin(view.rotateY);
-  const cosX = Math.cos(view.rotateX);
-  const sinX = Math.sin(view.rotateX);
-  const x1 = x * cosY + z * sinY;
-  const z1 = -x * sinY + z * cosY;
-  const y1 = y * cosX - z1 * sinX;
-  const z2 = y * sinX + z1 * cosX;
+  const x1 = x * trig.cosY + z * trig.sinY;
+  const z1 = -x * trig.sinY + z * trig.cosY;
+  const y1 = y * trig.cosX - z1 * trig.sinX;
+  const z2 = y * trig.sinX + z1 * trig.cosX;
   const perspective = 1 / (1 + z2 * 0.72);
 
   return {
@@ -614,10 +626,11 @@ export default function TmAtlasPanel({
       return [];
     }
 
+    const trig = computeTrig(view3d);
     const rawItems = data.points.map((point): RawProjected3d => ({
       point,
       cluster: clusterById.get(point.clusterId)!,
-      ...project3dRaw(point, view3d, projectionGeometry),
+      ...project3dRaw(point, projectionGeometry, trig),
     }));
     const fitted = fitProjected3d(rawItems, size.width - 400, size.height);
     const centerX = visualFocus ? 0 : fitted.centerX;
@@ -625,7 +638,7 @@ export default function TmAtlasPanel({
     const points = rawItems.map((item) => ({
       point: item.point,
       cluster: item.cluster,
-      x: (item.rawX - centerX) * fitted.scale * view3d.zoom + (size.width - SIDEBAR_WIDTH) / 2 + view3d.offsetX,
+      x: (item.rawX - centerX) * fitted.scale * view3d.zoom + (size.width - 400) / 2 + view3d.offsetX,
       y: (item.rawY - centerY) * fitted.scale * view3d.zoom + size.height / 2 + view3d.offsetY,
       depth: item.depth,
       culled: item.culled,
@@ -645,7 +658,7 @@ export default function TmAtlasPanel({
         : selectedEntry
           ? 'entry'
           : 'idle';
-  const topSearchResults = searchResults.slice(0, 12);
+  const topSearchResults = useMemo(() => searchResults.slice(0, 12), [searchResults]);
 
   const showIslandBrowser = !!data && !query.trim();
   const isIdle = sidebarMode === 'idle' && !errorText && !searchNote;
@@ -800,8 +813,7 @@ export default function TmAtlasPanel({
     const grid = theme === 'dark' ? 'rgba(197, 228, 203, 0.08)' : 'rgba(51, 104, 72, 0.12)';
     const muted = theme === 'dark' ? '#9fb2a5' : '#617266';
     const text = theme === 'dark' ? '#edf8ef' : '#17251b';
-    const computedStyle = window.getComputedStyle(document.documentElement);
-    const selected = computedStyle.getPropertyValue('--accent').trim();
+    const selected = theme === 'dark' ? '#4ade80' : '#16a34a';
 
     context.fillStyle = background;
     context.fillRect(0, 0, size.width, size.height);
@@ -809,18 +821,16 @@ export default function TmAtlasPanel({
     context.strokeStyle = grid;
     context.lineWidth = 1;
     const gridStep = Math.max(80, Math.round(Math.min(size.width, size.height) / 7));
+    context.beginPath();
     for (let x = (view3d.offsetX % gridStep) - gridStep; x < size.width + gridStep; x += gridStep) {
-      context.beginPath();
       context.moveTo(x, 0);
       context.lineTo(x, size.height);
-      context.stroke();
     }
     for (let y = (view3d.offsetY % gridStep) - gridStep; y < size.height + gridStep; y += gridStep) {
-      context.beginPath();
       context.moveTo(0, y);
       context.lineTo(size.width, y);
-      context.stroke();
     }
+    context.stroke();
 
     const projectedByEntryId = new Map(projectedPoints.map((item) => [item.point.entryId, item]));
     const rankedSearchHits = topSearchResults
@@ -889,6 +899,9 @@ export default function TmAtlasPanel({
       context.restore();
     }
 
+    const hasSearch = searchHitIds.size > 0;
+    const hasVideoPath = videoPathEntryIds.size > 0;
+
     for (const item of projectedPoints) {
       if (item.culled) {
         continue;
@@ -899,8 +912,6 @@ export default function TmAtlasPanel({
       const isSearchHit = searchHitIds.has(item.point.entryId);
       const isVideoPathPoint = videoPathEntryIds.has(item.point.entryId);
       const isEmphasizedVideoPathPoint = emphasizedVideoPathIds.has(item.point.entryId);
-      const hasSearch = searchHitIds.size > 0;
-      const hasVideoPath = videoPathEntryIds.size > 0;
       const isOutsideSelectedIsland = selectedIslandId !== null && item.point.clusterId !== selectedIslandId;
       const depthRadiusScale = getDepthRadiusScale(item.depth);
       const depthAlphaScale = getDepthAlphaScale(item.depth);
