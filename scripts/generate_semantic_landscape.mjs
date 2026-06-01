@@ -571,12 +571,14 @@ function buildClusters(entries, assignments, scaled2d, scaled3d, centers, island
       .slice(0, SAMPLE_COUNT)
       .map((item) => item.index);
 
+    const avgDist = Math.sqrt(
+      members.reduce((total, index) => total + squaredDistance(scaled3d[index], rawCenter), 0) / members.length,
+    );
+
     return {
       id: clusterId,
       label: labelFromPhrases(phraseStats[clusterId]),
       description: descriptionFromPhrases(phraseStats[clusterId], members.length, videoIds.size),
-      labelMode: 'theme',
-      labelConfidence: 0.75,
       color: islandColors[clusterId].hex,
       size: members.length,
       videoCount: videoIds.size,
@@ -588,6 +590,7 @@ function buildClusters(entries, assignments, scaled2d, scaled3d, centers, island
       z3d: center3d[2],
       topPhrases: phraseStats[clusterId],
       medoidEntryId: entries[sampleIndexes[0]].entryId,
+      rawAvgDist: avgDist,
       representativeEntryIds: sampleIndexes.map((index) => entries[index].entryId),
       samples: sampleIndexes.map((index) => {
         const entry = entries[index];
@@ -662,6 +665,11 @@ async function main() {
   const clusterCount = centers.length;
   const islandColors = assignIslandColors(centers);
   const clusters = buildClusters(entries, assignments, scaled2d, scaled3d, centers, islandColors);
+  const maxAvgDist = Math.max(...clusters.map((cluster) => cluster.rawAvgDist));
+  for (const cluster of clusters) {
+    cluster.compactness = maxAvgDist > 0 ? Math.round((1 - cluster.rawAvgDist / maxAvgDist) * 100) : 100;
+    delete cluster.rawAvgDist;
+  }
   const points = entries.map((entry, index) => ({
     entryId: entry.entryId,
     videoId: entry.videoId,

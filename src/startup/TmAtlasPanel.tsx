@@ -1340,7 +1340,6 @@ export default function TmAtlasPanel({
               <article className="atlas-island-card">
                 <div className="atlas-island-heading">
                   <strong>{selectedIslandPanel.cluster.label}</strong>
-                  <em>{selectedIslandPanel.cluster.labelMode}</em>
                 </div>
                 <p className="atlas-region-description">{selectedIslandPanel.cluster.description}</p>
 
@@ -1358,8 +1357,8 @@ export default function TmAtlasPanel({
                     <dd>{selectedIslandPanel.share.toFixed(1)}%</dd>
                   </div>
                   <div>
-                    <dt>Theme</dt>
-                    <dd>{Math.round(selectedIslandPanel.cluster.labelConfidence * 100)}%</dd>
+                    <dt>Compact</dt>
+                    <dd>{selectedIslandPanel.cluster.compactness}%</dd>
                   </div>
                 </dl>
 

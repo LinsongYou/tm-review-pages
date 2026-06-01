@@ -2,8 +2,6 @@ export interface SemanticLandscapeCluster {
   id: number;
   label: string;
   description: string;
-  labelMode: string;
-  labelConfidence: number;
   color: string;
   size: number;
   videoCount: number;
@@ -15,6 +13,7 @@ export interface SemanticLandscapeCluster {
   z3d: number;
   topPhrases: string[];
   medoidEntryId: string;
+  compactness: number;
 }
 
 export interface SemanticLandscapePoint {
