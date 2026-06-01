@@ -408,6 +408,7 @@ function PairCard({
       <button
         className="pair-card-en"
         type="button"
+        title="Search for similar lines"
         disabled={!en.trim()}
         onClick={(event) => {
           event.stopPropagation();
