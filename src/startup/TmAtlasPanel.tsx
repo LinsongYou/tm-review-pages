@@ -115,6 +115,11 @@ interface DragState {
 
 type SidebarMode = 'transcript' | 'island' | 'entry' | 'search' | 'idle';
 
+interface NavState {
+  selectedEntryId: string | null;
+  selectedIslandId: number | null;
+}
+
 interface IconProps {
   className?: string;
 }
@@ -458,6 +463,7 @@ export default function TmAtlasPanel({
   const cameraAnimRef = useRef(0);
   const targetCenterRef = useRef<{ x: number; y: number; z: number } | null>(null);
   const animatedCenterRef = useRef<{ x: number; y: number; z: number } | null>(null);
+  const historyRef = useRef<NavState[]>([]);
   const [size, setSize] = useState({ width: 1, height: 1 });
   const [view3d, setView3d] = useState<View3d>(INITIAL_VIEW_3D);
   const [hoverState, setHoverState] = useState<HoverState | null>(null);
@@ -1012,31 +1018,36 @@ export default function TmAtlasPanel({
     onSelectEntry(entryId);
   }
 
+  function pushHistory(): void {
+    historyRef.current.push({
+      selectedEntryId,
+      selectedIslandId,
+    });
+  }
+
   function selectIsland(cluster: SemanticLandscapeCluster): void {
+    pushHistory();
     setSelectedIslandId(cluster.id);
     onSelectEntry(cluster.medoidEntryId);
   }
 
   function clearAtlas(): void {
+    historyRef.current = [];
     setSelectedIslandId(null);
     onClear();
   }
 
   function handleBack(): void {
-    switch (sidebarMode) {
-      case 'transcript':
-        onCloseTranscript();
-        break;
-      case 'island':
-        setSelectedIslandId(null);
-        onSelectEntry(null);
-        break;
-      case 'entry':
-        onSelectEntry(null);
-        break;
-      case 'search':
-        onClear();
-        break;
+    if (transcriptVideoId) {
+      onCloseTranscript();
+      return;
+    }
+    const prev = historyRef.current.pop();
+    if (prev) {
+      setSelectedIslandId(prev.selectedIslandId);
+      onSelectEntry(prev.selectedEntryId);
+    } else {
+      clearAtlas();
     }
   }
 
@@ -1120,6 +1131,9 @@ export default function TmAtlasPanel({
     dragRef.current = null;
     if (!drag.moved) {
       const nearest = findPoint(event.clientX, event.clientY);
+      if (nearest) {
+        pushHistory();
+      }
       selectEntry(nearest?.point.entryId ?? null);
     }
   }
