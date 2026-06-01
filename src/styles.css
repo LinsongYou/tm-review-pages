@@ -50,15 +50,15 @@
 
 :root[data-theme='light'] {
   color-scheme: light;
-  --bg: #f5f0e8;
-  --surface: #faf7f2;
-  --surface-strong: #ece5d8;
-  --line: #d4cabb;
-  --line-soft: rgba(80, 60, 30, 0.1);
-  --text: #1a1610;
-  --muted: #6b5e4e;
-  --muted-strong: #4a3f32;
-  --field: #f8f4ec;
+  --bg: #f0f7f2;
+  --surface: #f8fcf9;
+  --surface-strong: #e4f0e8;
+  --line: #c2d8c9;
+  --line-soft: rgba(24, 80, 45, 0.1);
+  --text: #0f1f15;
+  --muted: #5a7566;
+  --muted-strong: #3a5a48;
+  --field: #f4faf6;
   --accent: #16a34a;
   --accent-2: #15803d;
   --accent-contrast: #ffffff;
@@ -66,14 +66,14 @@
   --shadow: 0 18px 44px rgba(49, 42, 34, 0.1);
   --glow: 0 0 8px rgba(22, 163, 74, 0.15), 0 0 32px rgba(22, 163, 74, 0.04);
   --glow-strong: 0 0 6px rgba(22, 163, 74, 0.3), 0 0 20px rgba(22, 163, 74, 0.08);
-  --glass-bg: rgba(250, 247, 242, 0.88);
+  --glass-bg: rgba(248, 252, 249, 0.88);
   --glass-border: rgba(22, 163, 74, 0.12);
-  --card-bg: linear-gradient(135deg, rgba(248, 244, 236, 0.7), rgba(236, 229, 216, 0.5));
-  --card-bg-strong: linear-gradient(135deg, rgba(248, 244, 236, 0.8), rgba(236, 229, 216, 0.6));
+  --card-bg: linear-gradient(135deg, rgba(244, 250, 246, 0.7), rgba(228, 240, 232, 0.5));
+  --card-bg-strong: linear-gradient(135deg, rgba(244, 250, 246, 0.8), rgba(228, 240, 232, 0.6));
   --card-inset: inset 0 1px 0 rgba(22, 163, 74, 0.06);
-  --sidebar-bg: linear-gradient(180deg, rgba(250, 247, 242, 0.95), rgba(245, 240, 232, 0.92));
+  --sidebar-bg: linear-gradient(180deg, rgba(248, 252, 249, 0.95), rgba(240, 247, 242, 0.92));
   --sidebar-shadow: inset 1px 0 0 rgba(22, 163, 74, 0.06), -20px 0 52px rgba(49, 42, 34, 0.06);
-  --entry-bg: rgba(248, 244, 236, 0.6);
+  --entry-bg: rgba(244, 250, 246, 0.6);
   --scanline: none;
 }
 
