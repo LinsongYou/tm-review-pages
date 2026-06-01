@@ -1047,14 +1047,12 @@ export default function TmAtlasPanel({
   }
 
   function handleBack(): void {
-    if (transcriptVideoId) {
-      onCloseTranscript();
-      return;
-    }
     const prev = historyRef.current.pop();
     if (prev) {
       setSelectedIslandId(prev.selectedIslandId);
       onSelectEntry(prev.selectedEntryId);
+    } else if (transcriptVideoId) {
+      onCloseTranscript();
     } else {
       clearAtlas();
     }
