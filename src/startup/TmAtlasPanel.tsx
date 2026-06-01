@@ -663,7 +663,7 @@ export default function TmAtlasPanel({
     context.setTransform(dpr, 0, 0, dpr, 0, 0);
     context.clearRect(0, 0, size.width, size.height);
 
-    const background = theme === 'dark' ? '#06100b' : '#f2f8f1';
+    const background = theme === 'dark' ? '#06100b' : '#f5f0e8';
     const grid = theme === 'dark' ? 'rgba(197, 228, 203, 0.08)' : 'rgba(51, 104, 72, 0.12)';
     const muted = theme === 'dark' ? '#9fb2a5' : '#617266';
     const text = theme === 'dark' ? '#edf8ef' : '#17251b';
