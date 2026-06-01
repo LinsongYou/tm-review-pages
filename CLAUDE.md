@@ -52,3 +52,14 @@ No test suite or linter config is set up in the project. Type-check with `npx ts
 - No CSS modules or utility framework — all styles live in `src/styles.css` as plain CSS with CSS custom properties for theming (dark/light via `data-theme` attribute on `<html>`).
 - The 3D canvas is drawn with `<canvas>` 2D context (not WebGL). Projection math (rotation, perspective, depth sorting) is done manually in `TmAtlasPanel.tsx`.
 - The sidebar overlays the canvas absolutely — it is not part of the CSS grid flow on desktop.
+
+## Commit Hygiene
+
+Before committing any change, always verify that the build is clean:
+
+```bash
+npx tsc --noEmit        # Type-check
+npm run build            # Full build (type-check + Vite bundle)
+```
+
+Do not commit if either command fails. Fix the errors first.
