@@ -126,6 +126,8 @@ const INITIAL_VIEW_3D: View3d = {
   offsetY: 0,
 };
 
+const SIDEBAR_WIDTH = 400;
+
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
 }
@@ -497,13 +499,13 @@ export default function TmAtlasPanel({
       cluster: clusterById.get(point.clusterId)!,
       ...project3dRaw(point, view3d, projectionGeometry),
     }));
-    const fitted = fitProjected3d(rawItems, size.width, size.height);
+    const fitted = fitProjected3d(rawItems, size.width - SIDEBAR_WIDTH, size.height);
     const centerX = visualFocus ? 0 : fitted.centerX;
     const centerY = visualFocus ? 0 : fitted.centerY;
     const points = rawItems.map((item) => ({
       point: item.point,
       cluster: item.cluster,
-      x: (item.rawX - centerX) * fitted.scale * view3d.zoom + size.width / 2 + view3d.offsetX,
+      x: (item.rawX - centerX) * fitted.scale * view3d.zoom + (size.width - SIDEBAR_WIDTH) / 2 + view3d.offsetX,
       y: (item.rawY - centerY) * fitted.scale * view3d.zoom + size.height / 2 + view3d.offsetY,
       depth: item.depth,
       culled: item.culled,
