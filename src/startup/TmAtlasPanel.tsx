@@ -810,16 +810,25 @@ export default function TmAtlasPanel({
     const rankedSearchHits = topSearchResults
       .map((result) => projectedByEntryId.get(result.entryId))
       .filter((item): item is ProjectedPoint => !!item && !item.culled);
-    const videoPathPoints = transcriptVideoId
+    const allVideoPathPoints = transcriptVideoId
       ? transcriptItems
           .map((item) => projectedByEntryId.get(item.entryId))
           .filter((item): item is ProjectedPoint => !!item && !item.culled)
       : [];
+    const selectedVideoPathIndex = allVideoPathPoints.findIndex((item) => item.point.entryId === selectedEntryId);
+    const videoPathWindowRadius = 5;
+    const videoPathWindowStart = selectedVideoPathIndex >= 0
+      ? Math.max(0, selectedVideoPathIndex - videoPathWindowRadius)
+      : 0;
+    const videoPathWindowEnd = selectedVideoPathIndex >= 0
+      ? Math.min(allVideoPathPoints.length, selectedVideoPathIndex + videoPathWindowRadius + 1)
+      : allVideoPathPoints.length;
+    const videoPathPoints = allVideoPathPoints.slice(videoPathWindowStart, videoPathWindowEnd);
     const videoPathEntryIds = new Set(videoPathPoints.map((item) => item.point.entryId));
-    const selectedVideoPathIndex = videoPathPoints.findIndex((item) => item.point.entryId === selectedEntryId);
     const videoPathFocusColor = selectedPoint?.color ?? videoPathPoints[0]?.point.color ?? selected;
+    const localSelectedIndex = selectedVideoPathIndex >= 0 ? selectedVideoPathIndex - videoPathWindowStart : -1;
     const emphasizedVideoPathIds = new Set(
-      [selectedVideoPathIndex - 1, selectedVideoPathIndex, selectedVideoPathIndex + 1]
+      [localSelectedIndex - 1, localSelectedIndex, localSelectedIndex + 1]
         .filter((index) => index >= 0 && index < videoPathPoints.length)
         .map((index) => videoPathPoints[index]!.point.entryId),
     );
@@ -851,11 +860,11 @@ export default function TmAtlasPanel({
       }
       context.stroke();
 
-      if (selectedVideoPathIndex >= 0) {
+      if (localSelectedIndex >= 0) {
         context.lineWidth = 2;
         const highlightedSegments: Array<[number, number]> = [
-          [selectedVideoPathIndex - 1, selectedVideoPathIndex],
-          [selectedVideoPathIndex, selectedVideoPathIndex + 1],
+          [localSelectedIndex - 1, localSelectedIndex],
+          [localSelectedIndex, localSelectedIndex + 1],
         ];
         for (const [fromIndex, toIndex] of highlightedSegments) {
           const fromPoint = videoPathPoints[fromIndex];
