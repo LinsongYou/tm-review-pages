@@ -284,14 +284,6 @@ function ResetIcon({ className }: IconProps) {
   );
 }
 
-function SearchIcon({ className }: IconProps) {
-  return (
-    <svg className={className} aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="11" cy="11" r="7" />
-      <path d="m20 20-3.5-3.5" />
-    </svg>
-  );
-}
 
 function SunIcon({ className }: IconProps) {
   return (
@@ -411,23 +403,19 @@ function PairCard({
         </div>
 
         {hasScore && <span className="pair-card-score">{score.toFixed(3)}</span>}
-
-        <button
-          className="pair-card-search-btn"
-          type="button"
-          aria-label={`Search using line ${segIndex}`}
-          title={`Search line ${segIndex}`}
-          disabled={!en.trim()}
-          onClick={(event) => {
-            event.stopPropagation();
-            onSearchLine(en);
-          }}
-        >
-          <SearchIcon />
-        </button>
       </div>
 
-      <p className="pair-card-en">{en}</p>
+      <button
+        className="pair-card-en"
+        type="button"
+        disabled={!en.trim()}
+        onClick={(event) => {
+          event.stopPropagation();
+          onSearchLine(en);
+        }}
+      >
+        {en}
+      </button>
       <p className="pair-card-zh">{zh}</p>
     </article>
   );

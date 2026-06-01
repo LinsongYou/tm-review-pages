@@ -1075,39 +1075,27 @@ button:disabled {
   white-space: nowrap;
 }
 
-.pair-card-search-btn {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  min-width: 32px;
-  min-height: 32px;
-  padding: 0;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface-strong);
-  color: var(--muted);
-  cursor: pointer;
-  transition: all 200ms ease;
-}
-
-.pair-card-search-btn:hover,
-.pair-card-search-btn:focus-visible {
-  color: var(--text);
-  border-color: rgba(74, 222, 128, 0.4);
-  box-shadow: var(--glow);
-}
-
-.pair-card-search-btn svg {
-  width: 15px;
-  height: 15px;
-}
-
 .pair-card-en {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
   color: var(--text);
+  font-family: inherit;
   font-size: 0.96rem;
   font-weight: 500;
   line-height: 1.5;
-  margin: 0;
+  text-align: left;
+  cursor: pointer;
+  transition: color 150ms ease;
+}
+
+.pair-card-en:hover,
+.pair-card-en:focus-visible {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .pair-card-zh {
