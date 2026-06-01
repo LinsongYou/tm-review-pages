@@ -53,13 +53,6 @@ export interface SearchRequest {
   minScore: number;
 }
 
-export interface ContextRequest {
-  kind: 'context';
-  requestId: number;
-  entryId: string;
-  radius?: number;
-}
-
 export interface TranscriptRequest {
   kind: 'transcript';
   requestId: number;
@@ -67,12 +60,11 @@ export interface TranscriptRequest {
   focusEntryId?: string;
 }
 
-export type WorkerRequest = BootRequest | PrepareModelRequest | SearchRequest | ContextRequest | TranscriptRequest;
+export type WorkerRequest = BootRequest | PrepareModelRequest | SearchRequest | TranscriptRequest;
 export type WorkerPayload =
   | Omit<BootRequest, 'requestId'>
   | Omit<PrepareModelRequest, 'requestId'>
   | Omit<SearchRequest, 'requestId'>
-  | Omit<ContextRequest, 'requestId'>
   | Omit<TranscriptRequest, 'requestId'>;
 
 export interface BootOkResponse {
@@ -99,12 +91,6 @@ export interface SearchOkResponse {
   note?: string;
 }
 
-export interface ContextOkResponse {
-  kind: 'context:ok';
-  requestId: number;
-  context: ContextItem[];
-}
-
 export interface TranscriptOkResponse {
   kind: 'transcript:ok';
   requestId: number;
@@ -123,6 +109,5 @@ export type WorkerResponse =
   | BootProgressResponse
   | PrepareModelOkResponse
   | SearchOkResponse
-  | ContextOkResponse
   | TranscriptOkResponse
   | ErrorResponse;

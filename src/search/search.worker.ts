@@ -8,7 +8,6 @@ import type {
   BootRequest,
   BootStats,
   ContextItem,
-  ContextRequest,
   EntrySummary,
   ErrorResponse,
   SearchRequest,
@@ -19,7 +18,6 @@ import type {
 } from './protocol';
 
 const workerScope = self as DedicatedWorkerGlobalScope;
-const DEFAULT_CONTEXT_RADIUS = 3;
 const VECTOR_MODEL_ID = 'sentence-transformers/all-MiniLM-L6-v2';
 const QUERY_MODEL_ID = 'Xenova/all-MiniLM-L6-v2';
 const ORT_WASM_BASE_URL =
@@ -757,45 +755,6 @@ async function handleSearch(
   return { results: searchSemantic(request, loaded, queryVector) };
 }
 
-function handleContext(request: ContextRequest): ContextItem[] {
-  const loaded = ensureState();
-  const focusIndex = loaded.entryById.get(request.entryId);
-  if (focusIndex === undefined) {
-    throw new Error(`No TM entry found for ${request.entryId}.`);
-  }
-
-  const focusEntry = loaded.entries[focusIndex];
-  if (!focusEntry) {
-    throw new Error(`No TM entry found for ${request.entryId}.`);
-  }
-
-  const group = loaded.videoGroups.get(focusEntry.videoId) ?? [];
-  const position = group.indexOf(focusIndex);
-  const radius = request.radius ?? DEFAULT_CONTEXT_RADIUS;
-  const start = Math.max(0, position - radius);
-  const end = Math.min(group.length, position + radius + 1);
-
-  const context: ContextItem[] = [];
-  for (let index = start; index < end; index += 1) {
-    const entryIndex = group[index];
-    if (entryIndex === undefined) {
-      continue;
-    }
-
-    const entry = loaded.entries[entryIndex];
-    if (!entry) {
-      continue;
-    }
-
-    context.push({
-      ...summarize(entry),
-      isFocus: entry.entryId === request.entryId,
-    });
-  }
-
-  return context;
-}
-
 function handleTranscript(request: TranscriptRequest): ContextItem[] {
   const loaded = ensureState();
   const group = loaded.videoGroups.get(request.videoId);
@@ -863,16 +822,6 @@ workerScope.addEventListener('message', async (event: MessageEvent<WorkerRequest
           requestId: request.requestId,
           results,
           note,
-        });
-        return;
-      }
-
-      case 'context': {
-        const context = handleContext(request);
-        post({
-          kind: 'context:ok',
-          requestId: request.requestId,
-          context,
         });
         return;
       }

@@ -127,8 +127,6 @@ const INITIAL_VIEW_3D: View3d = {
   offsetY: 0,
 };
 
-const SIDEBAR_WIDTH = 400;
-
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
 }
@@ -541,8 +539,7 @@ export default function TmAtlasPanel({
   );
 
   const selectedPoint = selectedEntryId ? pointById.get(selectedEntryId) ?? null : null;
-  const selectedSearchResult = selectedEntryId ? searchResultById.get(selectedEntryId) ?? null : null;
-  const selectedEntry = selectedPoint ?? selectedSearchResult ?? null;
+  const selectedEntry = selectedPoint ?? (selectedEntryId ? searchResultById.get(selectedEntryId) ?? null : null);
   const selectedCluster = selectedPoint ? clusterById.get(selectedPoint.clusterId)! : null;
   const showTranscriptPanel = !!transcriptVideoId;
   const selectedIsland = selectedIslandId !== null ? clusterById.get(selectedIslandId)! : null;
@@ -622,7 +619,7 @@ export default function TmAtlasPanel({
       cluster: clusterById.get(point.clusterId)!,
       ...project3dRaw(point, view3d, projectionGeometry),
     }));
-    const fitted = fitProjected3d(rawItems, size.width - SIDEBAR_WIDTH, size.height);
+    const fitted = fitProjected3d(rawItems, size.width - 400, size.height);
     const centerX = visualFocus ? 0 : fitted.centerX;
     const centerY = visualFocus ? 0 : fitted.centerY;
     const points = rawItems.map((item) => ({
@@ -648,6 +645,7 @@ export default function TmAtlasPanel({
         : selectedEntry
           ? 'entry'
           : 'idle';
+  const topSearchResults = searchResults.slice(0, 12);
 
   const showIslandBrowser = !!data && !query.trim();
   const isIdle = sidebarMode === 'idle' && !errorText && !searchNote;
@@ -825,8 +823,7 @@ export default function TmAtlasPanel({
     }
 
     const projectedByEntryId = new Map(projectedPoints.map((item) => [item.point.entryId, item]));
-    const rankedSearchHits = searchResults
-      .slice(0, 12)
+    const rankedSearchHits = topSearchResults
       .map((result) => projectedByEntryId.get(result.entryId))
       .filter((item): item is ProjectedPoint => !!item && !item.culled);
     const videoPathPoints = transcriptVideoId
@@ -975,12 +972,12 @@ export default function TmAtlasPanel({
     hoverState?.entryId,
     projectedPoints,
     searchHitIds,
-    searchResults,
     selectedEntryId,
     selectedIslandId,
     size.height,
     size.width,
     theme,
+    topSearchResults,
     transcriptItems,
     transcriptVideoId,
     view3d.offsetX,
@@ -1422,7 +1419,7 @@ export default function TmAtlasPanel({
               <span>{searchResults.length}</span>
             </div>
             <ol className="atlas-result-list">
-              {searchResults.slice(0, 12).map((result) => {
+              {topSearchResults.map((result) => {
                 const point = pointById.get(result.entryId);
                 const cluster = point ? clusterById.get(point.clusterId) : null;
                 return (
