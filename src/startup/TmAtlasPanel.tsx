@@ -150,8 +150,7 @@ const INITIAL_VIEW_3D: View3d = {
   offsetX: 0,
   offsetY: 0,
 };
-const GLOBAL_ISLAND_FLOW_LIMIT = 42;
-const FOCUSED_ISLAND_FLOW_LIMIT = 24;
+const FOCUSED_ISLAND_FLOW_LIMIT = 16;
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
@@ -343,9 +342,9 @@ function drawIslandFlowArc(
 
   const strength = Math.sqrt(flow.count / Math.max(1, maxCount));
   const depthAlpha = clamp(getDepthAlphaScale((from.depth + to.depth) / 2), 0.55, 1.14);
-  const baseAlpha = focused ? 0.26 + strength * 0.44 : 0.06 + strength * 0.22;
-  const alpha = clamp(baseAlpha * depthAlpha * (theme === 'light' ? 0.78 : 1), 0.035, 0.72);
-  const lineWidth = focused ? 1.4 + strength * 4.2 : 0.8 + strength * 3.2;
+  const baseAlpha = focused ? 0.035 + strength * 0.13 : 0.025 + strength * 0.1;
+  const alpha = clamp(baseAlpha * depthAlpha * (theme === 'light' ? 0.72 : 1), 0.025, 0.22);
+  const lineWidth = focused ? 0.55 + strength * 1.65 : 0.45 + strength * 1.25;
   const reciprocalOffset = flow.fromClusterId < flow.toClusterId ? 1 : -1;
   const curve = clamp(distance * 0.2, 28, focused ? 130 : 95) * reciprocalOffset;
   const controlX = (from.x + to.x) / 2 - (dy / distance) * curve;
@@ -356,30 +355,30 @@ function drawIslandFlowArc(
   gradient.addColorStop(1, hexToRgba(to.cluster.color, alpha));
 
   context.save();
-  context.globalCompositeOperation = theme === 'dark' ? 'lighter' : 'source-over';
+  context.globalCompositeOperation = 'source-over';
   context.strokeStyle = gradient;
   context.lineWidth = lineWidth;
   context.lineCap = 'round';
   context.lineJoin = 'round';
-  context.shadowColor = hexToRgba(to.cluster.color, alpha * 0.8);
-  context.shadowBlur = focused ? 10 : 6;
+  context.shadowColor = hexToRgba(to.cluster.color, alpha * 0.55);
+  context.shadowBlur = focused ? 4 : 2;
   context.beginPath();
   context.moveTo(from.x, from.y);
   context.quadraticCurveTo(controlX, controlY, to.x, to.y);
   context.stroke();
 
-  if (focused || strength > 0.72) {
+  if (strength > 0.62) {
     const t = 0.64;
     const arrowX = (1 - t) ** 2 * from.x + 2 * (1 - t) * t * controlX + t ** 2 * to.x;
     const arrowY = (1 - t) ** 2 * from.y + 2 * (1 - t) * t * controlY + t ** 2 * to.y;
     const tangentX = 2 * (1 - t) * (controlX - from.x) + 2 * t * (to.x - controlX);
     const tangentY = 2 * (1 - t) * (controlY - from.y) + 2 * t * (to.y - controlY);
-    const arrowSize = clamp(lineWidth * 2.2 + 2.5, 5.5, 12);
+    const arrowSize = clamp(lineWidth * 2 + 1.6, 4, 7.5);
 
     context.translate(arrowX, arrowY);
     context.rotate(Math.atan2(tangentY, tangentX));
-    context.fillStyle = hexToRgba(to.cluster.color, alpha * 0.9);
-    context.shadowBlur = focused ? 8 : 4;
+    context.fillStyle = hexToRgba(to.cluster.color, alpha * 0.7);
+    context.shadowBlur = focused ? 3 : 1;
     context.beginPath();
     context.moveTo(arrowSize, 0);
     context.lineTo(-arrowSize * 0.58, -arrowSize * 0.42);
@@ -979,17 +978,14 @@ export default function TmAtlasPanel({
     }
     context.stroke();
 
-    if (sidebarMode !== 'search' && sidebarMode !== 'transcript' && islandFlows.length > 0) {
-      const activeFlowIslandId = selectedIslandId ?? (sidebarMode === 'entry' ? selectedPoint?.clusterId ?? null : null);
-      const flowLimit = activeFlowIslandId === null ? GLOBAL_ISLAND_FLOW_LIMIT : FOCUSED_ISLAND_FLOW_LIMIT;
+    if (sidebarMode === 'island' && selectedIslandId !== null && islandFlows.length > 0) {
       const drawableFlows: IslandFlow[] = [];
       let maxFlowCount = 1;
 
       for (const flow of islandFlows) {
         if (
-          activeFlowIslandId !== null &&
-          flow.fromClusterId !== activeFlowIslandId &&
-          flow.toClusterId !== activeFlowIslandId
+          flow.fromClusterId !== selectedIslandId &&
+          flow.toClusterId !== selectedIslandId
         ) {
           continue;
         }
@@ -1000,7 +996,7 @@ export default function TmAtlasPanel({
 
         drawableFlows.push(flow);
         maxFlowCount = Math.max(maxFlowCount, flow.count);
-        if (drawableFlows.length >= flowLimit) {
+        if (drawableFlows.length >= FOCUSED_ISLAND_FLOW_LIMIT) {
           break;
         }
       }
@@ -1010,7 +1006,7 @@ export default function TmAtlasPanel({
         const from = projectedIslandById.get(flow.fromClusterId);
         const to = projectedIslandById.get(flow.toClusterId);
         if (from && to) {
-          drawIslandFlowArc(context, flow, from, to, maxFlowCount, theme, activeFlowIslandId !== null);
+          drawIslandFlowArc(context, flow, from, to, maxFlowCount, theme, true);
         }
       }
     }
@@ -1179,7 +1175,6 @@ export default function TmAtlasPanel({
     searchHitIds,
     selectedEntryId,
     selectedIslandId,
-    selectedPoint?.clusterId,
     selectedPoint?.color,
     sidebarMode,
     size.height,
