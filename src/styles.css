@@ -490,19 +490,12 @@ button:disabled {
   box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.1), var(--glow);
 }
 
-.atlas-search button {
+.atlas-search button:not(.atlas-back-btn) {
+  min-width: 82px;
   min-height: 42px;
   padding: 0 12px;
-  border: 1px solid var(--line);
+  border: 1px solid rgba(74, 222, 128, 0.4);
   border-radius: 8px;
-  background: var(--surface-strong);
-  color: var(--text);
-  transition: all 200ms ease;
-}
-
-.atlas-search button {
-  min-width: 82px;
-  border-color: rgba(74, 222, 128, 0.4);
   background: linear-gradient(135deg, var(--accent), var(--accent-2));
   color: var(--accent-contrast);
   font-family: 'Rajdhani', sans-serif;
@@ -513,12 +506,12 @@ button:disabled {
   transition: all 200ms ease;
 }
 
-.atlas-search button:hover:not(:disabled) {
+.atlas-search button:not(.atlas-back-btn):hover:not(:disabled) {
   box-shadow: var(--glow-strong);
   filter: brightness(1.1);
 }
 
-.atlas-search button:disabled {
+.atlas-search button:not(.atlas-back-btn):disabled {
   opacity: 0.4;
   filter: saturate(0.3);
 }
@@ -1002,7 +995,7 @@ button:disabled {
 
 /* ─── Back Button ──────────────────────────────────────────────── */
 
-.atlas-search .atlas-back-btn {
+.atlas-back-btn {
   display: grid;
   place-items: center;
   width: 42px;
@@ -1017,13 +1010,13 @@ button:disabled {
   transition: all 200ms ease;
 }
 
-.atlas-search .atlas-back-btn:hover,
-.atlas-search .atlas-back-btn:focus-visible {
+.atlas-back-btn:hover,
+.atlas-back-btn:focus-visible {
   border-color: rgba(74, 222, 128, 0.4);
   box-shadow: var(--glow);
 }
 
-.atlas-search .atlas-back-btn svg {
+.atlas-back-btn svg {
   width: 18px;
   height: 18px;
 }
