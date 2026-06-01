@@ -113,6 +113,8 @@ interface DragState {
   moved: boolean;
 }
 
+type SidebarMode = 'transcript' | 'island' | 'entry' | 'search' | 'idle';
+
 interface IconProps {
   className?: string;
 }
@@ -305,9 +307,9 @@ function MoonIcon({ className }: IconProps) {
   );
 }
 
-function BackArrowIcon() {
+function BackArrowIcon({ className }: IconProps) {
   return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
+    <svg className={className} aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M19 12H5" />
       <path d="m12 5-7 7 7 7" />
     </svg>
@@ -420,13 +422,7 @@ function PairCard({
             event.stopPropagation();
             onClusterClick();
           }}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' || event.key === ' ') {
-              event.preventDefault();
-              event.stopPropagation();
-              onClusterClick();
-            }
-          }}
+          onKeyDown={(event) => handleSelectKey(event, () => onClusterClick())}
         >
           <div className="pair-card-cluster-header">
             <span className="pair-card-cluster-dot" />
@@ -643,7 +639,6 @@ export default function TmAtlasPanel({
   }, [clusterById, data, projectionGeometry, size.height, size.width, view3d, visualFocus]);
   const transcriptHasTimestamps = transcriptItems.some((item) => item.startMs !== null || item.endMs !== null);
 
-  type SidebarMode = 'transcript' | 'island' | 'entry' | 'search' | 'idle';
   const sidebarMode: SidebarMode = showTranscriptPanel
     ? 'transcript'
     : selectedIslandPanel
@@ -654,6 +649,8 @@ export default function TmAtlasPanel({
           ? 'entry'
           : 'idle';
 
+  const showIslandBrowser = !!data && !query.trim();
+  const isIdle = sidebarMode === 'idle' && !errorText && !searchNote;
   const canGoBack = sidebarMode !== 'idle';
 
   useEffect(() => {
@@ -1049,15 +1046,20 @@ export default function TmAtlasPanel({
   }
 
   function handleBack(): void {
-    if (showTranscriptPanel) {
-      onCloseTranscript();
-    } else if (selectedIslandId !== null) {
-      setSelectedIslandId(null);
-      onSelectEntry(null);
-    } else if (selectedEntry) {
-      onSelectEntry(null);
-    } else if (searchResults.length > 0) {
-      onClear();
+    switch (sidebarMode) {
+      case 'transcript':
+        onCloseTranscript();
+        break;
+      case 'island':
+        setSelectedIslandId(null);
+        onSelectEntry(null);
+        break;
+      case 'entry':
+        onSelectEntry(null);
+        break;
+      case 'search':
+        onClear();
+        break;
     }
   }
 
@@ -1249,7 +1251,7 @@ export default function TmAtlasPanel({
         ) : null}
       </div>
 
-      <aside className={classNames('atlas-sidebar', sidebarMode === 'idle' && 'is-idle', sidebarMode === 'transcript' && 'is-transcript')}>
+      <aside className={classNames('atlas-sidebar', isIdle && 'is-idle', sidebarMode === 'transcript' && 'is-transcript')}>
         <form className="atlas-search" onSubmit={handleSubmit}>
           {canGoBack && (
             <button className="atlas-back-btn" type="button" onClick={handleBack} aria-label="Go back">
@@ -1450,7 +1452,7 @@ export default function TmAtlasPanel({
           </section>
         )}
 
-        {sidebarMode === 'idle' && (
+        {sidebarMode === 'idle' && showIslandBrowser && (
           <section className="atlas-section atlas-island-section">
             <div className="atlas-section-header">
               <strong>Visual Islands</strong>

@@ -463,8 +463,12 @@ button:disabled {
 
 .atlas-search {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
+}
+
+.atlas-search:has(.atlas-back-btn) {
+  grid-template-columns: auto minmax(0, 1fr) auto;
 }
 
 .atlas-search input {
@@ -1303,9 +1307,6 @@ button:disabled {
 .atlas-back-btn svg {
   width: 18px;
   height: 18px;
-  stroke: currentColor;
-  stroke-width: 2;
-  fill: none;
 }
 
 /* ─── Pair Card ────────────────────────────────────────────────── */

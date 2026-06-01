@@ -22,7 +22,6 @@ type HeaderLoadState = Record<BootProgressSnapshot['target'], BootProgressSnapsh
 const DB_ASSET = 'data/tm_misha_minilm.db';
 const STARTUP_DATA_ASSET = 'data/startup-visualizations.json';
 const THEME_STORAGE_KEY = 'tm-review-theme';
-const DEFAULT_CONTEXT_RADIUS = 1;
 const DEFAULT_SEARCH_TOP_K = 24;
 const PAIRS_CHIP_LABEL = 'English/中文 Pairs';
 const MODEL_CHIP_LABEL = 'Embedding Model';
@@ -72,7 +71,6 @@ function App() {
   const pendingRef = useRef(new Map<number, PendingRequest>());
   const requestIdRef = useRef(1);
   const latestSearchRef = useRef(0);
-  const latestContextRef = useRef(0);
   const latestTranscriptRef = useRef(0);
 
   const [bootStats, setBootStats] = useState<BootStats | null>(null);
@@ -86,7 +84,6 @@ function App() {
   const [theme, setTheme] = useState<Theme>(getInitialTheme);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
-  const [_contextItems, setContextItems] = useState<ContextItem[]>([]);
   const [transcriptVideoId, setTranscriptVideoId] = useState<string | null>(null);
   const [transcriptItems, setTranscriptItems] = useState<ContextItem[]>([]);
   const [transcriptFocusEntryId, setTranscriptFocusEntryId] = useState<string | null>(null);
@@ -174,40 +171,6 @@ function App() {
     void loadStartupData(controller.signal);
     return () => controller.abort();
   }, [startupDataUrl]);
-
-  useEffect(() => {
-    if (!selectedEntryId || !bootStats) {
-      setContextItems([]);
-      return;
-    }
-
-    const sequence = latestContextRef.current + 1;
-    latestContextRef.current = sequence;
-
-    void (async () => {
-      try {
-        const response = (await callWorker({
-          kind: 'context',
-          entryId: selectedEntryId,
-          radius: DEFAULT_CONTEXT_RADIUS,
-        })) as Extract<WorkerResponse, { kind: 'context:ok' }>;
-
-        if (latestContextRef.current !== sequence) {
-          return;
-        }
-
-        startTransition(() => {
-          setContextItems(response.context);
-        });
-      } catch (error) {
-        if (latestContextRef.current !== sequence) {
-          return;
-        }
-
-        setErrorText(error instanceof Error ? error.message : String(error));
-      }
-    })();
-  }, [bootStats, selectedEntryId]);
 
   async function callWorker(payload: WorkerPayload): Promise<WorkerResponse> {
     const worker = workerRef.current;
@@ -440,7 +403,6 @@ function App() {
 
   function clearAtlas(): void {
     latestSearchRef.current += 1;
-    latestContextRef.current += 1;
     closeTranscript();
     setQuery('');
     setSearching(false);
@@ -448,7 +410,6 @@ function App() {
     setSearchNote(null);
     setResults([]);
     setSelectedEntryId(null);
-    setContextItems([]);
   }
 
   function toggleTheme(): void {
