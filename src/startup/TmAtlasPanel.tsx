@@ -341,9 +341,6 @@ interface PairCardProps {
   score?: number;
   clusterColor?: string;
   clusterLabel?: string;
-  clusterSize?: number;
-  clusterDescription?: string;
-  topPhrases?: string[];
   onClusterClick?: () => void;
 }
 
@@ -362,9 +359,6 @@ function PairCard({
   score,
   clusterColor,
   clusterLabel,
-  clusterSize,
-  clusterDescription,
-  topPhrases,
   onClusterClick,
 }: PairCardProps) {
   const hasTimestamps = startMs !== undefined;
@@ -423,33 +417,17 @@ function PairCard({
       <p className="pair-card-zh">{zh}</p>
 
       {hasCluster && (
-        <div
+        <button
           className="pair-card-cluster"
           style={{ ['--cluster-color' as string]: clusterColor }}
-          role="button"
-          tabIndex={0}
+          type="button"
           onClick={(event) => {
             event.stopPropagation();
             onClusterClick();
           }}
-          onKeyDown={(event) => handleSelectKey(event, () => onClusterClick())}
         >
-          <div className="pair-card-cluster-header">
-            <span className="pair-card-cluster-dot" />
-            <strong className="pair-card-cluster-label">{clusterLabel}</strong>
-            {clusterSize !== undefined && (
-              <span className="pair-card-cluster-size">{clusterSize.toLocaleString()} lines</span>
-            )}
-          </div>
-          {clusterDescription && <p className="pair-card-cluster-desc">{clusterDescription}</p>}
-          {topPhrases && topPhrases.length > 0 && (
-            <div className="atlas-phrase-list">
-              {topPhrases.map((phrase) => (
-                <span key={phrase}>{phrase}</span>
-              ))}
-            </div>
-          )}
-        </div>
+          {clusterLabel}
+        </button>
       )}
     </article>
   );
@@ -1415,9 +1393,6 @@ export default function TmAtlasPanel({
               onSearchLine={onSearchTranscriptLine}
               clusterColor={selectedCluster?.color}
               clusterLabel={selectedCluster?.label}
-              clusterSize={selectedCluster?.size}
-              clusterDescription={selectedCluster?.description}
-              topPhrases={selectedCluster?.topPhrases}
               onClusterClick={selectedCluster ? () => selectIsland(selectedCluster) : undefined}
             />
           </div>
@@ -1448,9 +1423,6 @@ export default function TmAtlasPanel({
                       score={result.score}
                       clusterColor={cluster?.color}
                       clusterLabel={cluster?.label}
-                      clusterSize={cluster?.size}
-                      clusterDescription={cluster?.description}
-                      topPhrases={cluster?.topPhrases}
                       onClusterClick={cluster ? () => selectIsland(cluster) : undefined}
                     />
                   </li>

@@ -1150,60 +1150,26 @@ button:disabled {
 }
 
 .pair-card-cluster {
-  display: grid;
-  gap: 8px;
-  padding: 10px 12px;
+  display: block;
+  width: 100%;
   margin-top: 4px;
-  border: 1px solid var(--line);
-  border-top: 2px solid var(--cluster-color, var(--accent-2));
-  border-radius: 8px;
-  background: var(--field);
+  padding: 5px 10px;
+  border: none;
+  border-radius: 6px;
+  background: var(--cluster-color, var(--accent-2));
+  color: #020a06;
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 600;
+  font-size: 0.82rem;
+  letter-spacing: 0.03em;
+  text-align: left;
   cursor: pointer;
-  transition: all 200ms ease;
+  transition: opacity 200ms ease;
 }
 
 .pair-card-cluster:hover,
 .pair-card-cluster:focus-visible {
-  border-color: rgba(74, 222, 128, 0.3);
-  background: rgba(74, 222, 128, 0.04);
-  box-shadow: 0 0 12px rgba(74, 222, 128, 0.06);
-}
-
-.pair-card-cluster-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.pair-card-cluster-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  background: var(--cluster-color, var(--accent-2));
-  box-shadow: 0 0 8px var(--cluster-color, var(--accent-2));
-  flex-shrink: 0;
-}
-
-.pair-card-cluster-label {
-  color: var(--text);
-  font-family: 'Rajdhani', sans-serif;
-  font-weight: 600;
-  font-size: 0.92rem;
-  letter-spacing: 0.02em;
-}
-
-.pair-card-cluster-size {
-  color: var(--muted);
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.74rem;
-}
-
-.pair-card-cluster-desc {
-  color: var(--muted-strong);
-  font-size: 0.82rem;
-  line-height: 1.45;
-  font-weight: 300;
-  margin: 0;
+  opacity: 0.8;
 }
 
 /* ─── Sticky Island Header ─────────────────────────────────────── */
