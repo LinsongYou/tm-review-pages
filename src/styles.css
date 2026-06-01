@@ -623,8 +623,7 @@ button:disabled {
 }
 
 .atlas-island-focus {
-  grid-template-rows: auto auto minmax(0, 1fr);
-  overflow: hidden;
+  grid-template-rows: auto auto;
 }
 
 /* ─── Island Card ───────────────────────────────────────────────── */
