@@ -1005,8 +1005,8 @@ button:disabled {
 .atlas-back-btn {
   display: grid;
   place-items: center;
-  width: 42px;
-  min-width: 42px;
+  width: 21px;
+  min-width: 21px;
   min-height: 42px;
   padding: 0;
   border: 1px solid var(--line);
