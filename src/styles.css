@@ -122,9 +122,10 @@ button:disabled {
 
 .atlas-shell {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(360px, 430px);
+  grid-template-columns: 1fr;
   min-height: 100dvh;
   overflow: hidden;
+  position: relative;
 }
 
 .atlas-canvas-wrap {
@@ -438,7 +439,7 @@ button:disabled {
   display: grid;
   grid-auto-rows: max-content;
   gap: 14px;
-  min-width: 0;
+  width: 400px;
   max-height: 100dvh;
   padding: 14px;
   overflow-y: auto;
@@ -446,6 +447,11 @@ button:disabled {
   background: var(--sidebar-bg), var(--scanline);
   box-shadow: var(--sidebar-shadow);
   backdrop-filter: blur(24px) saturate(140%);
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
 }
 
 .atlas-sidebar.is-idle {
@@ -1225,9 +1231,12 @@ button:disabled {
   }
 
   .atlas-sidebar {
+    position: static;
+    width: auto;
     max-height: none;
     border-top: 1px solid var(--line);
     border-left: none;
+    z-index: auto;
   }
 }
 
