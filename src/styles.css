@@ -1115,7 +1115,7 @@ button:disabled {
   align-items: center;
   gap: 6px;
   width: calc(100% + 24px);
-  margin: 0 -12px 4px -12px;
+  margin: -12px -12px 4px -12px;
   padding: 4px 12px;
   border-radius: 0;
   background: var(--surface-strong);
@@ -1131,10 +1131,12 @@ button:disabled {
 }
 
 .pair-card-timestamps:last-child {
+  margin-bottom: -12px;
   border-radius: 0 0 10px 10px;
 }
 
 .pair-card-timestamps:first-child:last-child {
+  margin-bottom: -12px;
   border-radius: 10px;
 }
 
