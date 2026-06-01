@@ -463,7 +463,7 @@ button:disabled {
 
 .atlas-search {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 8px;
 }
 
@@ -1275,6 +1275,230 @@ button:disabled {
   .transcript-entry-copy-line {
     grid-template-columns: 1fr;
   }
+}
+
+/* ─── Back Button ──────────────────────────────────────────────── */
+
+.atlas-back-btn {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  min-width: 42px;
+  min-height: 42px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  color: var(--text);
+  cursor: pointer;
+  transition: all 200ms ease;
+}
+
+.atlas-back-btn:hover,
+.atlas-back-btn:focus-visible {
+  border-color: rgba(74, 222, 128, 0.4);
+  box-shadow: var(--glow);
+}
+
+.atlas-back-btn svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  stroke-width: 2;
+  fill: none;
+}
+
+/* ─── Pair Card ────────────────────────────────────────────────── */
+
+.pair-card {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card-bg);
+  box-shadow: var(--card-inset);
+  cursor: pointer;
+  transition: all 200ms ease;
+}
+
+.pair-card:hover,
+.pair-card:focus-visible,
+.pair-card.is-focus {
+  border-color: rgba(74, 222, 128, 0.3);
+  background: rgba(74, 222, 128, 0.04);
+  box-shadow: 0 0 12px rgba(74, 222, 128, 0.06);
+}
+
+.pair-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.pair-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pair-card-meta .video-id-button {
+  max-width: 100%;
+}
+
+.pair-card-meta .pair-card-seg {
+  color: var(--muted);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.74rem;
+  white-space: nowrap;
+}
+
+.pair-card-search-btn {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 200ms ease;
+}
+
+.pair-card-search-btn:hover,
+.pair-card-search-btn:focus-visible {
+  color: var(--text);
+  border-color: rgba(74, 222, 128, 0.4);
+  box-shadow: var(--glow);
+}
+
+.pair-card-search-btn svg {
+  width: 15px;
+  height: 15px;
+}
+
+.pair-card-en {
+  color: var(--text);
+  font-size: 0.96rem;
+  font-weight: 500;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.pair-card-zh {
+  color: var(--muted-strong);
+  font-size: 0.88rem;
+  font-weight: 300;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.pair-card-timestamps {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.pair-card-timestamps span {
+  color: var(--muted);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.78rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.pair-card-timestamps .ts-sep {
+  opacity: 0.4;
+}
+
+.pair-card-score {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.pair-card-cluster {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  margin-top: 4px;
+  border: 1px solid var(--line);
+  border-top: 2px solid var(--cluster-color, var(--accent-2));
+  border-radius: 8px;
+  background: var(--field);
+  cursor: pointer;
+  transition: all 200ms ease;
+}
+
+.pair-card-cluster:hover,
+.pair-card-cluster:focus-visible {
+  border-color: rgba(74, 222, 128, 0.3);
+  background: rgba(74, 222, 128, 0.04);
+  box-shadow: 0 0 12px rgba(74, 222, 128, 0.06);
+}
+
+.pair-card-cluster-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pair-card-cluster-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--cluster-color, var(--accent-2));
+  box-shadow: 0 0 8px var(--cluster-color, var(--accent-2));
+  flex-shrink: 0;
+}
+
+.pair-card-cluster-label {
+  color: var(--text);
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 600;
+  font-size: 0.92rem;
+  letter-spacing: 0.02em;
+}
+
+.pair-card-cluster-size {
+  color: var(--muted);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.74rem;
+}
+
+.pair-card-cluster-desc {
+  color: var(--muted-strong);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  font-weight: 300;
+  margin: 0;
+}
+
+/* ─── Sticky Island Header ─────────────────────────────────────── */
+
+.atlas-island-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding-bottom: 8px;
+  background: var(--sidebar-bg);
+  backdrop-filter: blur(16px);
+}
+
+.atlas-island-sticky .atlas-island-card {
+  margin-bottom: 0;
 }
 
 /* ─── Scrollbar Styling ─────────────────────────────────────────── */

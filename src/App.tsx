@@ -86,7 +86,7 @@ function App() {
   const [theme, setTheme] = useState<Theme>(getInitialTheme);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
-  const [contextItems, setContextItems] = useState<ContextItem[]>([]);
+  const [_contextItems, setContextItems] = useState<ContextItem[]>([]);
   const [transcriptVideoId, setTranscriptVideoId] = useState<string | null>(null);
   const [transcriptItems, setTranscriptItems] = useState<ContextItem[]>([]);
   const [transcriptFocusEntryId, setTranscriptFocusEntryId] = useState<string | null>(null);
@@ -493,7 +493,6 @@ function App() {
         searchNote={searchNote}
         errorText={errorText}
         selectedEntryId={selectedEntryId}
-        contextItems={contextItems}
         transcriptVideoId={transcriptVideoId}
         transcriptItems={transcriptItems}
         transcriptFocusEntryId={transcriptFocusEntryId}

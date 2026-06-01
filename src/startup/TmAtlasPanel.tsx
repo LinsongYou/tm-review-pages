@@ -32,7 +32,6 @@ interface TmAtlasPanelProps {
   searchNote: string | null;
   errorText: string | null;
   selectedEntryId: string | null;
-  contextItems: ContextItem[];
   transcriptVideoId: string | null;
   transcriptItems: ContextItem[];
   transcriptFocusEntryId: string | null;
@@ -263,21 +262,6 @@ function formatCueTimestamp(ms: number | null): string {
   return `${minutes.toString().padStart(2, '0')}:${secondFragment}`;
 }
 
-function formatCueRange(startMs: number | null, endMs: number | null): string {
-  if (startMs === null && endMs === null) {
-    return 'No timestamps';
-  }
-
-  if (startMs === null) {
-    return `Ends ${formatCueTimestamp(endMs)}`;
-  }
-
-  if (endMs === null) {
-    return `Starts ${formatCueTimestamp(startMs)}`;
-  }
-
-  return `${formatCueTimestamp(startMs)} - ${formatCueTimestamp(endMs)}`;
-}
 
 function ResetIcon({ className }: IconProps) {
   return (
@@ -321,6 +305,150 @@ function MoonIcon({ className }: IconProps) {
   );
 }
 
+function BackArrowIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path d="M19 12H5" />
+      <path d="m12 5-7 7 7 7" />
+    </svg>
+  );
+}
+
+interface PairCardProps {
+  entryId: string;
+  videoId: string;
+  segIndex: number;
+  en: string;
+  zh: string;
+  isFocus?: boolean;
+  onSelect: (entryId: string) => void;
+  onOpenTranscript: (videoId: string, entryId: string) => void;
+  onSearchLine: (text: string) => void;
+  startMs?: number | null;
+  endMs?: number | null;
+  score?: number;
+  clusterColor?: string;
+  clusterLabel?: string;
+  clusterSize?: number;
+  clusterDescription?: string;
+  topPhrases?: string[];
+  onClusterClick?: () => void;
+}
+
+function PairCard({
+  entryId,
+  videoId,
+  segIndex,
+  en,
+  zh,
+  isFocus,
+  onSelect,
+  onOpenTranscript,
+  onSearchLine,
+  startMs,
+  endMs,
+  score,
+  clusterColor,
+  clusterLabel,
+  clusterSize,
+  clusterDescription,
+  topPhrases,
+  onClusterClick,
+}: PairCardProps) {
+  const hasTimestamps = startMs !== undefined;
+  const hasScore = score !== undefined;
+  const hasCluster = onClusterClick !== undefined;
+
+  return (
+    <article
+      className={classNames('pair-card', isFocus && 'is-focus')}
+      role="button"
+      tabIndex={0}
+      onClick={() => onSelect(entryId)}
+      onKeyDown={(event) => handleSelectKey(event, () => onSelect(entryId))}
+    >
+      {hasTimestamps && (
+        <div className="pair-card-timestamps">
+          <span>{formatCueTimestamp(startMs ?? null)}</span>
+          <span className="ts-sep">–</span>
+          <span>{formatCueTimestamp(endMs ?? null)}</span>
+        </div>
+      )}
+
+      <div className="pair-card-header">
+        <div className="pair-card-meta">
+          <button
+            className="video-id-button"
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpenTranscript(videoId, entryId);
+            }}
+          >
+            {videoId}
+          </button>
+          <span className="pair-card-seg">#{segIndex}</span>
+        </div>
+
+        {hasScore && <span className="pair-card-score">{score.toFixed(3)}</span>}
+
+        <button
+          className="pair-card-search-btn"
+          type="button"
+          aria-label={`Search using line ${segIndex}`}
+          title={`Search line ${segIndex}`}
+          disabled={!en.trim()}
+          onClick={(event) => {
+            event.stopPropagation();
+            onSearchLine(en);
+          }}
+        >
+          <SearchIcon />
+        </button>
+      </div>
+
+      <p className="pair-card-en">{en}</p>
+      <p className="pair-card-zh">{zh}</p>
+
+      {hasCluster && (
+        <div
+          className="pair-card-cluster"
+          style={{ ['--cluster-color' as string]: clusterColor }}
+          role="button"
+          tabIndex={0}
+          onClick={(event) => {
+            event.stopPropagation();
+            onClusterClick();
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              event.stopPropagation();
+              onClusterClick();
+            }
+          }}
+        >
+          <div className="pair-card-cluster-header">
+            <span className="pair-card-cluster-dot" />
+            <strong className="pair-card-cluster-label">{clusterLabel}</strong>
+            {clusterSize !== undefined && (
+              <span className="pair-card-cluster-size">{clusterSize.toLocaleString()} lines</span>
+            )}
+          </div>
+          {clusterDescription && <p className="pair-card-cluster-desc">{clusterDescription}</p>}
+          {topPhrases && topPhrases.length > 0 && (
+            <div className="atlas-phrase-list">
+              {topPhrases.map((phrase) => (
+                <span key={phrase}>{phrase}</span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </article>
+  );
+}
+
 export default function TmAtlasPanel({
   data,
   dataLoading,
@@ -334,7 +462,6 @@ export default function TmAtlasPanel({
   searchNote,
   errorText,
   selectedEntryId,
-  contextItems,
   transcriptVideoId,
   transcriptItems,
   transcriptFocusEntryId,
@@ -515,10 +642,19 @@ export default function TmAtlasPanel({
     return points;
   }, [clusterById, data, projectionGeometry, size.height, size.width, view3d, visualFocus]);
   const transcriptHasTimestamps = transcriptItems.some((item) => item.startMs !== null || item.endMs !== null);
-  const showIslandBrowser =
-    !!data && searchResults.length === 0 && !query.trim() && !selectedIslandPanel && !showTranscriptPanel;
-  const showLocalContext = !showTranscriptPanel && !selectedIslandPanel && (!showIslandBrowser || !!selectedEntry);
-  const idleSidebar = showIslandBrowser && !selectedEntry && !errorText && !searchNote;
+
+  type SidebarMode = 'transcript' | 'island' | 'entry' | 'search' | 'idle';
+  const sidebarMode: SidebarMode = showTranscriptPanel
+    ? 'transcript'
+    : selectedIslandPanel
+      ? 'island'
+      : selectedEntry
+        ? 'entry'
+        : searchResults.length > 0
+          ? 'search'
+          : 'idle';
+
+  const canGoBack = sidebarMode !== 'idle';
 
   useEffect(() => {
     const container = wrapRef.current;
@@ -912,6 +1048,19 @@ export default function TmAtlasPanel({
     onClear();
   }
 
+  function handleBack(): void {
+    if (showTranscriptPanel) {
+      onCloseTranscript();
+    } else if (selectedIslandId !== null) {
+      setSelectedIslandId(null);
+      onSelectEntry(null);
+    } else if (selectedEntry) {
+      onSelectEntry(null);
+    } else if (searchResults.length > 0) {
+      onClear();
+    }
+  }
+
   function setTranscriptItemRef(entryId: string, element: HTMLLIElement | null): void {
     if (element) {
       transcriptItemRefs.current.set(entryId, element);
@@ -1100,8 +1249,13 @@ export default function TmAtlasPanel({
         ) : null}
       </div>
 
-      <aside className={classNames('atlas-sidebar', idleSidebar && 'is-idle', showTranscriptPanel && 'is-transcript')}>
+      <aside className={classNames('atlas-sidebar', sidebarMode === 'idle' && 'is-idle', sidebarMode === 'transcript' && 'is-transcript')}>
         <form className="atlas-search" onSubmit={handleSubmit}>
+          {canGoBack && (
+            <button className="atlas-back-btn" type="button" onClick={handleBack} aria-label="Go back">
+              <BackArrowIcon />
+            </button>
+          )}
           <input
             aria-label="Search English subtitle lines"
             type="text"
@@ -1120,7 +1274,7 @@ export default function TmAtlasPanel({
         {errorText ? <p className="atlas-message atlas-message--error">{errorText}</p> : null}
         {searchNote ? <p className="atlas-message">{searchNote}</p> : null}
 
-        {showTranscriptPanel ? (
+        {sidebarMode === 'transcript' && (
           <section className="atlas-section atlas-video-transcript">
             <div className="atlas-video-header">
               <div className="transcript-heading">
@@ -1134,10 +1288,6 @@ export default function TmAtlasPanel({
                       }`}
                 </p>
               </div>
-
-              <button className="atlas-panel-close" type="button" onClick={onCloseTranscript}>
-                Close
-              </button>
             </div>
 
             {transcriptLoading ? (
@@ -1151,102 +1301,71 @@ export default function TmAtlasPanel({
             ) : (
               <div ref={transcriptBodyRef} className="transcript-panel-body">
                 <ol className="transcript-row-list">
-                  {transcriptItems.map((item) => {
-                    const isSelected = item.entryId === selectedEntryId;
-
-                    return (
-                      <li
-                        key={item.entryId}
-                        ref={(element) => setTranscriptItemRef(item.entryId, element)}
-                        className="transcript-row"
-                      >
-                        <button
-                          aria-label={`Jump to ${item.videoId} cue ${item.segIndex}. ${formatCueRange(
-                            item.startMs,
-                            item.endMs,
-                          )}.`}
-                          className={classNames('transcript-time', isSelected && 'is-selected')}
-                          type="button"
-                          onClick={() => onSelectTranscriptEntry(item.entryId)}
-                        >
-                          <span>#{item.segIndex}</span>
-                          <strong>{formatCueTimestamp(item.startMs)}</strong>
-                          <em>{formatCueTimestamp(item.endMs)}</em>
-                        </button>
-
-                        <article
-                          className={classNames('transcript-entry', isSelected && 'is-selected')}
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => onSelectTranscriptEntry(item.entryId)}
-                          onKeyDown={(event) => handleSelectKey(event, () => onSelectTranscriptEntry(item.entryId))}
-                        >
-                          <div className="transcript-entry-meta">
-                            <span>{item.videoId}#{item.segIndex}</span>
-                            <span>{item.blockName || 'no block'}</span>
-                          </div>
-                          <div className="transcript-entry-copy-line">
-                            <p className="transcript-entry-line transcript-entry-line--en">{item.en}</p>
-                            <button
-                              aria-label={`Search using cue ${item.segIndex} English text`}
-                              className="transcript-entry-action"
-                              type="button"
-                              title={`Search cue ${item.segIndex}`}
-                              disabled={!item.en.trim()}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                onSearchTranscriptLine(item.en);
-                              }}
-                            >
-                              <SearchIcon className="transcript-entry-action-icon" />
-                            </button>
-                          </div>
-                          <p className="transcript-entry-line transcript-entry-line--zh">{item.zh}</p>
-                        </article>
-                      </li>
-                    );
-                  })}
+                  {transcriptItems.map((item) => (
+                    <li
+                      key={item.entryId}
+                      ref={(element) => setTranscriptItemRef(item.entryId, element)}
+                    >
+                      <PairCard
+                        entryId={item.entryId}
+                        videoId={item.videoId}
+                        segIndex={item.segIndex}
+                        en={item.en}
+                        zh={item.zh}
+                        isFocus={item.entryId === selectedEntryId}
+                        onSelect={onSelectTranscriptEntry}
+                        onOpenTranscript={onOpenTranscript}
+                        onSearchLine={onSearchTranscriptLine}
+                        startMs={item.startMs}
+                        endMs={item.endMs}
+                      />
+                    </li>
+                  ))}
                 </ol>
               </div>
             )}
           </section>
-        ) : selectedIslandPanel ? (
+        )}
+
+        {sidebarMode === 'island' && selectedIslandPanel && (
           <section
             className="atlas-section atlas-island-focus"
             style={{ ['--cluster-color' as string]: selectedIslandPanel.cluster.color }}
           >
-            <article className="atlas-island-card">
-              <div className="atlas-island-heading">
-                <strong>{selectedIslandPanel.cluster.label}</strong>
-                <em>{selectedIslandPanel.cluster.labelMode}</em>
-              </div>
-              <p className="atlas-region-description">{selectedIslandPanel.cluster.description}</p>
+            <div className="atlas-island-sticky">
+              <article className="atlas-island-card">
+                <div className="atlas-island-heading">
+                  <strong>{selectedIslandPanel.cluster.label}</strong>
+                  <em>{selectedIslandPanel.cluster.labelMode}</em>
+                </div>
+                <p className="atlas-region-description">{selectedIslandPanel.cluster.description}</p>
 
-              <dl className="atlas-island-metrics">
-                <div>
-                  <dt>Lines</dt>
-                  <dd>{selectedIslandPanel.cluster.size.toLocaleString()}</dd>
-                </div>
-                <div>
-                  <dt>Videos</dt>
-                  <dd>{selectedIslandPanel.cluster.videoCount.toLocaleString()}</dd>
-                </div>
-                <div>
-                  <dt>Share</dt>
-                  <dd>{selectedIslandPanel.share.toFixed(1)}%</dd>
-                </div>
-                <div>
-                  <dt>Theme</dt>
-                  <dd>{Math.round(selectedIslandPanel.cluster.labelConfidence * 100)}%</dd>
-                </div>
-              </dl>
+                <dl className="atlas-island-metrics">
+                  <div>
+                    <dt>Lines</dt>
+                    <dd>{selectedIslandPanel.cluster.size.toLocaleString()}</dd>
+                  </div>
+                  <div>
+                    <dt>Videos</dt>
+                    <dd>{selectedIslandPanel.cluster.videoCount.toLocaleString()}</dd>
+                  </div>
+                  <div>
+                    <dt>Share</dt>
+                    <dd>{selectedIslandPanel.share.toFixed(1)}%</dd>
+                  </div>
+                  <div>
+                    <dt>Theme</dt>
+                    <dd>{Math.round(selectedIslandPanel.cluster.labelConfidence * 100)}%</dd>
+                  </div>
+                </dl>
 
-              <div className="atlas-phrase-list">
-                {selectedIslandPanel.cluster.topPhrases.map((phrase) => (
-                  <span key={phrase}>{phrase}</span>
-                ))}
-              </div>
-            </article>
+                <div className="atlas-phrase-list">
+                  {selectedIslandPanel.cluster.topPhrases.map((phrase) => (
+                    <span key={phrase}>{phrase}</span>
+                  ))}
+                </div>
+              </article>
+            </div>
 
             <div className="atlas-section-header">
               <strong>Island Lines</strong>
@@ -1255,95 +1374,83 @@ export default function TmAtlasPanel({
             <ol className="atlas-island-entry-list">
               {selectedIslandPanel.entries.map((entry) => (
                 <li key={entry.entryId}>
-                  <article
-                    className={classNames('atlas-island-entry', entry.entryId === selectedEntryId && 'is-focus')}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => selectEntry(entry.entryId)}
-                    onKeyDown={(event) => handleSelectKey(event, () => selectEntry(entry.entryId))}
-                  >
-                    <div className="atlas-island-entry-meta">
-                      <button
-                        className="video-id-button"
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onOpenTranscript(entry.videoId, entry.entryId);
-                        }}
-                      >
-                        {entry.videoId}
-                      </button>
-                      <span>#{entry.segIndex}</span>
-                    </div>
-                    <p className="atlas-island-entry-en">{entry.en}</p>
-                    <p className="atlas-island-entry-zh">{entry.zh}</p>
-                  </article>
+                  <PairCard
+                    entryId={entry.entryId}
+                    videoId={entry.videoId}
+                    segIndex={entry.segIndex}
+                    en={entry.en}
+                    zh={entry.zh}
+                    isFocus={entry.entryId === selectedEntryId}
+                    onSelect={selectEntry}
+                    onOpenTranscript={onOpenTranscript}
+                    onSearchLine={onSearchTranscriptLine}
+                  />
                 </li>
               ))}
             </ol>
           </section>
-        ) : selectedEntry ? (
+        )}
+
+        {sidebarMode === 'entry' && selectedEntry && (
           <div className="atlas-detail">
-            <article className="atlas-entry-detail">
-              {selectedCluster ? (
-                <>
-                  <div className="atlas-region-line" style={{ ['--cluster-color' as string]: selectedCluster.color }}>
-                    <span />
-                    <strong>{selectedCluster.label}</strong>
-                    <em>{selectedCluster.size.toLocaleString()} lines</em>
-                  </div>
-                  <p className="atlas-region-description">{selectedCluster.description}</p>
-                </>
-              ) : null}
-
-              <div className="atlas-entry-meta">
-                <button
-                  className="video-id-button"
-                  type="button"
-                  onClick={() => onOpenTranscript(selectedEntry.videoId, selectedEntry.entryId)}
-                >
-                  {selectedEntry.videoId}
-                </button>
-                <span>#{selectedEntry.segIndex}</span>
-              </div>
-
-              <p className="atlas-entry-en">{selectedEntry.en}</p>
-              <p className="atlas-entry-zh">{selectedEntry.zh}</p>
-
-              {selectedCluster?.topPhrases.length ? (
-                <div className="atlas-phrase-list">
-                  {selectedCluster.topPhrases.map((phrase) => (
-                    <span key={phrase}>{phrase}</span>
-                  ))}
-                </div>
-              ) : null}
-            </article>
+            <PairCard
+              entryId={selectedEntry.entryId}
+              videoId={selectedEntry.videoId}
+              segIndex={selectedEntry.segIndex}
+              en={selectedEntry.en}
+              zh={selectedEntry.zh}
+              isFocus
+              onSelect={selectEntry}
+              onOpenTranscript={onOpenTranscript}
+              onSearchLine={onSearchTranscriptLine}
+              clusterColor={selectedCluster?.color}
+              clusterLabel={selectedCluster?.label}
+              clusterSize={selectedCluster?.size}
+              clusterDescription={selectedCluster?.description}
+              topPhrases={selectedCluster?.topPhrases}
+              onClusterClick={selectedCluster ? () => selectIsland(selectedCluster) : undefined}
+            />
           </div>
-        ) : null}
+        )}
 
-        {searchResults.length ? (
+        {sidebarMode === 'search' && (
           <section className="atlas-section">
             <div className="atlas-section-header">
               <strong>Semantic Matches</strong>
               <span>{searchResults.length}</span>
             </div>
             <ol className="atlas-result-list">
-              {searchResults.slice(0, 12).map((result) => (
-                <li key={result.entryId}>
-                  <button
-                    className={classNames('atlas-result-row', result.entryId === selectedEntryId && 'is-active')}
-                    type="button"
-                    onClick={() => selectEntry(result.entryId)}
-                  >
-                    <span>{result.videoId}#{result.segIndex}</span>
-                    <strong>{result.score.toFixed(3)}</strong>
-                    <em>{result.en}</em>
-                  </button>
-                </li>
-              ))}
+              {searchResults.slice(0, 12).map((result) => {
+                const point = pointById.get(result.entryId);
+                const cluster = point ? clusterById.get(point.clusterId) : null;
+                return (
+                  <li key={result.entryId}>
+                    <PairCard
+                      entryId={result.entryId}
+                      videoId={result.videoId}
+                      segIndex={result.segIndex}
+                      en={result.en}
+                      zh={result.zh}
+                      isFocus={result.entryId === selectedEntryId}
+                      onSelect={selectEntry}
+                      onOpenTranscript={onOpenTranscript}
+                      onSearchLine={onSearchTranscriptLine}
+                      score={result.score}
+                      clusterColor={cluster?.color}
+                      clusterLabel={cluster?.label}
+                      clusterSize={cluster?.size}
+                      clusterDescription={cluster?.description}
+                      topPhrases={cluster?.topPhrases}
+                      onClusterClick={cluster ? () => selectIsland(cluster) : undefined}
+                    />
+                  </li>
+                );
+              })}
             </ol>
           </section>
-        ) : showIslandBrowser ? (
+        )}
+
+        {sidebarMode === 'idle' && (
           <section className="atlas-section atlas-island-section">
             <div className="atlas-section-header">
               <strong>Visual Islands</strong>
@@ -1372,53 +1479,7 @@ export default function TmAtlasPanel({
               ))}
             </ol>
           </section>
-        ) : null}
-
-        {showLocalContext ? (
-          <section className="atlas-section atlas-context-section">
-            <div className="atlas-section-header">
-              <strong>Local Context</strong>
-              <span>{contextItems.length}</span>
-            </div>
-            {contextItems.length ? (
-              <ol className="atlas-context-list">
-                {contextItems.map((item) => (
-                  <li key={item.entryId}>
-                    <article
-                      className={classNames('atlas-context-item', item.isFocus && 'is-focus')}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => selectEntry(item.entryId)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault();
-                          selectEntry(item.entryId);
-                        }
-                      }}
-                    >
-                      <div>
-                        <span>{item.videoId}#{item.segIndex}</span>
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onOpenTranscript(item.videoId, item.entryId);
-                          }}
-                        >
-                          Open
-                        </button>
-                      </div>
-                      <p>{item.en}</p>
-                      <p>{item.zh}</p>
-                    </article>
-                  </li>
-                ))}
-              </ol>
-            ) : (
-              <p className="atlas-muted">{selectedEntry?.en.trim() ? 'Loading context.' : 'Select a dot or search result.'}</p>
-            )}
-          </section>
-        ) : null}
+        )}
       </aside>
     </section>
   );
