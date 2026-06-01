@@ -468,7 +468,7 @@ export default function TmAtlasPanel({
       : { x: base.centerX, y: base.centerY, z: base.centerZ };
     targetCenterRef.current = target;
     if (!animatedCenterRef.current) {
-      animatedCenterRef.current = target;
+      animatedCenterRef.current = { ...target };
     }
   }
 
@@ -574,6 +574,10 @@ export default function TmAtlasPanel({
   }, [selectedEntryId, transcriptFocusEntryId, transcriptItems, transcriptVideoId]);
 
   useEffect(() => {
+    if (!data?.points.length) {
+      return;
+    }
+
     const targetZoom = visualFocus ? visualFocus.zoom : INITIAL_VIEW_3D.zoom;
     updateTargetCenter(visualFocus, visualGeometry);
 
@@ -622,7 +626,15 @@ export default function TmAtlasPanel({
       running = false;
       cancelAnimationFrame(cameraAnimRef.current);
     };
-  }, [visualFocus?.key]);
+  }, [
+    data?.points.length,
+    visualFocus?.centerX,
+    visualFocus?.centerY,
+    visualFocus?.centerZ,
+    visualFocus?.key,
+    visualFocus?.zoom,
+    visualGeometry,
+  ]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
