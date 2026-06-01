@@ -1151,11 +1151,11 @@ button:disabled {
 
 .pair-card-cluster {
   display: block;
-  width: 100%;
-  margin-top: 4px;
-  padding: 5px 10px;
+  width: calc(100% + 24px);
+  margin: -12px -12px 4px -12px;
+  padding: 5px 12px;
   border: none;
-  border-radius: 6px;
+  border-radius: 10px 10px 0 0;
   background: var(--cluster-color, var(--accent-2));
   color: #020a06;
   font-family: 'Rajdhani', sans-serif;

@@ -373,6 +373,20 @@ function PairCard({
       onClick={() => onSelect(entryId)}
       onKeyDown={(event) => handleSelectKey(event, () => onSelect(entryId))}
     >
+      {hasCluster && (
+        <button
+          className="pair-card-cluster"
+          style={{ ['--cluster-color' as string]: clusterColor }}
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onClusterClick();
+          }}
+        >
+          {clusterLabel}
+        </button>
+      )}
+
       {hasTimestamps && (
         <div className="pair-card-timestamps">
           <span>{formatCueTimestamp(startMs ?? null)}</span>
@@ -415,20 +429,6 @@ function PairCard({
 
       <p className="pair-card-en">{en}</p>
       <p className="pair-card-zh">{zh}</p>
-
-      {hasCluster && (
-        <button
-          className="pair-card-cluster"
-          style={{ ['--cluster-color' as string]: clusterColor }}
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            onClusterClick();
-          }}
-        >
-          {clusterLabel}
-        </button>
-      )}
     </article>
   );
 }
