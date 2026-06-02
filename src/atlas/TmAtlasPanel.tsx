@@ -490,7 +490,7 @@ function PairCard({
   clusterLabel,
   onClusterClick,
 }: PairCardProps) {
-  const hasTimestamps = startMs !== undefined;
+  const hasTimestamps = startMs != null;
   const hasScore = score !== undefined;
   const hasCluster = onClusterClick !== undefined;
 
@@ -593,6 +593,7 @@ export default function TmAtlasPanel({
   const transcriptBodyRef = useRef<HTMLDivElement | null>(null);
   const transcriptItemRefs = useRef(new Map<string, HTMLLIElement>());
   const cameraAnimRef = useRef(0);
+  const userNavigatingRef = useRef(false);
   const targetCenterRef = useRef<{ x: number; y: number; z: number } | null>(null);
   const animatedCenterRef = useRef<{ x: number; y: number; z: number } | null>(null);
   const historyRef = useRef<NavState[]>([]);
@@ -741,7 +742,7 @@ export default function TmAtlasPanel({
       cluster: clusterById.get(point.clusterId)!,
       ...project3dRaw(point, projectionGeometry, trig),
     }));
-    const fitted = fitProjected3d(rawItems, size.width - 400, size.height);
+    const fitted = fitProjected3d(rawItems, Math.max(1, size.width - 400), size.height);
     const centerX = visualFocus ? 0 : fitted.centerX;
     const centerY = visualFocus ? 0 : fitted.centerY;
     const points = rawItems.map((item) => ({
@@ -899,17 +900,19 @@ export default function TmAtlasPanel({
 
       setView3d((current) => {
         const dx = Math.abs(current.offsetX) + Math.abs(current.offsetY);
-        const dz = Math.abs(current.zoom - targetZoom);
+        const zooming = userNavigatingRef.current;
+        const dz = zooming ? 0 : Math.abs(current.zoom - targetZoom);
         const cx = center && target
           ? Math.abs(center.x - target.x) + Math.abs(center.y - target.y) + Math.abs(center.z - target.z)
           : 0;
         if (dx + dz + cx < epsilon) {
           settled = true;
-          return { ...current, zoom: targetZoom, offsetX: 0, offsetY: 0 };
+          userNavigatingRef.current = false;
+          return { ...current, zoom: zooming ? current.zoom : targetZoom, offsetX: 0, offsetY: 0 };
         }
         return {
           ...current,
-          zoom: lerp(current.zoom, targetZoom, 0.1),
+          zoom: zooming ? current.zoom : lerp(current.zoom, targetZoom, 0.1),
           offsetX: lerp(current.offsetX, 0, 0.1),
           offsetY: lerp(current.offsetY, 0, 0.1),
         };
@@ -1032,11 +1035,13 @@ export default function TmAtlasPanel({
     const videoPathEntryIds = new Set(videoPathPoints.map((item) => item.point.entryId));
     const videoPathFocusColor = selectedPoint?.color ?? videoPathPoints[0]?.point.color ?? selected;
     const localSelectedIndex = selectedVideoPathIndex >= 0 ? selectedVideoPathIndex - videoPathWindowStart : -1;
-    const emphasizedVideoPathIds = new Set(
-      [localSelectedIndex - 1, localSelectedIndex, localSelectedIndex + 1]
-        .filter((index) => index >= 0 && index < videoPathPoints.length)
-        .map((index) => videoPathPoints[index]!.point.entryId),
-    );
+    const emphasizedVideoPathIds = localSelectedIndex >= 0
+      ? new Set(
+          [localSelectedIndex - 1, localSelectedIndex, localSelectedIndex + 1]
+            .filter((index) => index >= 0 && index < videoPathPoints.length)
+            .map((index) => videoPathPoints[index]!.point.entryId),
+        )
+      : new Set<string>();
 
     if (sidebarMode === 'search' && rankedSearchHits.length > 1) {
       context.save();
@@ -1100,7 +1105,7 @@ export default function TmAtlasPanel({
       const isSearchHit = searchHitIds.has(item.point.entryId);
       const isVideoPathPoint = videoPathEntryIds.has(item.point.entryId);
       const isEmphasizedVideoPathPoint = emphasizedVideoPathIds.has(item.point.entryId);
-      const isOutsideSelectedIsland = selectedIslandId !== null && item.point.clusterId !== selectedIslandId;
+      const isOutsideSelectedIsland = sidebarMode === 'island' && selectedIslandId !== null && item.point.clusterId !== selectedIslandId;
       const depthRadiusScale = getDepthRadiusScale(item.depth);
       const depthAlphaScale = getDepthAlphaScale(item.depth);
       const baseRadius = isSelected
@@ -1304,7 +1309,7 @@ export default function TmAtlasPanel({
       drag.lastX = event.clientX;
       drag.lastY = event.clientY;
       drag.moved = drag.moved || Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > 4;
-      cancelAnimationFrame(cameraAnimRef.current);
+      userNavigatingRef.current = true;
 
       if (drag.mode === 'pan3d') {
         setView3d((current) => ({
@@ -1349,8 +1354,13 @@ export default function TmAtlasPanel({
       const nearest = findPoint(event.clientX, event.clientY);
       if (nearest) {
         pushHistory();
+        selectEntry(nearest.point.entryId);
+      } else if (selectedEntryId || selectedIslandId) {
+        pushHistory();
+        selectEntry(null);
       }
-      selectEntry(nearest?.point.entryId ?? null);
+    } else {
+      setHoverState(null);
     }
   }
 
@@ -1362,7 +1372,7 @@ export default function TmAtlasPanel({
 
   function handleWheel(event: React.WheelEvent<HTMLCanvasElement>): void {
     event.preventDefault();
-    cancelAnimationFrame(cameraAnimRef.current);
+    userNavigatingRef.current = true;
     const zoomFactor = Math.exp(-event.deltaY * 0.001);
 
     setView3d((current) => ({
