@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "generate:startup-visualizations": "node scripts/generate_semantic_landscape.mjs",
-    "generate:semantic-landscape": "npm run generate:startup-visualizations",
+    "generate:tm-atlas": "node scripts/generate_tm_atlas.mjs",
+    "generate:semantic-landscape": "npm run generate:tm-atlas",
     "build": "tsc -b && vite build",
     "preview": "vite preview"
   },

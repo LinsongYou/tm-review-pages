@@ -13,26 +13,18 @@ Static GitHub Pages app for reviewing translation-memory data in the browser.
 ## Current Prototype
 
 - Loads `public/data/tm_misha_minilm.db` directly in the browser.
-- Loads a precomputed `public/data/startup-visualizations.json` startup artifact for the home-page startup visualizations.
+- Loads a precomputed `public/data/tm-atlas.json` atlas artifact for the 3D UMAP point cloud and island metadata.
 - Uses a single English semantic search flow powered by the shipped `sentence-transformers/all-MiniLM-L6-v2` vectors.
-- Keeps the DB and startup JSON on stable URLs with asset-version query strings so repeat visits can reuse browser cache until the source data changes.
+- Keeps the DB and atlas JSON on stable URLs with asset-version query strings so repeat visits can reuse browser cache until the source data changes.
 - Defers MiniLM model initialization until the first semantic search instead of blocking the initial app boot.
-- Includes adjustable `Top K`, `Min Chars`, `Score`, and context-radius controls.
-- Shows result cards with YouTube ID, transcript entry number, score, block ID, and emphasized EN/ZH text.
-- Opens a full-video transcript modal when you click a YouTube ID, using the same context-style row presentation.
+- Renders all TM entries as an interactive 3D canvas with island focus, semantic search, entry detail, and transcript views.
 - Runs as a fully static site with no backend.
 
 The current UI intentionally keeps search to a single English semantic query path. Results still display both EN and ZH text for review.
 
-## Startup Panels
+## Atlas Data
 
-The home screen currently renders three startup panels when data is available:
-
-- `SemanticLandscapePanel`
-- `CueTimeDistributionPanel`
-- `VideoFingerprintWallPanel`
-
-Their precomputed data lives in `public/data/startup-visualizations.json`, while cue-time distribution data comes from the browser-side DB boot path.
+The atlas data in `public/data/tm-atlas.json` contains precomputed 2D/3D UMAP coordinates, mutual-kNN island assignments, island labels, colors, medoids, and cluster metrics. The browser loads it as a static asset and draws the atlas client-side.
 
 ## Local Development
 
@@ -65,10 +57,10 @@ New-Item -ItemType Directory -Force .\public\data
 Copy-Item D:\subtitle-workflow-pipeline\tm_tools\tm_misha_minilm.db .\public\data\tm_misha_minilm.db -Force
 ```
 
-Then regenerate the startup visualization payload:
+Then regenerate the atlas payload:
 
 ```powershell
-npm run generate:startup-visualizations
+npm run generate:tm-atlas
 ```
 
 If the data changes shape or raw SQLite becomes awkward on Pages, the next step is to export slimmer read-only artifacts from the pipeline repo and keep this app unchanged at the UI layer.

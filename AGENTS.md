@@ -10,7 +10,7 @@
 - Stack: Vite 7.3, React 19, TypeScript 5.9, `sql.js`, `@huggingface/transformers`, ONNX Runtime Web.
 - The primary interface is a **3D UMAP atlas** (`TmAtlasPanel`) that renders all TM entries as a navigable point cloud.
 - `public/data/tm_misha_minilm.db` is shipped directly as a static asset and opened in the browser via sql.js WASM.
-- `public/data/startup-visualizations.json` contains precomputed UMAP projections and cluster data for the atlas.
+- `public/data/tm-atlas.json` contains precomputed UMAP projections and cluster data for the atlas.
 - A Web Worker handles DB loading, query-model loading, semantic search, context lookup, and full-transcript lookup.
 - Search is English semantic search only, using `Xenova/all-MiniLM-L6-v2` at query time matched against stored `sentence-transformers/all-MiniLM-L6-v2` vectors from the DB.
 
@@ -48,19 +48,19 @@
 
 ## Data Contract
 - Treat TM assets in this repo as generated input, not hand-edited source.
-- When refreshing data, update `public/data/tm_misha_minilm.db` from the pipeline repo and regenerate `public/data/startup-visualizations.json` via `npm run generate:startup-visualizations`.
+- When refreshing data, update `public/data/tm_misha_minilm.db` from the pipeline repo and regenerate `public/data/tm-atlas.json` via `npm run generate:tm-atlas`.
 - If raw SQLite becomes too heavy for Pages, prefer slimmer exported read-only artifacts from the pipeline repo rather than adding server infrastructure.
 
 ## Key Files
 - `src/App.tsx`: application shell, worker lifecycle, theme, search/selection/transcript state management.
-- `src/startup/TmAtlasPanel.tsx`: the main 3D atlas canvas + sidebar UI (island browser, search results, entry detail, transcript panel). Largest file (~1393 lines).
+- `src/atlas/TmAtlasPanel.tsx`: the main 3D atlas canvas + sidebar UI (island browser, search results, entry detail, transcript panel). Largest file (~1393 lines).
 - `src/search/search.worker.ts`: Web Worker for DB boot, model loading, semantic search, context lookup, transcript lookup.
 - `src/search/protocol.ts`: worker message type contracts.
-- `src/startup/semantic-landscape.ts`: TypeScript interfaces for the startup visualization data shape.
-- `src/startup/colors.ts`: hex-to-rgba utility.
+- `src/atlas/semantic-landscape.ts`: TypeScript interfaces for the atlas data shape.
+- `src/atlas/colors.ts`: hex-to-rgba utility.
 - `src/styles.css`: all CSS styles.
-- `scripts/generate_semantic_landscape.mjs`: Node.js script to rebuild startup-visualizations.json from the DB (current).
-- `scripts/generate_semantic_landscape.py`: Python version of the same (older, still functional).
+- `scripts/generate_tm_atlas.mjs`: Node.js script to rebuild tm-atlas.json from the DB (current).
+- `scripts/generate_tm_atlas.py`: Python version of the same (older, still functional).
 - `vite.config.ts`: React plugin, GitHub Pages base path, asset versioning via compile-time constants.
 - `.github/workflows/deploy.yml`: GitHub Actions build and deploy workflow for Pages.
 
@@ -68,6 +68,6 @@
 - Keep this repo focused on the web app. Do not pull general pipeline logic here unless the UI strictly needs it.
 - Favor correctness, inspectability, and simple static architecture over clever infrastructure.
 - When changing data shape, update both the worker loader and the landscape-generation script.
-- Preserve cache-friendly static asset URLs and versioning behavior for the DB and startup JSON.
+- Preserve cache-friendly static asset URLs and versioning behavior for the DB and atlas JSON.
 - `TmAtlasPanel.tsx` is the largest and most complex file; prefer targeted edits over broad refactors.
 - Canvas rendering and camera animation are tightly coupled -- test visual behavior after changing projection, zoom, or focus logic.

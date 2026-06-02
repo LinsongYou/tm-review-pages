@@ -8,8 +8,8 @@ import type {
   WorkerPayload,
   WorkerResponse,
 } from './search/protocol';
-import TmAtlasPanel from './startup/TmAtlasPanel';
-import type { SemanticLandscapeData } from './startup/semantic-landscape';
+import TmAtlasPanel from './atlas/TmAtlasPanel';
+import type { SemanticLandscapeData } from './atlas/semantic-landscape';
 
 type PendingRequest = {
   resolve: (value: WorkerResponse) => void;
@@ -20,7 +20,7 @@ type Theme = 'dark' | 'light';
 type HeaderLoadState = Record<BootProgressSnapshot['target'], BootProgressSnapshot>;
 
 const DB_ASSET = 'data/tm_misha_minilm.db';
-const STARTUP_DATA_ASSET = 'data/startup-visualizations.json';
+const ATLAS_DATA_ASSET = 'data/tm-atlas.json';
 const THEME_STORAGE_KEY = 'tm-review-theme';
 const DEFAULT_SEARCH_TOP_K = 24;
 const PAIRS_CHIP_LABEL = 'English/中文 Pairs';
@@ -89,14 +89,14 @@ function App() {
   const [transcriptFocusEntryId, setTranscriptFocusEntryId] = useState<string | null>(null);
   const [transcriptLoading, setTranscriptLoading] = useState(false);
   const [transcriptErrorText, setTranscriptErrorText] = useState<string | null>(null);
-  const [startupData, setStartupData] = useState<SemanticLandscapeData | null>(null);
-  const [startupDataLoading, setStartupDataLoading] = useState(true);
-  const [startupDataErrorText, setStartupDataErrorText] = useState<string | null>(null);
+  const [atlasData, setAtlasData] = useState<SemanticLandscapeData | null>(null);
+  const [atlasDataLoading, setAtlasDataLoading] = useState(true);
+  const [atlasDataErrorText, setAtlasDataErrorText] = useState<string | null>(null);
 
   const dbUrl = `${import.meta.env.BASE_URL}${withAssetVersion(DB_ASSET, __TM_DB_VERSION__)}`;
-  const startupDataUrl = `${import.meta.env.BASE_URL}${withAssetVersion(
-    STARTUP_DATA_ASSET,
-    __TM_STARTUP_DATA_VERSION__,
+  const atlasDataUrl = `${import.meta.env.BASE_URL}${withAssetVersion(
+    ATLAS_DATA_ASSET,
+    __TM_ATLAS_DATA_VERSION__,
   )}`;
 
   useLayoutEffect(() => {
@@ -168,9 +168,9 @@ function App() {
 
   useEffect(() => {
     const controller = new AbortController();
-    void loadStartupData(controller.signal);
+    void loadAtlasData(controller.signal);
     return () => controller.abort();
-  }, [startupDataUrl]);
+  }, [atlasDataUrl]);
 
   async function callWorker(payload: WorkerPayload): Promise<WorkerResponse> {
     const worker = workerRef.current;
@@ -249,14 +249,14 @@ function App() {
     }
   }
 
-  async function loadStartupData(signal: AbortSignal): Promise<void> {
-    setStartupDataLoading(true);
-    setStartupDataErrorText(null);
+  async function loadAtlasData(signal: AbortSignal): Promise<void> {
+    setAtlasDataLoading(true);
+    setAtlasDataErrorText(null);
 
     try {
-      const response = await fetch(startupDataUrl, { signal });
+      const response = await fetch(atlasDataUrl, { signal });
       if (!response.ok) {
-        throw new Error(`Failed to download ${startupDataUrl} (${response.status}).`);
+        throw new Error(`Failed to download ${atlasDataUrl} (${response.status}).`);
       }
 
       const payload = (await response.json()) as SemanticLandscapeData;
@@ -265,16 +265,16 @@ function App() {
       }
 
       startTransition(() => {
-        setStartupData(payload);
-        setStartupDataLoading(false);
+        setAtlasData(payload);
+        setAtlasDataLoading(false);
       });
     } catch (error) {
       if (signal.aborted) {
         return;
       }
 
-      setStartupDataLoading(false);
-      setStartupDataErrorText(error instanceof Error ? error.message : String(error));
+      setAtlasDataLoading(false);
+      setAtlasDataErrorText(error instanceof Error ? error.message : String(error));
     }
   }
 
@@ -442,9 +442,9 @@ function App() {
   return (
     <main className="app-shell">
       <TmAtlasPanel
-        data={startupData}
-        dataLoading={startupDataLoading}
-        dataErrorText={startupDataErrorText}
+        data={atlasData}
+        dataLoading={atlasDataLoading}
+        dataErrorText={atlasDataErrorText}
         theme={theme}
         statusItems={statusItems}
         query={query}
