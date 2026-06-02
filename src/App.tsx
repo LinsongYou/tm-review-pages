@@ -8,7 +8,7 @@ import type {
   WorkerPayload,
   WorkerResponse,
 } from './search/protocol';
-import TmAtlasPanel from './atlas/TmAtlasPanel';
+import TmAtlasPanel, { type AtlasNavigationState } from './atlas/TmAtlasPanel';
 import type { SemanticLandscapeData } from './atlas/semantic-landscape';
 
 type PendingRequest = {
@@ -295,6 +295,7 @@ function App() {
 
     const sequence = latestSearchRef.current + 1;
     latestSearchRef.current = sequence;
+    closeTranscript();
 
     setSearching(true);
     setErrorText(null);
@@ -334,13 +335,12 @@ function App() {
     setTranscriptFocusEntryId(entryId);
   }
 
-  function searchFromTranscriptLine(text: string): void {
+  function searchFromLine(text: string): void {
     const trimmed = text.trim();
     if (!trimmed) {
       return;
     }
 
-    closeTranscript();
     setQuery(trimmed);
     void runSearch(trimmed);
   }
@@ -412,6 +412,22 @@ function App() {
     setSelectedEntryId(null);
   }
 
+  function restoreNavigationState(state: AtlasNavigationState): void {
+    latestSearchRef.current += 1;
+    latestTranscriptRef.current += 1;
+    setQuery(state.query);
+    setSearching(false);
+    setErrorText(state.errorText);
+    setSearchNote(state.searchNote);
+    setResults(state.searchResults);
+    setSelectedEntryId(state.selectedEntryId);
+    setTranscriptVideoId(state.transcriptVideoId);
+    setTranscriptItems(state.transcriptItems);
+    setTranscriptFocusEntryId(state.transcriptFocusEntryId);
+    setTranscriptLoading(state.transcriptLoading);
+    setTranscriptErrorText(state.transcriptErrorText);
+  }
+
   function toggleTheme(): void {
     setTheme((currentTheme) => (currentTheme === 'dark' ? 'light' : 'dark'));
   }
@@ -468,8 +484,9 @@ function App() {
           void openTranscript(videoId, focusEntryId);
         }}
         onSelectTranscriptEntry={setTranscriptSelection}
-        onSearchTranscriptLine={searchFromTranscriptLine}
+        onSearchLine={searchFromLine}
         onCloseTranscript={closeTranscript}
+        onRestoreNavigationState={restoreNavigationState}
         onClear={clearAtlas}
         onToggleTheme={toggleTheme}
       />

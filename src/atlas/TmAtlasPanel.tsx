@@ -42,10 +42,24 @@ interface TmAtlasPanelProps {
   onSelectEntry: (entryId: string | null) => void;
   onOpenTranscript: (videoId: string, focusEntryId: string) => void;
   onSelectTranscriptEntry: (entryId: string) => void;
-  onSearchTranscriptLine: (line: string) => void;
+  onSearchLine: (line: string) => void;
   onCloseTranscript: () => void;
+  onRestoreNavigationState: (state: AtlasNavigationState) => void;
   onClear: () => void;
   onToggleTheme: () => void;
+}
+
+export interface AtlasNavigationState {
+  query: string;
+  searchResults: SearchResult[];
+  searchNote: string | null;
+  errorText: string | null;
+  selectedEntryId: string | null;
+  transcriptVideoId: string | null;
+  transcriptItems: ContextItem[];
+  transcriptFocusEntryId: string | null;
+  transcriptLoading: boolean;
+  transcriptErrorText: string | null;
 }
 
 interface View3d {
@@ -134,8 +148,7 @@ interface DragState {
 
 type SidebarMode = 'transcript' | 'island' | 'entry' | 'search' | 'idle';
 
-interface NavState {
-  selectedEntryId: string | null;
+interface NavState extends AtlasNavigationState {
   selectedIslandId: number | null;
 }
 
@@ -582,8 +595,9 @@ export default function TmAtlasPanel({
   onSelectEntry,
   onOpenTranscript,
   onSelectTranscriptEntry,
-  onSearchTranscriptLine,
+  onSearchLine,
   onCloseTranscript,
+  onRestoreNavigationState,
   onClear,
   onToggleTheme,
 }: TmAtlasPanelProps) {
@@ -809,7 +823,7 @@ export default function TmAtlasPanel({
 
   const showIslandBrowser = !!data && !query.trim();
   const isIdle = sidebarMode === 'idle' && !errorText && !searchNote;
-  const canGoBack = sidebarMode !== 'idle';
+  const canGoBack = sidebarMode !== 'idle' || historyRef.current.length > 0;
 
   useEffect(() => {
     const container = wrapRef.current;
@@ -1224,6 +1238,11 @@ export default function TmAtlasPanel({
 
   function handleSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
+    if (!query.trim()) {
+      return;
+    }
+
+    pushHistory();
     setSelectedIslandId(null);
     onSearch();
   }
@@ -1241,17 +1260,52 @@ export default function TmAtlasPanel({
     onSelectEntry(entryId);
   }
 
-  function pushHistory(): void {
-    historyRef.current.push({
+  function createHistoryState(): NavState {
+    return {
+      query,
+      searchResults: [...searchResults],
+      searchNote,
+      errorText,
       selectedEntryId,
       selectedIslandId,
-    });
+      transcriptVideoId,
+      transcriptItems: [...transcriptItems],
+      transcriptFocusEntryId,
+      transcriptLoading,
+      transcriptErrorText,
+    };
+  }
+
+  function pushHistory(): void {
+    historyRef.current.push(createHistoryState());
+  }
+
+  function restoreHistoryState(state: NavState): void {
+    const { selectedIslandId: nextSelectedIslandId, ...appState } = state;
+    setSelectedIslandId(nextSelectedIslandId);
+    onRestoreNavigationState(appState);
   }
 
   function selectIsland(cluster: SemanticLandscapeCluster): void {
     pushHistory();
     setSelectedIslandId(cluster.id);
     onSelectEntry(cluster.medoidEntryId);
+  }
+
+  function openTranscript(videoId: string, entryId: string): void {
+    pushHistory();
+    setSelectedIslandId(null);
+    onOpenTranscript(videoId, entryId);
+  }
+
+  function searchLine(text: string): void {
+    if (!text.trim()) {
+      return;
+    }
+
+    pushHistory();
+    setSelectedIslandId(null);
+    onSearchLine(text);
   }
 
   function clearAtlas(): void {
@@ -1263,8 +1317,7 @@ export default function TmAtlasPanel({
   function handleBack(): void {
     const prev = historyRef.current.pop();
     if (prev) {
-      setSelectedIslandId(prev.selectedIslandId);
-      onSelectEntry(prev.selectedEntryId);
+      restoreHistoryState(prev);
     } else if (transcriptVideoId) {
       onCloseTranscript();
     } else {
@@ -1536,8 +1589,8 @@ export default function TmAtlasPanel({
                           pushHistory();
                           onSelectTranscriptEntry(entryId);
                         }}
-                        onOpenTranscript={onOpenTranscript}
-                        onSearchLine={onSearchTranscriptLine}
+                        onOpenTranscript={openTranscript}
+                        onSearchLine={searchLine}
                         startMs={item.startMs}
                         endMs={item.endMs}
                       />
@@ -1612,8 +1665,8 @@ export default function TmAtlasPanel({
                     zh={entry.zh}
                     isFocus={entry.entryId === selectedEntryId}
                     onSelect={selectEntry}
-                    onOpenTranscript={onOpenTranscript}
-                    onSearchLine={onSearchTranscriptLine}
+                    onOpenTranscript={openTranscript}
+                    onSearchLine={searchLine}
                   />
                 </li>
               ))}
@@ -1632,8 +1685,8 @@ export default function TmAtlasPanel({
               zh={selectedEntry.zh}
               isFocus
               onSelect={selectEntry}
-              onOpenTranscript={onOpenTranscript}
-              onSearchLine={onSearchTranscriptLine}
+              onOpenTranscript={openTranscript}
+              onSearchLine={searchLine}
               clusterColor={selectedCluster?.color}
               clusterLabel={selectedCluster?.label}
               onClusterClick={selectedCluster ? () => selectIsland(selectedCluster) : undefined}
@@ -1661,8 +1714,8 @@ export default function TmAtlasPanel({
                       zh={result.zh}
                       isFocus={result.entryId === selectedEntryId}
                       onSelect={selectEntry}
-                      onOpenTranscript={onOpenTranscript}
-                      onSearchLine={onSearchTranscriptLine}
+                      onOpenTranscript={openTranscript}
+                      onSearchLine={searchLine}
                       score={result.score}
                       clusterColor={cluster?.color}
                       clusterLabel={cluster?.label}
