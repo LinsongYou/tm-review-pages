@@ -168,6 +168,12 @@ const DESKTOP_SIDEBAR_WIDTH = 400;
 const DESKTOP_ATLAS_MIN_WIDTH = 1180;
 const MOBILE_ATLAS_MAX_WIDTH = 640;
 const MOBILE_HUD_SAFE_TOP = 96;
+const CAMERA_CENTER_LERP = 0.12;
+const CAMERA_ZOOM_LERP = 0.16;
+const CAMERA_OFFSET_LERP = 0.16;
+const CAMERA_CENTER_EPSILON = 0.0005;
+const CAMERA_ZOOM_EPSILON = 0.002;
+const CAMERA_OFFSET_EPSILON = 0.25;
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
@@ -922,7 +928,6 @@ export default function TmAtlasPanel({
     updateTargetCenter(visualFocus, visualGeometry);
 
     const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-    const epsilon = 0.001;
     let running = true;
     let settled = false;
 
@@ -932,28 +937,32 @@ export default function TmAtlasPanel({
       const center = animatedCenterRef.current;
       const target = targetCenterRef.current;
       if (center && target) {
-        center.x = lerp(center.x, target.x, 0.1);
-        center.y = lerp(center.y, target.y, 0.1);
-        center.z = lerp(center.z, target.z, 0.1);
+        center.x = lerp(center.x, target.x, CAMERA_CENTER_LERP);
+        center.y = lerp(center.y, target.y, CAMERA_CENTER_LERP);
+        center.z = lerp(center.z, target.z, CAMERA_CENTER_LERP);
       }
 
       setView3d((current) => {
-        const dx = Math.abs(current.offsetX) + Math.abs(current.offsetY);
+        const offsetDistance = Math.hypot(current.offsetX, current.offsetY);
         const shouldZoom = !manualZoomOverrideRef.current;
-        const dz = shouldZoom ? Math.abs(current.zoom - targetZoom) : 0;
-        const cx = center && target
-          ? Math.abs(center.x - target.x) + Math.abs(center.y - target.y) + Math.abs(center.z - target.z)
+        const zoomDistance = shouldZoom ? Math.abs(current.zoom - targetZoom) : 0;
+        const centerDistance = center && target
+          ? Math.hypot(center.x - target.x, center.y - target.y, center.z - target.z) / Math.max(1, visualGeometry.radius)
           : 0;
-        if (dx + dz + cx < epsilon) {
+        if (
+          offsetDistance < CAMERA_OFFSET_EPSILON &&
+          zoomDistance < CAMERA_ZOOM_EPSILON &&
+          centerDistance < CAMERA_CENTER_EPSILON
+        ) {
           settled = true;
           manualZoomOverrideRef.current = false;
           return { ...current, zoom: shouldZoom ? targetZoom : current.zoom, offsetX: 0, offsetY: 0 };
         }
         return {
           ...current,
-          zoom: shouldZoom ? lerp(current.zoom, targetZoom, 0.1) : current.zoom,
-          offsetX: lerp(current.offsetX, 0, 0.1),
-          offsetY: lerp(current.offsetY, 0, 0.1),
+          zoom: shouldZoom ? lerp(current.zoom, targetZoom, CAMERA_ZOOM_LERP) : current.zoom,
+          offsetX: lerp(current.offsetX, 0, CAMERA_OFFSET_LERP),
+          offsetY: lerp(current.offsetY, 0, CAMERA_OFFSET_LERP),
         };
       });
 
@@ -1391,9 +1400,6 @@ export default function TmAtlasPanel({
       drag.lastX = event.clientX;
       drag.lastY = event.clientY;
       drag.moved = drag.moved || Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > 4;
-      if (drag.moved) {
-        manualZoomOverrideRef.current = true;
-      }
 
       if (drag.mode === 'pan3d') {
         setView3d((current) => ({
