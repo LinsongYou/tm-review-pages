@@ -170,10 +170,12 @@ const MOBILE_ATLAS_MAX_WIDTH = 640;
 const MOBILE_HUD_SAFE_TOP = 96;
 const CAMERA_CENTER_LERP = 0.12;
 const CAMERA_ZOOM_LERP = 0.16;
+const CAMERA_ENTRY_ZOOM_LERP = 0.24;
 const CAMERA_OFFSET_LERP = 0.16;
 const CAMERA_CENTER_EPSILON = 0.0005;
 const CAMERA_ZOOM_EPSILON = 0.002;
 const CAMERA_OFFSET_EPSILON = 0.25;
+const ENTRY_FOCUS_ZOOM = 4.35;
 const SEARCH_FOCUS_RESULT_LIMIT = 8;
 const SEARCH_FOCUS_MIN_ZOOM = 3.4;
 const SEARCH_FOCUS_MAX_ZOOM = 8;
@@ -812,7 +814,7 @@ export default function TmAtlasPanel({
         centerX: selectedPoint.x3d,
         centerY: selectedPoint.y3d,
         centerZ: selectedPoint.z3d,
-        zoom: 3.25,
+        zoom: ENTRY_FOCUS_ZOOM,
       };
     }
 
@@ -837,12 +839,13 @@ export default function TmAtlasPanel({
         centerX: selectedPoint.x3d,
         centerY: selectedPoint.y3d,
         centerZ: selectedPoint.z3d,
-        zoom: 3.25,
+        zoom: ENTRY_FOCUS_ZOOM,
       };
     }
 
     return null;
   }, [searchFocus, selectedIslandPanel, selectedPoint, showTranscriptPanel]);
+  const cameraZoomLerp = visualFocus?.key.startsWith('entry:') ? CAMERA_ENTRY_ZOOM_LERP : CAMERA_ZOOM_LERP;
 
   function updateTargetCenter(focus: VisualFocus | null, base: VisualGeometry): void {
     const target = focus
@@ -1048,7 +1051,7 @@ export default function TmAtlasPanel({
         }
         return {
           ...current,
-          zoom: shouldZoom ? lerp(current.zoom, targetZoom, CAMERA_ZOOM_LERP) : current.zoom,
+          zoom: shouldZoom ? lerp(current.zoom, targetZoom, cameraZoomLerp) : current.zoom,
           offsetX: lerp(current.offsetX, 0, CAMERA_OFFSET_LERP),
           offsetY: lerp(current.offsetY, 0, CAMERA_OFFSET_LERP),
         };
@@ -1073,6 +1076,7 @@ export default function TmAtlasPanel({
     visualFocus?.key,
     visualFocus?.zoom,
     visualGeometry,
+    cameraZoomLerp,
   ]);
 
   useEffect(() => {
