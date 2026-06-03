@@ -1093,16 +1093,20 @@ button:disabled {
 
   .atlas-status-item {
     width: auto;
-    height: 34px;
+    height: 38px;
+    gap: 1px;
     padding: 4px 6px;
   }
 
   .atlas-status-item span {
     font-size: 0.56rem;
+    line-height: 1;
   }
 
   .atlas-status-item strong {
+    display: block;
     font-size: 0.62rem;
+    line-height: 1.15;
   }
 
   .atlas-sidebar {
