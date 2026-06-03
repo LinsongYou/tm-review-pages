@@ -291,6 +291,10 @@ function getDepthRadiusScale(depth: number): number {
   return clamp(1 - depth * 0.9, 0.55, 1.45);
 }
 
+function getCanvasRadiusScale(width: number, height: number): number {
+  return clamp(Math.min(width, height) / 720, 0.5, 1);
+}
+
 function getDepthAlphaScale(depth: number): number {
   return clamp(1 - depth * 0.78, 0.45, 1.36);
 }
@@ -1128,6 +1132,7 @@ export default function TmAtlasPanel({
 
     const hasSearch = searchHitIds.size > 0 && sidebarMode === 'search';
     const hasVideoPath = videoPathEntryIds.size > 0;
+    const pointRadiusScale = getCanvasRadiusScale(size.width, size.height);
 
     for (const item of projectedPoints) {
       if (item.culled) {
@@ -1151,7 +1156,10 @@ export default function TmAtlasPanel({
             : isVideoPathPoint
               ? 2.7
               : 2.35;
-      const radius = baseRadius * (isSelected || isHovered ? clamp(depthRadiusScale, 0.92, 1.14) : depthRadiusScale);
+      const radius = Math.max(
+        0.75,
+        baseRadius * pointRadiusScale * (isSelected || isHovered ? clamp(depthRadiusScale, 0.92, 1.14) : depthRadiusScale),
+      );
       const baseAlpha = isSelected
         ? 1
         : isHovered
@@ -1178,17 +1186,17 @@ export default function TmAtlasPanel({
 
       if (isEmphasizedVideoPathPoint && !isSelected && !isHovered) {
         context.strokeStyle = hexToRgba(videoPathFocusColor, 0.45);
-        context.lineWidth = 1;
+        context.lineWidth = Math.max(0.7, pointRadiusScale);
         context.beginPath();
-        context.arc(item.x, item.y, radius + 2.5, 0, Math.PI * 2);
+        context.arc(item.x, item.y, radius + 2.5 * pointRadiusScale, 0, Math.PI * 2);
         context.stroke();
       }
 
       if (isSelected || isHovered) {
         context.strokeStyle = hexToRgba(text, isSelected ? 0.92 : 0.7);
-        context.lineWidth = isSelected ? 1.8 : 1.2;
+        context.lineWidth = Math.max(0.8, (isSelected ? 1.8 : 1.2) * pointRadiusScale);
         context.beginPath();
-        context.arc(item.x, item.y, radius + 3, 0, Math.PI * 2);
+        context.arc(item.x, item.y, radius + 3 * pointRadiusScale, 0, Math.PI * 2);
         context.stroke();
       }
     }
@@ -1196,11 +1204,11 @@ export default function TmAtlasPanel({
     if (sidebarMode === 'search' && rankedSearchHits.length > 0) {
       context.save();
       context.strokeStyle = hexToRgba(selected, 0.9);
-      context.lineWidth = 1.5;
+      context.lineWidth = Math.max(0.8, 1.5 * pointRadiusScale);
       for (let index = 0; index < rankedSearchHits.length; index += 1) {
         const item = rankedSearchHits[index]!;
         context.beginPath();
-        context.arc(item.x, item.y, 8 + Math.min(index, 5) * 0.55, 0, Math.PI * 2);
+        context.arc(item.x, item.y, (8 + Math.min(index, 5) * 0.55) * pointRadiusScale, 0, Math.PI * 2);
         context.stroke();
       }
       context.restore();
