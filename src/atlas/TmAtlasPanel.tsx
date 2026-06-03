@@ -174,6 +174,9 @@ const CAMERA_OFFSET_LERP = 0.16;
 const CAMERA_CENTER_EPSILON = 0.0005;
 const CAMERA_ZOOM_EPSILON = 0.002;
 const CAMERA_OFFSET_EPSILON = 0.25;
+const SEARCH_FOCUS_RESULT_LIMIT = 8;
+const SEARCH_FOCUS_MIN_ZOOM = 3.4;
+const SEARCH_FOCUS_MAX_ZOOM = 8;
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
@@ -236,6 +239,71 @@ function getIslandZoom(
   const atlasSpan = geometry.radius * 2;
 
   return clamp((atlasSpan / islandSpan) * 0.72, 1.45, 8);
+}
+
+function getWeightedCenter(points: SemanticLandscapePoint[]) {
+  let totalWeight = 0;
+  let centerX = 0;
+  let centerY = 0;
+  let centerZ = 0;
+
+  for (let index = 0; index < points.length; index += 1) {
+    const point = points[index]!;
+    const weight = points.length - index;
+    totalWeight += weight;
+    centerX += point.x3d * weight;
+    centerY += point.y3d * weight;
+    centerZ += point.z3d * weight;
+  }
+
+  return {
+    centerX: centerX / totalWeight,
+    centerY: centerY / totalWeight,
+    centerZ: centerZ / totalWeight,
+  };
+}
+
+function getSearchFocus(
+  results: SearchResult[],
+  pointsById: Map<string, SemanticLandscapePoint>,
+  geometry: VisualGeometry,
+  selectedEntryId: string | null,
+): VisualFocus | null {
+  const points = results
+    .slice(0, SEARCH_FOCUS_RESULT_LIMIT)
+    .map((result) => pointsById.get(result.entryId))
+    .filter((point): point is SemanticLandscapePoint => !!point);
+
+  if (!points.length) {
+    return null;
+  }
+
+  const selectedPoint = selectedEntryId && results.some((result) => result.entryId === selectedEntryId)
+    ? pointsById.get(selectedEntryId) ?? null
+    : null;
+  const focusPoints = selectedPoint && !points.some((point) => point.entryId === selectedPoint.entryId)
+    ? [selectedPoint, ...points]
+    : points;
+  const center = selectedPoint
+    ? { centerX: selectedPoint.x3d, centerY: selectedPoint.y3d, centerZ: selectedPoint.z3d }
+    : getWeightedCenter(points);
+  const radius = Math.max(
+    percentile(
+      focusPoints.map((point) =>
+        Math.hypot(point.x3d - center.centerX, point.y3d - center.centerY, point.z3d - center.centerZ),
+      ),
+      0.85,
+    ),
+    geometry.radius * 0.05,
+  );
+
+  return {
+    key: `search:${results.slice(0, SEARCH_FOCUS_RESULT_LIMIT).map((result) => result.entryId).join('|')}:${selectedEntryId ?? ''}`,
+    centerX: center.centerX,
+    centerY: center.centerY,
+    centerZ: center.centerZ,
+    zoom: clamp((geometry.radius / radius) * 0.82, SEARCH_FOCUS_MIN_ZOOM, SEARCH_FOCUS_MAX_ZOOM),
+  };
 }
 
 interface TrigCache {
@@ -706,6 +774,8 @@ export default function TmAtlasPanel({
   const showTranscriptPanel = !!transcriptVideoId;
   const selectedIsland = selectedIslandId !== null ? clusterById.get(selectedIslandId)! : null;
   const selectedIslandEntries = selectedIsland ? islandEntriesById.get(selectedIsland.id)! : [];
+  const isInSearchResults = selectedEntryId ? searchResultById.has(selectedEntryId) : false;
+  const topSearchResults = useMemo(() => searchResults.slice(0, 12), [searchResults]);
   const selectedIslandPanel = useMemo<IslandPanelData | null>(() => {
     if (!selectedIsland || !data) {
       return null;
@@ -718,6 +788,22 @@ export default function TmAtlasPanel({
       zoom: getIslandZoom(selectedIsland, selectedIslandEntries, visualGeometry),
     };
   }, [data, selectedIsland, selectedIslandEntries, visualGeometry]);
+  const searchFocus = useMemo<VisualFocus | null>(() => {
+    if (showTranscriptPanel || selectedIslandPanel || !searchResults.length || (selectedEntryId && !isInSearchResults)) {
+      return null;
+    }
+
+    return getSearchFocus(topSearchResults, pointById, visualGeometry, selectedEntryId);
+  }, [
+    isInSearchResults,
+    pointById,
+    searchResults.length,
+    selectedEntryId,
+    selectedIslandPanel,
+    showTranscriptPanel,
+    topSearchResults,
+    visualGeometry,
+  ]);
   const hoveredPoint = hoverState ? pointById.get(hoverState.entryId)! : null;
   const visualFocus = useMemo<VisualFocus | null>(() => {
     if (showTranscriptPanel && selectedPoint) {
@@ -741,6 +827,10 @@ export default function TmAtlasPanel({
       };
     }
 
+    if (searchFocus) {
+      return searchFocus;
+    }
+
     if (selectedPoint) {
       return {
         key: `entry:${selectedPoint.entryId}`,
@@ -752,7 +842,7 @@ export default function TmAtlasPanel({
     }
 
     return null;
-  }, [selectedIslandPanel, selectedPoint, showTranscriptPanel]);
+  }, [searchFocus, selectedIslandPanel, selectedPoint, showTranscriptPanel]);
 
   function updateTargetCenter(focus: VisualFocus | null, base: VisualGeometry): void {
     const target = focus
@@ -839,7 +929,6 @@ export default function TmAtlasPanel({
   }, [clusterById, projectedPoints]);
   const transcriptHasTimestamps = transcriptItems.some((item) => item.startMs !== null || item.endMs !== null);
 
-  const isInSearchResults = selectedEntryId ? searchResultById.has(selectedEntryId) : false;
   const sidebarMode: SidebarMode = showTranscriptPanel
     ? 'transcript'
     : selectedIslandPanel
@@ -849,7 +938,6 @@ export default function TmAtlasPanel({
         : searchResults.length > 0
           ? 'search'
           : 'idle';
-  const topSearchResults = useMemo(() => searchResults.slice(0, 12), [searchResults]);
 
   const showIslandBrowser = !!data && !query.trim();
   const isIdle = sidebarMode === 'idle' && !errorText && !searchNote;
