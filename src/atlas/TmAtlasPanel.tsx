@@ -164,6 +164,10 @@ const INITIAL_VIEW_3D: View3d = {
   offsetY: 0,
 };
 const FOCUSED_ISLAND_FLOW_LIMIT = 16;
+const DESKTOP_SIDEBAR_WIDTH = 400;
+const DESKTOP_ATLAS_MIN_WIDTH = 1180;
+const MOBILE_ATLAS_MAX_WIDTH = 640;
+const MOBILE_HUD_SAFE_TOP = 96;
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
@@ -768,14 +772,18 @@ export default function TmAtlasPanel({
       cluster: clusterById.get(point.clusterId)!,
       ...project3dRaw(point, projectionGeometry, trig),
     }));
-    const fitted = fitProjected3d(rawItems, Math.max(1, size.width - 400), size.height);
+    const sidebarGutter = size.width >= DESKTOP_ATLAS_MIN_WIDTH ? DESKTOP_SIDEBAR_WIDTH : 0;
+    const topGutter = size.width <= MOBILE_ATLAS_MAX_WIDTH ? MOBILE_HUD_SAFE_TOP : 0;
+    const plotWidth = Math.max(1, size.width - sidebarGutter);
+    const plotHeight = Math.max(1, size.height - topGutter);
+    const fitted = fitProjected3d(rawItems, plotWidth, plotHeight);
     const centerX = visualFocus ? 0 : fitted.centerX;
     const centerY = visualFocus ? 0 : fitted.centerY;
     const points = rawItems.map((item) => ({
       point: item.point,
       cluster: item.cluster,
-      x: (item.rawX - centerX) * fitted.scale * view3d.zoom + (size.width - 400) / 2 + view3d.offsetX,
-      y: (item.rawY - centerY) * fitted.scale * view3d.zoom + size.height / 2 + view3d.offsetY,
+      x: (item.rawX - centerX) * fitted.scale * view3d.zoom + plotWidth / 2 + view3d.offsetX,
+      y: (item.rawY - centerY) * fitted.scale * view3d.zoom + topGutter + plotHeight / 2 + view3d.offsetY,
       depth: item.depth,
       culled: item.culled,
     }));

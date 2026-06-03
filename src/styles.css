@@ -976,6 +976,54 @@ button:disabled {
 
 /* ─── Responsive ────────────────────────────────────────────────── */
 
+@media (max-width: 1180px) {
+  .atlas-hud {
+    gap: 6px;
+    overflow: visible;
+  }
+
+  .atlas-title {
+    min-width: 112px;
+  }
+
+  .atlas-icon-button {
+    justify-content: center;
+    width: var(--hud-card-height);
+    min-width: var(--hud-card-height);
+    padding: 0;
+  }
+
+  .atlas-icon-button span {
+    display: none;
+  }
+
+  .atlas-theme-toggle {
+    width: 64px;
+  }
+
+  .atlas-hud-status {
+    flex: 0 0 auto;
+    overflow: visible;
+  }
+
+  .atlas-status-item {
+    flex: 0 0 96px;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 1180px) and (min-width: 981px) {
+  .atlas-shell {
+    grid-template-columns: minmax(0, 1fr) minmax(340px, 380px);
+  }
+
+  .atlas-sidebar {
+    position: static;
+    width: auto;
+    max-height: 100dvh;
+  }
+}
+
 @media (max-width: 980px) {
   body {
     overflow: auto;
@@ -983,12 +1031,13 @@ button:disabled {
 
   .atlas-shell {
     grid-template-columns: 1fr;
-    grid-template-rows: minmax(58dvh, 680px) auto;
+    grid-template-rows: auto auto;
     overflow: visible;
   }
 
   .atlas-canvas-wrap {
-    min-height: 58dvh;
+    height: clamp(440px, 52svh, 620px);
+    min-height: 0;
   }
 
   .atlas-sidebar {
@@ -1002,14 +1051,58 @@ button:disabled {
 }
 
 @media (max-width: 640px) {
-  .atlas-shell {
-    grid-template-rows: minmax(54dvh, 540px) auto;
+  .atlas-canvas-wrap {
+    height: clamp(360px, 54svh, 480px);
   }
 
   .atlas-hud {
+    --hud-card-height: 40px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--hud-card-height) 58px;
+    align-items: stretch;
+    gap: 4px;
+    padding: 5px;
     right: 10px;
     left: 10px;
     top: 10px;
+  }
+
+  .atlas-title {
+    grid-column: 1;
+    min-width: 0;
+  }
+
+  .atlas-icon-button {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .atlas-theme-toggle {
+    grid-column: 3;
+    grid-row: 1;
+    width: 58px;
+  }
+
+  .atlas-hud-status {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .atlas-status-item {
+    width: auto;
+    height: 34px;
+    padding: 4px 8px;
+  }
+
+  .atlas-status-item span {
+    font-size: 0.6rem;
+  }
+
+  .atlas-status-item strong {
+    font-size: 0.7rem;
   }
 
   .atlas-sidebar {
