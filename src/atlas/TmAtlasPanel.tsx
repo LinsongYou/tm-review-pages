@@ -615,7 +615,7 @@ export default function TmAtlasPanel({
   const transcriptBodyRef = useRef<HTMLDivElement | null>(null);
   const transcriptItemRefs = useRef(new Map<string, HTMLLIElement>());
   const cameraAnimRef = useRef(0);
-  const userNavigatingRef = useRef(false);
+  const manualZoomOverrideRef = useRef(false);
   const targetCenterRef = useRef<{ x: number; y: number; z: number } | null>(null);
   const animatedCenterRef = useRef<{ x: number; y: number; z: number } | null>(null);
   const historyRef = useRef<NavState[]>([]);
@@ -918,6 +918,7 @@ export default function TmAtlasPanel({
     }
 
     const targetZoom = visualFocus ? visualFocus.zoom : effectiveInitialView.zoom;
+    manualZoomOverrideRef.current = false;
     updateTargetCenter(visualFocus, visualGeometry);
 
     const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -938,19 +939,19 @@ export default function TmAtlasPanel({
 
       setView3d((current) => {
         const dx = Math.abs(current.offsetX) + Math.abs(current.offsetY);
-        const zooming = userNavigatingRef.current;
-        const dz = zooming ? 0 : Math.abs(current.zoom - targetZoom);
+        const shouldZoom = !manualZoomOverrideRef.current;
+        const dz = shouldZoom ? Math.abs(current.zoom - targetZoom) : 0;
         const cx = center && target
           ? Math.abs(center.x - target.x) + Math.abs(center.y - target.y) + Math.abs(center.z - target.z)
           : 0;
         if (dx + dz + cx < epsilon) {
           settled = true;
-          userNavigatingRef.current = false;
-          return { ...current, zoom: zooming ? current.zoom : targetZoom, offsetX: 0, offsetY: 0 };
+          manualZoomOverrideRef.current = false;
+          return { ...current, zoom: shouldZoom ? targetZoom : current.zoom, offsetX: 0, offsetY: 0 };
         }
         return {
           ...current,
-          zoom: zooming ? current.zoom : lerp(current.zoom, targetZoom, 0.1),
+          zoom: shouldZoom ? lerp(current.zoom, targetZoom, 0.1) : current.zoom,
           offsetX: lerp(current.offsetX, 0, 0.1),
           offsetY: lerp(current.offsetY, 0, 0.1),
         };
@@ -1390,7 +1391,9 @@ export default function TmAtlasPanel({
       drag.lastX = event.clientX;
       drag.lastY = event.clientY;
       drag.moved = drag.moved || Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > 4;
-      userNavigatingRef.current = true;
+      if (drag.moved) {
+        manualZoomOverrideRef.current = true;
+      }
 
       if (drag.mode === 'pan3d') {
         setView3d((current) => ({
@@ -1453,7 +1456,7 @@ export default function TmAtlasPanel({
 
   function handleWheel(event: React.WheelEvent<HTMLCanvasElement>): void {
     event.preventDefault();
-    userNavigatingRef.current = true;
+    manualZoomOverrideRef.current = true;
     const zoomFactor = Math.exp(-event.deltaY * 0.001);
 
     setView3d((current) => ({
