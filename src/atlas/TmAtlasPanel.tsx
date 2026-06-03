@@ -688,6 +688,7 @@ export default function TmAtlasPanel({
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
+  const sidebarBodyRef = useRef<HTMLDivElement | null>(null);
   const transcriptBodyRef = useRef<HTMLDivElement | null>(null);
   const transcriptItemRefs = useRef(new Map<string, HTMLLIElement>());
   const cameraAnimRef = useRef(0);
@@ -945,6 +946,14 @@ export default function TmAtlasPanel({
   const showIslandBrowser = !!data && !query.trim();
   const isIdle = sidebarMode === 'idle' && !errorText && !searchNote;
   const canGoBack = sidebarMode !== 'idle' || historyRef.current.length > 0;
+  const sidebarScrollKey =
+    sidebarMode === 'search'
+      ? topSearchResults.map((result) => result.entryId).join('|')
+      : sidebarMode === 'island'
+        ? String(selectedIslandId ?? '')
+        : sidebarMode === 'entry'
+          ? selectedEntryId ?? ''
+          : transcriptVideoId ?? '';
 
   useEffect(() => {
     const container = wrapRef.current;
@@ -973,6 +982,10 @@ export default function TmAtlasPanel({
       setSelectedIslandId(null);
     }
   }, [searchResults.length]);
+
+  useEffect(() => {
+    sidebarBodyRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+  }, [sidebarMode, sidebarScrollKey]);
 
   useEffect(() => {
     if (!transcriptVideoId || transcriptItems.length === 0) {
@@ -1672,221 +1685,223 @@ export default function TmAtlasPanel({
           </button>
         </form>
 
-        {errorText ? <p className="atlas-message atlas-message--error">{errorText}</p> : null}
-        {searchNote ? <p className="atlas-message">{searchNote}</p> : null}
+        <div ref={sidebarBodyRef} className="atlas-sidebar-body">
+          {errorText ? <p className="atlas-message atlas-message--error">{errorText}</p> : null}
+          {searchNote ? <p className="atlas-message">{searchNote}</p> : null}
 
-        {sidebarMode === 'transcript' && (
-          <section className="atlas-section atlas-video-transcript">
-            <div className="atlas-video-header">
-              <div className="transcript-heading">
-                <span>YouTube ID</span>
-                <h2>{transcriptVideoId}</h2>
-                <p>
-                  {transcriptLoading
-                    ? 'Loading transcript cues...'
-                    : `${transcriptItems.length.toLocaleString()} cues${
-                        transcriptHasTimestamps ? ' with timestamps' : ''
-                      }`}
-                </p>
-              </div>
-            </div>
-
-            {transcriptLoading ? (
-              <div className="empty-state">
-                <p>Loading the full transcript...</p>
-              </div>
-            ) : transcriptErrorText ? (
-              <div className="empty-state">
-                <p>{transcriptErrorText}</p>
-              </div>
-            ) : (
-              <div ref={transcriptBodyRef} className="transcript-panel-body">
-                <ol className="transcript-row-list">
-                  {transcriptItems.map((item) => (
-                    <li
-                      key={item.entryId}
-                      ref={(element) => setTranscriptItemRef(item.entryId, element)}
-                    >
-                      <PairCard
-                        entryId={item.entryId}
-                        videoId={item.videoId}
-                        segIndex={item.segIndex}
-                        en={item.en}
-                        zh={item.zh}
-                        isFocus={item.entryId === selectedEntryId}
-                        onSelect={(entryId) => {
-                          pushHistory();
-                          onSelectTranscriptEntry(entryId);
-                        }}
-                        onOpenTranscript={openTranscript}
-                        onSearchLine={searchLine}
-                        startMs={item.startMs}
-                        endMs={item.endMs}
-                      />
-                    </li>
-                  ))}
-                </ol>
-              </div>
-            )}
-          </section>
-        )}
-
-        {sidebarMode === 'island' && selectedIslandPanel && (() => {
-          const light = isLightHex(selectedIslandPanel.cluster.color);
-          return (
-          <section
-            className="atlas-section atlas-island-focus"
-            style={{
-              ['--cluster-color' as string]: selectedIslandPanel.cluster.color,
-              ['--island-text' as string]: light ? '#020a06' : '#e2f5ea',
-              ['--island-text-muted' as string]: light ? 'rgba(2, 10, 6, 0.6)' : 'rgba(226, 245, 234, 0.6)',
-              ['--island-text-strong' as string]: light ? 'rgba(2, 10, 6, 0.75)' : 'rgba(226, 245, 234, 0.75)',
-              ['--island-overlay' as string]: light ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.1)',
-              ['--island-overlay-border' as string]: light ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.15)',
-            }}
-          >
-            <div className="atlas-island-sticky">
-              <article className="atlas-island-card">
-                <div className="atlas-island-heading">
-                  <strong>{selectedIslandPanel.cluster.label}</strong>
+          {sidebarMode === 'transcript' && (
+            <section className="atlas-section atlas-video-transcript">
+              <div className="atlas-video-header">
+                <div className="transcript-heading">
+                  <span>YouTube ID</span>
+                  <h2>{transcriptVideoId}</h2>
+                  <p>
+                    {transcriptLoading
+                      ? 'Loading transcript cues...'
+                      : `${transcriptItems.length.toLocaleString()} cues${
+                          transcriptHasTimestamps ? ' with timestamps' : ''
+                        }`}
+                  </p>
                 </div>
-                <p className="atlas-region-description">{selectedIslandPanel.cluster.description}</p>
+              </div>
 
-                <dl className="atlas-island-metrics">
-                  <div>
-                    <dt>Lines</dt>
-                    <dd>{selectedIslandPanel.cluster.size.toLocaleString()}</dd>
-                  </div>
-                  <div>
-                    <dt>Videos</dt>
-                    <dd>{selectedIslandPanel.cluster.videoCount.toLocaleString()}</dd>
-                  </div>
-                  <div>
-                    <dt>Share</dt>
-                    <dd>{selectedIslandPanel.share.toFixed(1)}%</dd>
-                  </div>
-                  <div>
-                    <dt>Compact</dt>
-                    <dd>{selectedIslandPanel.cluster.compactness}%</dd>
-                  </div>
-                </dl>
-
-                <div className="atlas-phrase-list">
-                  {selectedIslandPanel.cluster.topPhrases.map((phrase) => (
-                    <span key={phrase}>{phrase}</span>
-                  ))}
+              {transcriptLoading ? (
+                <div className="empty-state">
+                  <p>Loading the full transcript...</p>
                 </div>
-              </article>
-            </div>
+              ) : transcriptErrorText ? (
+                <div className="empty-state">
+                  <p>{transcriptErrorText}</p>
+                </div>
+              ) : (
+                <div ref={transcriptBodyRef} className="transcript-panel-body">
+                  <ol className="transcript-row-list">
+                    {transcriptItems.map((item) => (
+                      <li
+                        key={item.entryId}
+                        ref={(element) => setTranscriptItemRef(item.entryId, element)}
+                      >
+                        <PairCard
+                          entryId={item.entryId}
+                          videoId={item.videoId}
+                          segIndex={item.segIndex}
+                          en={item.en}
+                          zh={item.zh}
+                          isFocus={item.entryId === selectedEntryId}
+                          onSelect={(entryId) => {
+                            pushHistory();
+                            onSelectTranscriptEntry(entryId);
+                          }}
+                          onOpenTranscript={openTranscript}
+                          onSearchLine={searchLine}
+                          startMs={item.startMs}
+                          endMs={item.endMs}
+                        />
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+            </section>
+          )}
 
-            <div className="atlas-section-header">
-              <strong>Island Lines</strong>
-              <span>{selectedIslandPanel.entries.length.toLocaleString()}</span>
-            </div>
-            <ol className="atlas-island-entry-list">
-              {selectedIslandPanel.entries.map((entry) => (
-                <li key={entry.entryId}>
-                  <PairCard
-                    entryId={entry.entryId}
-                    videoId={entry.videoId}
-                    segIndex={entry.segIndex}
-                    en={entry.en}
-                    zh={entry.zh}
-                    isFocus={entry.entryId === selectedEntryId}
-                    onSelect={selectEntry}
-                    onOpenTranscript={openTranscript}
-                    onSearchLine={searchLine}
-                  />
-                </li>
-              ))}
-            </ol>
-          </section>
-          );
-        })()}
+          {sidebarMode === 'island' && selectedIslandPanel && (() => {
+            const light = isLightHex(selectedIslandPanel.cluster.color);
+            return (
+            <section
+              className="atlas-section atlas-island-focus"
+              style={{
+                ['--cluster-color' as string]: selectedIslandPanel.cluster.color,
+                ['--island-text' as string]: light ? '#020a06' : '#e2f5ea',
+                ['--island-text-muted' as string]: light ? 'rgba(2, 10, 6, 0.6)' : 'rgba(226, 245, 234, 0.6)',
+                ['--island-text-strong' as string]: light ? 'rgba(2, 10, 6, 0.75)' : 'rgba(226, 245, 234, 0.75)',
+                ['--island-overlay' as string]: light ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.1)',
+                ['--island-overlay-border' as string]: light ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.15)',
+              }}
+            >
+              <div className="atlas-island-sticky">
+                <article className="atlas-island-card">
+                  <div className="atlas-island-heading">
+                    <strong>{selectedIslandPanel.cluster.label}</strong>
+                  </div>
+                  <p className="atlas-region-description">{selectedIslandPanel.cluster.description}</p>
 
-        {sidebarMode === 'entry' && selectedEntry && (
-          <div className="atlas-detail">
-            <PairCard
-              entryId={selectedEntry.entryId}
-              videoId={selectedEntry.videoId}
-              segIndex={selectedEntry.segIndex}
-              en={selectedEntry.en}
-              zh={selectedEntry.zh}
-              isFocus
-              onSelect={selectEntry}
-              onOpenTranscript={openTranscript}
-              onSearchLine={searchLine}
-              clusterColor={selectedCluster?.color}
-              clusterLabel={selectedCluster?.label}
-              onClusterClick={selectedCluster ? () => selectIsland(selectedCluster) : undefined}
-            />
-          </div>
-        )}
+                  <dl className="atlas-island-metrics">
+                    <div>
+                      <dt>Lines</dt>
+                      <dd>{selectedIslandPanel.cluster.size.toLocaleString()}</dd>
+                    </div>
+                    <div>
+                      <dt>Videos</dt>
+                      <dd>{selectedIslandPanel.cluster.videoCount.toLocaleString()}</dd>
+                    </div>
+                    <div>
+                      <dt>Share</dt>
+                      <dd>{selectedIslandPanel.share.toFixed(1)}%</dd>
+                    </div>
+                    <div>
+                      <dt>Compact</dt>
+                      <dd>{selectedIslandPanel.cluster.compactness}%</dd>
+                    </div>
+                  </dl>
 
-        {sidebarMode === 'search' && (
-          <section className="atlas-section">
-            <div className="atlas-section-header">
-              <strong>Semantic Matches</strong>
-              <span>{searchResults.length}</span>
-            </div>
-            <ol className="atlas-result-list">
-              {topSearchResults.map((result) => {
-                const point = pointById.get(result.entryId);
-                const cluster = point ? clusterById.get(point.clusterId) : null;
-                return (
-                  <li key={result.entryId}>
+                  <div className="atlas-phrase-list">
+                    {selectedIslandPanel.cluster.topPhrases.map((phrase) => (
+                      <span key={phrase}>{phrase}</span>
+                    ))}
+                  </div>
+                </article>
+              </div>
+
+              <div className="atlas-section-header">
+                <strong>Island Lines</strong>
+                <span>{selectedIslandPanel.entries.length.toLocaleString()}</span>
+              </div>
+              <ol className="atlas-island-entry-list">
+                {selectedIslandPanel.entries.map((entry) => (
+                  <li key={entry.entryId}>
                     <PairCard
-                      entryId={result.entryId}
-                      videoId={result.videoId}
-                      segIndex={result.segIndex}
-                      en={result.en}
-                      zh={result.zh}
-                      isFocus={result.entryId === selectedEntryId}
+                      entryId={entry.entryId}
+                      videoId={entry.videoId}
+                      segIndex={entry.segIndex}
+                      en={entry.en}
+                      zh={entry.zh}
+                      isFocus={entry.entryId === selectedEntryId}
                       onSelect={selectEntry}
                       onOpenTranscript={openTranscript}
                       onSearchLine={searchLine}
-                      score={result.score}
-                      clusterColor={cluster?.color}
-                      clusterLabel={cluster?.label}
-                      onClusterClick={cluster ? () => selectIsland(cluster) : undefined}
                     />
                   </li>
-                );
-              })}
-            </ol>
-          </section>
-        )}
+                ))}
+              </ol>
+            </section>
+            );
+          })()}
 
-        {sidebarMode === 'idle' && showIslandBrowser && (
-          <section className="atlas-section atlas-island-section">
-            <div className="atlas-section-header">
-              <strong>Islands</strong>
-              <span>{rankedIslands.length}</span>
+          {sidebarMode === 'entry' && selectedEntry && (
+            <div className="atlas-detail">
+              <PairCard
+                entryId={selectedEntry.entryId}
+                videoId={selectedEntry.videoId}
+                segIndex={selectedEntry.segIndex}
+                en={selectedEntry.en}
+                zh={selectedEntry.zh}
+                isFocus
+                onSelect={selectEntry}
+                onOpenTranscript={openTranscript}
+                onSearchLine={searchLine}
+                clusterColor={selectedCluster?.color}
+                clusterLabel={selectedCluster?.label}
+                onClusterClick={selectedCluster ? () => selectIsland(selectedCluster) : undefined}
+              />
             </div>
-            <ol className="atlas-island-list">
-              {rankedIslands.map((cluster) => (
-                <li key={cluster.id}>
-                  <button
-                    className={classNames(
-                      'atlas-island-row',
-                      selectedIslandId === cluster.id && 'is-active',
-                    )}
-                    style={{ ['--cluster-color' as string]: cluster.color }}
-                    type="button"
-                    onClick={() => selectIsland(cluster)}
-                  >
-                    <span className="atlas-island-dot" aria-hidden="true" />
-                    <span className="atlas-island-copy">
-                      <strong>{cluster.label}</strong>
-                      <em>{cluster.description}</em>
-                    </span>
-                    <span className="atlas-island-count">{cluster.size.toLocaleString()}</span>
-                  </button>
-                </li>
-              ))}
-            </ol>
-          </section>
-        )}
+          )}
+
+          {sidebarMode === 'search' && (
+            <section className="atlas-section">
+              <div className="atlas-section-header">
+                <strong>Semantic Matches</strong>
+                <span>{searchResults.length}</span>
+              </div>
+              <ol className="atlas-result-list">
+                {topSearchResults.map((result) => {
+                  const point = pointById.get(result.entryId);
+                  const cluster = point ? clusterById.get(point.clusterId) : null;
+                  return (
+                    <li key={result.entryId}>
+                      <PairCard
+                        entryId={result.entryId}
+                        videoId={result.videoId}
+                        segIndex={result.segIndex}
+                        en={result.en}
+                        zh={result.zh}
+                        isFocus={result.entryId === selectedEntryId}
+                        onSelect={selectEntry}
+                        onOpenTranscript={openTranscript}
+                        onSearchLine={searchLine}
+                        score={result.score}
+                        clusterColor={cluster?.color}
+                        clusterLabel={cluster?.label}
+                        onClusterClick={cluster ? () => selectIsland(cluster) : undefined}
+                      />
+                    </li>
+                  );
+                })}
+              </ol>
+            </section>
+          )}
+
+          {sidebarMode === 'idle' && showIslandBrowser && (
+            <section className="atlas-section atlas-island-section">
+              <div className="atlas-section-header">
+                <strong>Islands</strong>
+                <span>{rankedIslands.length}</span>
+              </div>
+              <ol className="atlas-island-list">
+                {rankedIslands.map((cluster) => (
+                  <li key={cluster.id}>
+                    <button
+                      className={classNames(
+                        'atlas-island-row',
+                        selectedIslandId === cluster.id && 'is-active',
+                      )}
+                      style={{ ['--cluster-color' as string]: cluster.color }}
+                      type="button"
+                      onClick={() => selectIsland(cluster)}
+                    >
+                      <span className="atlas-island-dot" aria-hidden="true" />
+                      <span className="atlas-island-copy">
+                        <strong>{cluster.label}</strong>
+                        <em>{cluster.description}</em>
+                      </span>
+                      <span className="atlas-island-count">{cluster.size.toLocaleString()}</span>
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
+        </div>
       </aside>
     </section>
   );

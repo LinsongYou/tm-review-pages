@@ -430,12 +430,12 @@ button:disabled {
 
 .atlas-sidebar {
   display: grid;
-  grid-auto-rows: max-content;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 14px;
   width: 400px;
   max-height: 100dvh;
   padding: 14px;
-  overflow-y: auto;
+  overflow: hidden;
   border-left: 1px solid var(--glass-border);
   background: var(--sidebar-bg), var(--scanline);
   box-shadow: var(--sidebar-shadow);
@@ -448,7 +448,20 @@ button:disabled {
 }
 
 .atlas-sidebar.is-idle {
-  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.atlas-sidebar-body {
+  display: grid;
+  grid-auto-rows: max-content;
+  gap: 14px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.atlas-sidebar.is-idle .atlas-sidebar-body,
+.atlas-sidebar.is-transcript .atlas-sidebar-body {
+  grid-template-rows: minmax(0, 1fr);
   overflow: hidden;
 }
 
