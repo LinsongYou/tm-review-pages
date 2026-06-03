@@ -1743,7 +1743,7 @@ export default function TmAtlasPanel({
         {sidebarMode === 'idle' && showIslandBrowser && (
           <section className="atlas-section atlas-island-section">
             <div className="atlas-section-header">
-              <strong>Visual Islands</strong>
+              <strong>Islands</strong>
               <span>{rankedIslands.length}</span>
             </div>
             <ol className="atlas-island-list">
