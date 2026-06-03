@@ -612,7 +612,19 @@ export default function TmAtlasPanel({
   const animatedCenterRef = useRef<{ x: number; y: number; z: number } | null>(null);
   const historyRef = useRef<NavState[]>([]);
   const [size, setSize] = useState({ width: 1, height: 1 });
+  const effectiveInitialView = useMemo<View3d>(
+    () => data?.initialView ?? INITIAL_VIEW_3D,
+    [data?.initialView],
+  );
   const [view3d, setView3d] = useState<View3d>(INITIAL_VIEW_3D);
+  const appliedDataViewRef = useRef(false);
+
+  useEffect(() => {
+    if (data?.initialView && !appliedDataViewRef.current) {
+      appliedDataViewRef.current = true;
+      setView3d(data.initialView);
+    }
+  }, [data?.initialView]);
   const [hoverState, setHoverState] = useState<HoverState | null>(null);
   const [selectedIslandId, setSelectedIslandId] = useState<number | null>(null);
 
@@ -893,7 +905,7 @@ export default function TmAtlasPanel({
       return;
     }
 
-    const targetZoom = visualFocus ? visualFocus.zoom : INITIAL_VIEW_3D.zoom;
+    const targetZoom = visualFocus ? visualFocus.zoom : effectiveInitialView.zoom;
     updateTargetCenter(visualFocus, visualGeometry);
 
     const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -1435,7 +1447,7 @@ export default function TmAtlasPanel({
   }
 
   function resetView(): void {
-    setView3d(INITIAL_VIEW_3D);
+    setView3d(effectiveInitialView);
     setHoverState(null);
     clearAtlas();
   }

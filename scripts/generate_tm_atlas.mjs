@@ -439,6 +439,91 @@ function assignIslandColors(centers) {
   }));
 }
 
+function computeInitialView(scaled3d) {
+  const count = scaled3d.length;
+  const centerX = scaled3d.reduce((sum, p) => sum + p[0], 0) / count;
+  const centerY = scaled3d.reduce((sum, p) => sum + p[1], 0) / count;
+  const centerZ = scaled3d.reduce((sum, p) => sum + p[2], 0) / count;
+  const radius = Math.sqrt(
+    scaled3d.reduce((sum, p) => {
+      const dx = p[0] - centerX;
+      const dy = p[1] - centerY;
+      const dz = p[2] - centerZ;
+      return sum + dx * dx + dy * dy + dz * dz;
+    }, 0) / count,
+  ) || 1;
+
+  const normalized = scaled3d.map((p) => [
+    (p[0] - centerX) / (radius * 2),
+    (centerY - p[1]) / (radius * 2),
+    (p[2] - centerZ) / (radius * 2),
+  ]);
+
+  const CULL_THRESHOLD = -1.1;
+  const SAMPLES_X = 36;
+  const SAMPLES_Y = 72;
+  const TILT_MIN = -Math.PI * 0.35;
+  const TILT_MAX = Math.PI * 0.05;
+
+  let maxVisible = 0;
+  const candidates = [];
+
+  for (let ix = 0; ix < SAMPLES_X; ix += 1) {
+    const rx = TILT_MIN + (ix / (SAMPLES_X - 1)) * (TILT_MAX - TILT_MIN);
+    const cosX = Math.cos(rx);
+    const sinX = Math.sin(rx);
+
+    for (let iy = 0; iy < SAMPLES_Y; iy += 1) {
+      const ry = (iy / SAMPLES_Y) * Math.PI * 2;
+      const cosY = Math.cos(ry);
+      const sinY = Math.sin(ry);
+
+      let visible = 0;
+      let depthSum = 0;
+      for (const p of normalized) {
+        const x1 = p[0] * cosY + p[2] * sinY;
+        const z1 = -p[0] * sinY + p[2] * cosY;
+        const z2 = p[1] * sinX + z1 * cosX;
+        if (z2 >= CULL_THRESHOLD) {
+          visible += 1;
+          depthSum += z2;
+        }
+      }
+
+      if (visible > maxVisible) {
+        maxVisible = visible;
+      }
+      candidates.push({ rx, ry, visible, avgDepth: visible > 0 ? depthSum / visible : 0 });
+    }
+  }
+
+  const visibilityThreshold = maxVisible * 0.96;
+  let bestRotateX = 0;
+  let bestRotateY = 0;
+  let bestScore = -Infinity;
+
+  for (const c of candidates) {
+    if (c.visible < visibilityThreshold) {
+      continue;
+    }
+    const depthScore = 1 - (c.avgDepth + 1.1) / 2.1;
+    const score = c.visible / maxVisible * 0.7 + depthScore * 0.3;
+    if (score > bestScore) {
+      bestScore = score;
+      bestRotateX = c.rx;
+      bestRotateY = c.ry;
+    }
+  }
+
+  return {
+    rotateX: Math.round(bestRotateX * 1000) / 1000,
+    rotateY: Math.round(bestRotateY * 1000) / 1000,
+    zoom: 1.18,
+    offsetX: 0,
+    offsetY: 0,
+  };
+}
+
 function pointColorFromIsland(coordinate, islandColor) {
   const x = coordinate[0] / 1000;
   const y = coordinate[1] / 1000;
@@ -670,6 +755,10 @@ async function main() {
     cluster.compactness = maxAvgDist > 0 ? Math.round((1 - cluster.rawAvgDist / maxAvgDist) * 100) : 100;
     delete cluster.rawAvgDist;
   }
+  console.log('Computing optimal initial view.');
+  const initialView = computeInitialView(scaled3d);
+  console.log(`  rotateX=${initialView.rotateX}, rotateY=${initialView.rotateY}`);
+
   const points = entries.map((entry, index) => ({
     entryId: entry.entryId,
     videoId: entry.videoId,
@@ -714,6 +803,7 @@ async function main() {
       candidateCount: ISLAND_CANDIDATE_COUNT,
       minSeedSize: ISLAND_MIN_SEED_SIZE,
     },
+    initialView,
     clusters,
     points,
   };

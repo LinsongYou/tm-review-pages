@@ -35,6 +35,14 @@ export interface SemanticLandscapePoint {
   clusterId: number;
 }
 
+export interface InitialView {
+  rotateX: number;
+  rotateY: number;
+  zoom: number;
+  offsetX: number;
+  offsetY: number;
+}
+
 export interface SemanticLandscapeData {
   version: number;
   projection: string;
@@ -52,6 +60,7 @@ export interface SemanticLandscapeData {
     epochs: number;
     randomSeed: number;
   };
+  initialView?: InitialView;
   clusters: SemanticLandscapeCluster[];
   points: SemanticLandscapePoint[];
 }
