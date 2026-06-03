@@ -464,6 +464,7 @@ function computeInitialView(scaled3d) {
   const SAMPLES_Y = 72;
   const TILT_MIN = -Math.PI * 0.35;
   const TILT_MAX = Math.PI * 0.05;
+  const GRID_SIZE = 48;
 
   let maxVisible = 0;
   const candidates = [];
@@ -479,25 +480,38 @@ function computeInitialView(scaled3d) {
       const sinY = Math.sin(ry);
 
       let visible = 0;
-      let depthSum = 0;
+      const projected = [];
       for (const p of normalized) {
         const x1 = p[0] * cosY + p[2] * sinY;
         const z1 = -p[0] * sinY + p[2] * cosY;
+        const y1 = p[1] * cosX - z1 * sinX;
         const z2 = p[1] * sinX + z1 * cosX;
         if (z2 >= CULL_THRESHOLD) {
           visible += 1;
-          depthSum += z2;
+          projected.push(x1, y1);
         }
       }
 
       if (visible > maxVisible) {
         maxVisible = visible;
       }
-      candidates.push({ rx, ry, visible, avgDepth: visible > 0 ? depthSum / visible : 0 });
+
+      let occupiedCells = 0;
+      if (visible > 0) {
+        const cells = new Set();
+        for (let j = 0; j < projected.length; j += 2) {
+          const cx = Math.floor((projected[j] + 1.5) * GRID_SIZE);
+          const cy = Math.floor((projected[j + 1] + 1.5) * GRID_SIZE);
+          cells.add(cx * 1000 + cy);
+        }
+        occupiedCells = cells.size;
+      }
+
+      candidates.push({ rx, ry, visible, occupiedCells });
     }
   }
 
-  const visibilityThreshold = maxVisible * 0.96;
+  const visibilityThreshold = maxVisible * 0.90;
   let bestRotateX = 0;
   let bestRotateY = 0;
   let bestScore = -Infinity;
@@ -506,10 +520,8 @@ function computeInitialView(scaled3d) {
     if (c.visible < visibilityThreshold) {
       continue;
     }
-    const depthScore = 1 - (c.avgDepth + 1.1) / 2.1;
-    const score = c.visible / maxVisible * 0.7 + depthScore * 0.3;
-    if (score > bestScore) {
-      bestScore = score;
+    if (c.occupiedCells > bestScore) {
+      bestScore = c.occupiedCells;
       bestRotateX = c.rx;
       bestRotateY = c.ry;
     }
