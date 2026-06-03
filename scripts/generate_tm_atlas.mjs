@@ -548,8 +548,9 @@ function pointColorFromIsland(coordinate, islandColor) {
 
 function tokenize(text) {
   return text
+    .normalize('NFC')
     .toLowerCase()
-    .match(/[a-z0-9']+/g)
+    .match(/[\p{L}\p{N}']+/gu)
     ?.map((token) => {
       let normalized = token.replace(/^'+|'+$/g, '');
       for (const suffix of ["'s", "'re", "'ve", "'ll", "'m", "'d", "n't"]) {
@@ -560,7 +561,7 @@ function tokenize(text) {
       }
       return normalized;
     })
-    .filter((token) => token.length > 2 && !STOPWORDS.has(token) && !/^\d+$/.test(token)) ?? [];
+    .filter((token) => token.length > 2 && !STOPWORDS.has(token) && !/^\p{N}+$/u.test(token)) ?? [];
 }
 
 function phrasesForText(text) {

@@ -60,7 +60,6 @@
 - `src/atlas/colors.ts`: hex-to-rgba utility.
 - `src/styles.css`: all CSS styles.
 - `scripts/generate_tm_atlas.mjs`: Node.js script to rebuild tm-atlas.json from the DB (current).
-- `scripts/generate_tm_atlas.py`: Python version of the same (older, still functional).
 - `vite.config.ts`: React plugin, GitHub Pages base path, asset versioning via compile-time constants.
 - `.github/workflows/deploy.yml`: GitHub Actions build and deploy workflow for Pages.
 
