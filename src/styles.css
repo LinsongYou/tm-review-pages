@@ -447,10 +447,6 @@ button:disabled {
   z-index: 3;
 }
 
-.atlas-sidebar.is-idle {
-  overflow: hidden;
-}
-
 .atlas-sidebar-body {
   display: grid;
   grid-auto-rows: max-content;
@@ -549,9 +545,8 @@ button:disabled {
   box-shadow: 0 0 12px rgba(255, 108, 85, 0.08);
 }
 
-/* ─── Detail & Sections ─────────────────────────────────────────── */
+/* ─── Sections ──────────────────────────────────────────────────── */
 
-.atlas-detail,
 .atlas-section {
   min-width: 0;
 }
@@ -657,11 +652,6 @@ button:disabled {
   color: var(--island-text, #020a06);
 }
 
-.atlas-island-card .atlas-island-heading em {
-  background: var(--island-overlay, rgba(0, 0, 0, 0.15));
-  color: var(--island-text, #020a06);
-}
-
 .atlas-island-card .atlas-region-description {
   color: var(--island-text-strong, rgba(2, 10, 6, 0.7));
 }
@@ -706,20 +696,6 @@ button:disabled {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.atlas-island-heading em {
-  padding: 3px 10px;
-  border-radius: 999px;
-  background: var(--cluster-color);
-  color: #020a06;
-  font-family: 'Rajdhani', sans-serif;
-  font-size: 0.68rem;
-  font-style: normal;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
 }
 
 /* ─── Island Metrics ────────────────────────────────────────────── */
@@ -824,7 +800,6 @@ button:disabled {
   transition: all 200ms ease;
 }
 
-
 .atlas-island-row:hover,
 .atlas-island-row:focus-visible,
 .atlas-island-row.is-active {
@@ -874,65 +849,7 @@ button:disabled {
   white-space: nowrap;
 }
 
-/* ─── Result Row ────────────────────────────────────────────────── */
-
-.atlas-result-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 5px 8px;
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--field);
-  color: inherit;
-  text-align: left;
-  transition: all 200ms ease;
-}
-
-.atlas-result-row:hover,
-.atlas-result-row:focus-visible,
-.atlas-result-row.is-active {
-  border-color: rgba(74, 222, 128, 0.3);
-  background: rgba(74, 222, 128, 0.04);
-  box-shadow: 0 0 12px rgba(74, 222, 128, 0.06);
-}
-
-.atlas-result-row span {
-  min-width: 0;
-  color: var(--muted);
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.74rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.atlas-result-row strong {
-  color: var(--accent);
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.78rem;
-  font-weight: 500;
-}
-
-.atlas-result-row em {
-  grid-column: 1 / -1;
-  color: var(--muted-strong);
-  font-style: normal;
-  font-size: 0.84rem;
-  line-height: 1.35;
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-}
-
 /* ─── Transcript Panel ──────────────────────────────────────────── */
-
-.atlas-sidebar.is-transcript {
-  grid-template-rows: auto minmax(0, 1fr);
-  overflow: hidden;
-}
 
 .atlas-video-transcript {
   grid-template-rows: auto minmax(0, 1fr);
@@ -1172,6 +1089,7 @@ button:disabled {
 .pair-card {
   display: grid;
   gap: 8px;
+  min-width: 0;
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -1328,21 +1246,6 @@ button:disabled {
 .pair-card-cluster:hover,
 .pair-card-cluster:focus-visible {
   opacity: 0.8;
-}
-
-/* ─── Sticky Island Header ─────────────────────────────────────── */
-
-.atlas-island-sticky {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  padding-bottom: 8px;
-  background: var(--sidebar-bg);
-  backdrop-filter: blur(16px);
-}
-
-.atlas-island-sticky .atlas-island-card {
-  margin-bottom: 0;
 }
 
 /* ─── Scrollbar Styling ─────────────────────────────────────────── */

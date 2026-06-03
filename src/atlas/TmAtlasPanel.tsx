@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { type CSSProperties, type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { classNames } from '../classes';
 import { handleSelectKey } from '../keyboard';
 import type { ContextItem, SearchResult } from '../search/protocol';
@@ -568,6 +568,30 @@ interface PairCardProps {
   clusterColor?: string;
   clusterLabel?: string;
   onClusterClick?: () => void;
+}
+
+type PairCardData = Pick<PairCardProps, 'entryId' | 'videoId' | 'segIndex' | 'en' | 'zh'>;
+type CssVars = CSSProperties & Record<`--${string}`, string>;
+
+function islandPanelStyle(panel: IslandPanelData): CssVars {
+  const light = isLightHex(panel.cluster.color);
+  return {
+    '--cluster-color': panel.cluster.color,
+    '--island-text': light ? '#020a06' : '#e2f5ea',
+    '--island-text-muted': light ? 'rgba(2, 10, 6, 0.6)' : 'rgba(226, 245, 234, 0.6)',
+    '--island-text-strong': light ? 'rgba(2, 10, 6, 0.75)' : 'rgba(226, 245, 234, 0.75)',
+    '--island-overlay': light ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.1)',
+    '--island-overlay-border': light ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.15)',
+  };
+}
+
+function islandMetrics(panel: IslandPanelData): Array<[string, string]> {
+  return [
+    ['Lines', panel.cluster.size.toLocaleString()],
+    ['Videos', panel.cluster.videoCount.toLocaleString()],
+    ['Share', `${panel.share.toFixed(1)}%`],
+    ['Compact', `${panel.cluster.compactness}%`],
+  ];
 }
 
 function PairCard({
@@ -1468,6 +1492,25 @@ export default function TmAtlasPanel({
     }
   }
 
+  function pairCardProps(entry: PairCardData) {
+    return {
+      entryId: entry.entryId,
+      videoId: entry.videoId,
+      segIndex: entry.segIndex,
+      en: entry.en,
+      zh: entry.zh,
+      isFocus: entry.entryId === selectedEntryId,
+      onSelect: selectEntry,
+      onOpenTranscript: openTranscript,
+      onSearchLine: searchLine,
+    };
+  }
+
+  function selectTranscriptCard(entryId: string): void {
+    pushHistory();
+    onSelectTranscriptEntry(entryId);
+  }
+
   function setTranscriptItemRef(entryId: string, element: HTMLLIElement | null): void {
     if (element) {
       transcriptItemRefs.current.set(entryId, element);
@@ -1722,18 +1765,8 @@ export default function TmAtlasPanel({
                         ref={(element) => setTranscriptItemRef(item.entryId, element)}
                       >
                         <PairCard
-                          entryId={item.entryId}
-                          videoId={item.videoId}
-                          segIndex={item.segIndex}
-                          en={item.en}
-                          zh={item.zh}
-                          isFocus={item.entryId === selectedEntryId}
-                          onSelect={(entryId) => {
-                            pushHistory();
-                            onSelectTranscriptEntry(entryId);
-                          }}
-                          onOpenTranscript={openTranscript}
-                          onSearchLine={searchLine}
+                          {...pairCardProps(item)}
+                          onSelect={selectTranscriptCard}
                           startMs={item.startMs}
                           endMs={item.endMs}
                         />
@@ -1745,53 +1778,32 @@ export default function TmAtlasPanel({
             </section>
           )}
 
-          {sidebarMode === 'island' && selectedIslandPanel && (() => {
-            const light = isLightHex(selectedIslandPanel.cluster.color);
-            return (
+          {sidebarMode === 'island' && selectedIslandPanel && (
             <section
               className="atlas-section atlas-island-focus"
-              style={{
-                ['--cluster-color' as string]: selectedIslandPanel.cluster.color,
-                ['--island-text' as string]: light ? '#020a06' : '#e2f5ea',
-                ['--island-text-muted' as string]: light ? 'rgba(2, 10, 6, 0.6)' : 'rgba(226, 245, 234, 0.6)',
-                ['--island-text-strong' as string]: light ? 'rgba(2, 10, 6, 0.75)' : 'rgba(226, 245, 234, 0.75)',
-                ['--island-overlay' as string]: light ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.1)',
-                ['--island-overlay-border' as string]: light ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.15)',
-              }}
+              style={islandPanelStyle(selectedIslandPanel)}
             >
-              <div className="atlas-island-sticky">
-                <article className="atlas-island-card">
-                  <div className="atlas-island-heading">
-                    <strong>{selectedIslandPanel.cluster.label}</strong>
-                  </div>
-                  <p className="atlas-region-description">{selectedIslandPanel.cluster.description}</p>
+              <article className="atlas-island-card">
+                <div className="atlas-island-heading">
+                  <strong>{selectedIslandPanel.cluster.label}</strong>
+                </div>
+                <p className="atlas-region-description">{selectedIslandPanel.cluster.description}</p>
 
-                  <dl className="atlas-island-metrics">
-                    <div>
-                      <dt>Lines</dt>
-                      <dd>{selectedIslandPanel.cluster.size.toLocaleString()}</dd>
+                <dl className="atlas-island-metrics">
+                  {islandMetrics(selectedIslandPanel).map(([label, value]) => (
+                    <div key={label}>
+                      <dt>{label}</dt>
+                      <dd>{value}</dd>
                     </div>
-                    <div>
-                      <dt>Videos</dt>
-                      <dd>{selectedIslandPanel.cluster.videoCount.toLocaleString()}</dd>
-                    </div>
-                    <div>
-                      <dt>Share</dt>
-                      <dd>{selectedIslandPanel.share.toFixed(1)}%</dd>
-                    </div>
-                    <div>
-                      <dt>Compact</dt>
-                      <dd>{selectedIslandPanel.cluster.compactness}%</dd>
-                    </div>
-                  </dl>
+                  ))}
+                </dl>
 
-                  <div className="atlas-phrase-list">
-                    {selectedIslandPanel.cluster.topPhrases.map((phrase) => (
-                      <span key={phrase}>{phrase}</span>
-                    ))}
-                  </div>
-                </article>
-              </div>
+                <div className="atlas-phrase-list">
+                  {selectedIslandPanel.cluster.topPhrases.map((phrase) => (
+                    <span key={phrase}>{phrase}</span>
+                  ))}
+                </div>
+              </article>
 
               <div className="atlas-section-header">
                 <strong>Island Lines</strong>
@@ -1800,41 +1812,21 @@ export default function TmAtlasPanel({
               <ol className="atlas-island-entry-list">
                 {selectedIslandPanel.entries.map((entry) => (
                   <li key={entry.entryId}>
-                    <PairCard
-                      entryId={entry.entryId}
-                      videoId={entry.videoId}
-                      segIndex={entry.segIndex}
-                      en={entry.en}
-                      zh={entry.zh}
-                      isFocus={entry.entryId === selectedEntryId}
-                      onSelect={selectEntry}
-                      onOpenTranscript={openTranscript}
-                      onSearchLine={searchLine}
-                    />
+                    <PairCard {...pairCardProps(entry)} />
                   </li>
                 ))}
               </ol>
             </section>
-            );
-          })()}
+          )}
 
           {sidebarMode === 'entry' && selectedEntry && (
-            <div className="atlas-detail">
-              <PairCard
-                entryId={selectedEntry.entryId}
-                videoId={selectedEntry.videoId}
-                segIndex={selectedEntry.segIndex}
-                en={selectedEntry.en}
-                zh={selectedEntry.zh}
-                isFocus
-                onSelect={selectEntry}
-                onOpenTranscript={openTranscript}
-                onSearchLine={searchLine}
-                clusterColor={selectedCluster?.color}
-                clusterLabel={selectedCluster?.label}
-                onClusterClick={selectedCluster ? () => selectIsland(selectedCluster) : undefined}
-              />
-            </div>
+            <PairCard
+              {...pairCardProps(selectedEntry)}
+              isFocus
+              clusterColor={selectedCluster?.color}
+              clusterLabel={selectedCluster?.label}
+              onClusterClick={selectedCluster ? () => selectIsland(selectedCluster) : undefined}
+            />
           )}
 
           {sidebarMode === 'search' && (
@@ -1850,15 +1842,7 @@ export default function TmAtlasPanel({
                   return (
                     <li key={result.entryId}>
                       <PairCard
-                        entryId={result.entryId}
-                        videoId={result.videoId}
-                        segIndex={result.segIndex}
-                        en={result.en}
-                        zh={result.zh}
-                        isFocus={result.entryId === selectedEntryId}
-                        onSelect={selectEntry}
-                        onOpenTranscript={openTranscript}
-                        onSearchLine={searchLine}
+                        {...pairCardProps(result)}
                         score={result.score}
                         clusterColor={cluster?.color}
                         clusterLabel={cluster?.label}
