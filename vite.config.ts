@@ -1,5 +1,5 @@
 import { statSync } from 'node:fs';
-import { defineConfig } from 'vite';
+import { defaultClientConditions, defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 function normalizeBase(input: string | undefined): string {
@@ -24,6 +24,9 @@ function getAssetVersion(path: string): string {
 export default defineConfig({
   plugins: [react()],
   base: normalizeBase(process.env.VITE_BASE_PATH),
+  resolve: {
+    conditions: ['onnxruntime-web-use-extern-wasm', ...defaultClientConditions],
+  },
   define: {
     __TM_DB_VERSION__: JSON.stringify(getAssetVersion('public/data/tm_misha_minilm.db')),
     __TM_ATLAS_DATA_VERSION__: JSON.stringify(getAssetVersion('public/data/tm-atlas.json')),
