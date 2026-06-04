@@ -1932,7 +1932,6 @@ export default function TmAtlasPanel({
                 <div className="atlas-island-heading">
                   <strong>{selectedIslandPanel.cluster.label}</strong>
                 </div>
-                <p className="atlas-region-description">{selectedIslandPanel.cluster.description}</p>
 
                 <dl className="atlas-island-metrics">
                   {islandMetrics(selectedIslandPanel).map(([label, value]) => (
@@ -2021,7 +2020,6 @@ export default function TmAtlasPanel({
                       <span className="atlas-island-dot" aria-hidden="true" />
                       <span className="atlas-island-copy">
                         <strong>{cluster.label}</strong>
-                        <em>{cluster.description}</em>
                       </span>
                       <span className="atlas-island-count">{cluster.size.toLocaleString()}</span>
                     </button>

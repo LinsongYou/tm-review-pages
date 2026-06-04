@@ -1,7 +1,6 @@
 export interface SemanticLandscapeCluster {
   id: number;
   label: string;
-  description: string;
   color: string;
   size: number;
   videoCount: number;

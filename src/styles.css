@@ -551,13 +551,6 @@ button:disabled {
   min-width: 0;
 }
 
-.atlas-region-description {
-  margin: 0;
-  color: var(--muted-strong);
-  font-size: 0.82rem;
-  line-height: 1.45;
-  font-weight: 300;
-}
 
 /* ─── Video ID Button ───────────────────────────────────────────── */
 
@@ -650,10 +643,6 @@ button:disabled {
 
 .atlas-island-card .atlas-island-heading strong {
   color: var(--island-text, #020a06);
-}
-
-.atlas-island-card .atlas-region-description {
-  color: var(--island-text-strong, rgba(2, 10, 6, 0.7));
 }
 
 .atlas-island-card .atlas-island-metrics div {
