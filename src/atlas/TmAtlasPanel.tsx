@@ -436,6 +436,77 @@ function fitProjected3d(items: MutableProjectedPoint[], radiusScratch: number[],
   return { centerX, centerY, scale };
 }
 
+function projectAtlasFrame(
+  cache: ProjectionCache,
+  projectionGeometry: VisualGeometry,
+  view: View3d,
+  width: number,
+  height: number,
+  visualFocus: VisualFocus | null,
+): ProjectedFrame {
+  const trig = computeTrig(view);
+  for (let index = 0; index < cache.projectedPoints.length; index += 1) {
+    const item = cache.projectedPoints[index]!;
+    project3dRawInto(item.point, projectionGeometry, trig, item);
+    cache.sortedPoints[index] = item;
+  }
+
+  const sidebarGutter = width >= DESKTOP_ATLAS_MIN_WIDTH ? DESKTOP_SIDEBAR_WIDTH : 0;
+  const topGutter = width <= MOBILE_ATLAS_MAX_WIDTH ? MOBILE_HUD_SAFE_TOP : 0;
+  const plotWidth = Math.max(1, width - sidebarGutter);
+  const plotHeight = Math.max(1, height - topGutter);
+  const fitted = fitProjected3d(cache.projectedPoints, cache.radiusScratch, plotWidth, plotHeight);
+  const centerX = visualFocus ? 0 : fitted.centerX;
+  const centerY = visualFocus ? 0 : fitted.centerY;
+
+  for (const item of cache.projectedPoints) {
+    item.x = (item.rawX - centerX) * fitted.scale * view.zoom + plotWidth / 2 + view.offsetX;
+    item.y = (item.rawY - centerY) * fitted.scale * view.zoom + topGutter + plotHeight / 2 + view.offsetY;
+  }
+
+  cache.sortedPoints.sort((left, right) => right.depth - left.depth);
+  cache.pointByEntryId.clear();
+  cache.islandTotals.clear();
+  cache.islandById.clear();
+
+  for (const item of cache.sortedPoints) {
+    cache.pointByEntryId.set(item.point.entryId, item);
+    if (item.culled) {
+      continue;
+    }
+
+    const total = cache.islandTotals.get(item.point.clusterId);
+    if (total) {
+      total.x += item.x;
+      total.y += item.y;
+      total.depth += item.depth;
+      total.count += 1;
+    } else {
+      cache.islandTotals.set(item.point.clusterId, { x: item.x, y: item.y, depth: item.depth, count: 1 });
+    }
+  }
+
+  for (const [clusterId, total] of cache.islandTotals) {
+    const cluster = cache.clusterById.get(clusterId);
+    if (!cluster) {
+      continue;
+    }
+
+    cache.islandById.set(clusterId, {
+      cluster,
+      x: total.x / total.count,
+      y: total.y / total.count,
+      depth: total.depth / total.count,
+    });
+  }
+
+  return {
+    points: cache.sortedPoints,
+    pointByEntryId: cache.pointByEntryId,
+    islandById: cache.islandById,
+  };
+}
+
 function getDepthRadiusScale(depth: number): number {
   return clamp(1 - depth * 0.9, 0.55, 1.45);
 }
@@ -789,23 +860,27 @@ export default function TmAtlasPanel({
   const transcriptBodyRef = useRef<HTMLDivElement | null>(null);
   const transcriptItemRefs = useRef(new Map<string, HTMLLIElement>());
   const cameraAnimRef = useRef(0);
+  const canvasRenderFrameRef = useRef(0);
   const manualZoomOverrideRef = useRef(false);
   const targetCenterRef = useRef<{ x: number; y: number; z: number } | null>(null);
   const animatedCenterRef = useRef<{ x: number; y: number; z: number } | null>(null);
   const projectionCacheRef = useRef<ProjectionCache | null>(null);
+  const projectedFrameRef = useRef<ProjectedFrame>(EMPTY_PROJECTED_FRAME);
+  const renderAtlasRef = useRef<() => void>(() => {});
+  const view3dRef = useRef<View3d>({ ...INITIAL_VIEW_3D });
   const historyRef = useRef<NavState[]>([]);
   const [size, setSize] = useState({ width: 1, height: 1 });
   const effectiveInitialView = useMemo<View3d>(
     () => data?.initialView ?? INITIAL_VIEW_3D,
     [data?.initialView],
   );
-  const [view3d, setView3d] = useState<View3d>(INITIAL_VIEW_3D);
   const appliedDataViewRef = useRef(false);
 
   useEffect(() => {
     if (data?.initialView && !appliedDataViewRef.current) {
       appliedDataViewRef.current = true;
-      setView3d(data.initialView);
+      view3dRef.current = { ...data.initialView };
+      requestAtlasRender();
     }
   }, [data?.initialView]);
   const [hoverState, setHoverState] = useState<HoverState | null>(null);
@@ -956,95 +1031,14 @@ export default function TmAtlasPanel({
     }
   }
 
-  const projectionGeometry = useMemo(() => {
+  function getProjectionGeometry(): VisualGeometry {
     const center = animatedCenterRef.current;
     if (!center) {
       return geometryWithFocus(visualGeometry, visualFocus);
     }
     return { ...visualGeometry, centerX: center.x, centerY: center.y, centerZ: center.z };
-  }, [visualGeometry, visualFocus, view3d]);
-  const projectedFrame = useMemo<ProjectedFrame>(() => {
-    if (!data) {
-      projectionCacheRef.current = null;
-      return EMPTY_PROJECTED_FRAME;
-    }
+  }
 
-    let cache = projectionCacheRef.current;
-    if (
-      !cache ||
-      cache.sourcePoints !== data.points ||
-      cache.clusterById !== clusterById ||
-      cache.projectedPoints.length !== data.points.length
-    ) {
-      cache = createProjectionCache(data.points, clusterById);
-      projectionCacheRef.current = cache;
-    }
-
-    const trig = computeTrig(view3d);
-    for (let index = 0; index < cache.projectedPoints.length; index += 1) {
-      const item = cache.projectedPoints[index]!;
-      project3dRawInto(item.point, projectionGeometry, trig, item);
-      cache.sortedPoints[index] = item;
-    }
-
-    const sidebarGutter = size.width >= DESKTOP_ATLAS_MIN_WIDTH ? DESKTOP_SIDEBAR_WIDTH : 0;
-    const topGutter = size.width <= MOBILE_ATLAS_MAX_WIDTH ? MOBILE_HUD_SAFE_TOP : 0;
-    const plotWidth = Math.max(1, size.width - sidebarGutter);
-    const plotHeight = Math.max(1, size.height - topGutter);
-    const fitted = fitProjected3d(cache.projectedPoints, cache.radiusScratch, plotWidth, plotHeight);
-    const centerX = visualFocus ? 0 : fitted.centerX;
-    const centerY = visualFocus ? 0 : fitted.centerY;
-
-    for (const item of cache.projectedPoints) {
-      item.x = (item.rawX - centerX) * fitted.scale * view3d.zoom + plotWidth / 2 + view3d.offsetX;
-      item.y = (item.rawY - centerY) * fitted.scale * view3d.zoom + topGutter + plotHeight / 2 + view3d.offsetY;
-    }
-
-    cache.sortedPoints.sort((left, right) => right.depth - left.depth);
-    cache.pointByEntryId.clear();
-    cache.islandTotals.clear();
-    cache.islandById.clear();
-
-    for (const item of cache.sortedPoints) {
-      cache.pointByEntryId.set(item.point.entryId, item);
-      if (item.culled) {
-        continue;
-      }
-
-      const total = cache.islandTotals.get(item.point.clusterId);
-      if (total) {
-        total.x += item.x;
-        total.y += item.y;
-        total.depth += item.depth;
-        total.count += 1;
-      } else {
-        cache.islandTotals.set(item.point.clusterId, { x: item.x, y: item.y, depth: item.depth, count: 1 });
-      }
-    }
-
-    for (const [clusterId, total] of cache.islandTotals) {
-      const cluster = clusterById.get(clusterId);
-      if (!cluster) {
-        continue;
-      }
-
-      cache.islandById.set(clusterId, {
-        cluster,
-        x: total.x / total.count,
-        y: total.y / total.count,
-        depth: total.depth / total.count,
-      });
-    }
-
-    return {
-      points: cache.sortedPoints,
-      pointByEntryId: cache.pointByEntryId,
-      islandById: cache.islandById,
-    };
-  }, [clusterById, data, projectionGeometry, size.height, size.width, view3d, visualFocus]);
-  const projectedPoints = projectedFrame.points;
-  const projectedPointByEntryId = projectedFrame.pointByEntryId;
-  const projectedIslandById = projectedFrame.islandById;
   const transcriptHasTimestamps = transcriptItems.some((item) => item.startMs !== null || item.endMs !== null);
 
   const sidebarMode: SidebarMode = showTranscriptPanel
@@ -1160,29 +1154,31 @@ export default function TmAtlasPanel({
         center.z = lerp(center.z, target.z, CAMERA_CENTER_LERP);
       }
 
-      setView3d((current) => {
-        const offsetDistance = Math.hypot(current.offsetX, current.offsetY);
-        const shouldZoom = !manualZoomOverrideRef.current;
-        const zoomDistance = shouldZoom ? Math.abs(current.zoom - targetZoom) : 0;
-        const centerDistance = center && target
-          ? Math.hypot(center.x - target.x, center.y - target.y, center.z - target.z) / Math.max(1, visualGeometry.radius)
-          : 0;
-        if (
-          offsetDistance < CAMERA_OFFSET_EPSILON &&
-          zoomDistance < CAMERA_ZOOM_EPSILON &&
-          centerDistance < CAMERA_CENTER_EPSILON
-        ) {
-          settled = true;
-          manualZoomOverrideRef.current = false;
-          return { ...current, zoom: shouldZoom ? targetZoom : current.zoom, offsetX: 0, offsetY: 0 };
-        }
-        return {
-          ...current,
-          zoom: shouldZoom ? lerp(current.zoom, targetZoom, cameraZoomLerp) : current.zoom,
-          offsetX: lerp(current.offsetX, 0, CAMERA_OFFSET_LERP),
-          offsetY: lerp(current.offsetY, 0, CAMERA_OFFSET_LERP),
-        };
-      });
+      const current = view3dRef.current;
+      const offsetDistance = Math.hypot(current.offsetX, current.offsetY);
+      const shouldZoom = !manualZoomOverrideRef.current;
+      const zoomDistance = shouldZoom ? Math.abs(current.zoom - targetZoom) : 0;
+      const centerDistance = center && target
+        ? Math.hypot(center.x - target.x, center.y - target.y, center.z - target.z) / Math.max(1, visualGeometry.radius)
+        : 0;
+      if (
+        offsetDistance < CAMERA_OFFSET_EPSILON &&
+        zoomDistance < CAMERA_ZOOM_EPSILON &&
+        centerDistance < CAMERA_CENTER_EPSILON
+      ) {
+        settled = true;
+        manualZoomOverrideRef.current = false;
+        current.zoom = shouldZoom ? targetZoom : current.zoom;
+        current.offsetX = 0;
+        current.offsetY = 0;
+        renderAtlasNow();
+        return;
+      }
+
+      current.zoom = shouldZoom ? lerp(current.zoom, targetZoom, cameraZoomLerp) : current.zoom;
+      current.offsetX = lerp(current.offsetX, 0, CAMERA_OFFSET_LERP);
+      current.offsetY = lerp(current.offsetY, 0, CAMERA_OFFSET_LERP);
+      renderAtlasNow();
 
       if (!settled) {
         cameraAnimRef.current = requestAnimationFrame(step);
@@ -1206,260 +1202,311 @@ export default function TmAtlasPanel({
     cameraZoomLerp,
   ]);
 
+  function requestAtlasRender(): void {
+    if (canvasRenderFrameRef.current) {
+      return;
+    }
+
+    canvasRenderFrameRef.current = window.requestAnimationFrame(() => {
+      canvasRenderFrameRef.current = 0;
+      renderAtlasRef.current();
+    });
+  }
+
+  function renderAtlasNow(): void {
+    if (canvasRenderFrameRef.current) {
+      window.cancelAnimationFrame(canvasRenderFrameRef.current);
+      canvasRenderFrameRef.current = 0;
+    }
+    renderAtlasRef.current();
+  }
+
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !data) {
-      return;
-    }
-
-    const context = canvas.getContext('2d');
-    if (!context) {
-      return;
-    }
-
-    const dpr = window.devicePixelRatio || 1;
-    const canvasWidth = Math.round(size.width * dpr);
-    const canvasHeight = Math.round(size.height * dpr);
-    const styleWidth = `${size.width}px`;
-    const styleHeight = `${size.height}px`;
-
-    if (canvas.width !== canvasWidth || canvas.height !== canvasHeight) {
-      canvas.width = canvasWidth;
-      canvas.height = canvasHeight;
-    }
-    if (canvas.style.width !== styleWidth) {
-      canvas.style.width = styleWidth;
-    }
-    if (canvas.style.height !== styleHeight) {
-      canvas.style.height = styleHeight;
-    }
-    context.setTransform(dpr, 0, 0, dpr, 0, 0);
-    context.clearRect(0, 0, size.width, size.height);
-
-    const background = theme === 'dark' ? '#06100b' : '#f5f0e8';
-    const grid = theme === 'dark' ? 'rgba(197, 228, 203, 0.08)' : 'rgba(51, 104, 72, 0.12)';
-    const muted = theme === 'dark' ? '#9fb2a5' : '#617266';
-    const text = theme === 'dark' ? '#edf8ef' : '#17251b';
-    const selected = theme === 'dark' ? '#4ade80' : '#16a34a';
-
-    context.fillStyle = background;
-    context.fillRect(0, 0, size.width, size.height);
-
-    context.strokeStyle = grid;
-    context.lineWidth = 1;
-    const gridStep = Math.max(80, Math.round(Math.min(size.width, size.height) / 7));
-    context.beginPath();
-    for (let x = (view3d.offsetX % gridStep) - gridStep; x < size.width + gridStep; x += gridStep) {
-      context.moveTo(x, 0);
-      context.lineTo(x, size.height);
-    }
-    for (let y = (view3d.offsetY % gridStep) - gridStep; y < size.height + gridStep; y += gridStep) {
-      context.moveTo(0, y);
-      context.lineTo(size.width, y);
-    }
-    context.stroke();
-
-    if (sidebarMode === 'island' && selectedIslandId !== null && islandFlows.length > 0) {
-      const drawableFlows: IslandFlow[] = [];
-      let maxFlowCount = 1;
-
-      for (const flow of islandFlows) {
-        if (
-          flow.fromClusterId !== selectedIslandId &&
-          flow.toClusterId !== selectedIslandId
-        ) {
-          continue;
-        }
-
-        if (!projectedIslandById.has(flow.fromClusterId) || !projectedIslandById.has(flow.toClusterId)) {
-          continue;
-        }
-
-        drawableFlows.push(flow);
-        maxFlowCount = Math.max(maxFlowCount, flow.count);
-        if (drawableFlows.length >= FOCUSED_ISLAND_FLOW_LIMIT) {
-          break;
-        }
+    renderAtlasRef.current = () => {
+      const canvas = canvasRef.current;
+      if (!canvas || !data) {
+        projectedFrameRef.current = EMPTY_PROJECTED_FRAME;
+        return;
       }
 
-      for (let index = drawableFlows.length - 1; index >= 0; index -= 1) {
-        const flow = drawableFlows[index]!;
-        const from = projectedIslandById.get(flow.fromClusterId);
-        const to = projectedIslandById.get(flow.toClusterId);
-        if (from && to) {
-          drawIslandFlowArc(context, flow, from, to, maxFlowCount, theme, true);
-        }
+      const context = canvas.getContext('2d');
+      if (!context) {
+        return;
       }
-    }
 
-    const rankedSearchHits = topSearchResults
-      .map((result) => projectedPointByEntryId.get(result.entryId))
-      .filter((item): item is ProjectedPoint => !!item && !item.culled);
-    const allVideoPathPoints = transcriptVideoId
-      ? transcriptItems
-          .map((item) => projectedPointByEntryId.get(item.entryId))
-          .filter((item): item is ProjectedPoint => !!item && !item.culled)
-      : [];
-    const selectedVideoPathIndex = allVideoPathPoints.findIndex((item) => item.point.entryId === selectedEntryId);
-    const videoPathWindowRadius = 5;
-    const videoPathWindowStart = selectedVideoPathIndex >= 0
-      ? Math.max(0, selectedVideoPathIndex - videoPathWindowRadius)
-      : 0;
-    const videoPathWindowEnd = selectedVideoPathIndex >= 0
-      ? Math.min(allVideoPathPoints.length, selectedVideoPathIndex + videoPathWindowRadius + 1)
-      : allVideoPathPoints.length;
-    const videoPathPoints = allVideoPathPoints.slice(videoPathWindowStart, videoPathWindowEnd);
-    const videoPathEntryIds = new Set(videoPathPoints.map((item) => item.point.entryId));
-    const videoPathFocusColor = selectedPoint?.color ?? videoPathPoints[0]?.point.color ?? selected;
-    const localSelectedIndex = selectedVideoPathIndex >= 0 ? selectedVideoPathIndex - videoPathWindowStart : -1;
-    const emphasizedVideoPathIds = localSelectedIndex >= 0
-      ? new Set(
-          [localSelectedIndex - 1, localSelectedIndex, localSelectedIndex + 1]
-            .filter((index) => index >= 0 && index < videoPathPoints.length)
-            .map((index) => videoPathPoints[index]!.point.entryId),
-        )
-      : new Set<string>();
+      const dpr = window.devicePixelRatio || 1;
+      const canvasWidth = Math.round(size.width * dpr);
+      const canvasHeight = Math.round(size.height * dpr);
+      const styleWidth = `${size.width}px`;
+      const styleHeight = `${size.height}px`;
 
-    if (sidebarMode === 'search' && rankedSearchHits.length > 1) {
-      context.save();
-      context.strokeStyle = hexToRgba(selected, 0.44);
-      context.lineWidth = 1.25;
-      context.setLineDash([5, 7]);
-      context.beginPath();
-      const firstHit = rankedSearchHits[0]!;
-      context.moveTo(firstHit.x, firstHit.y);
-      for (const item of rankedSearchHits.slice(1)) {
-        context.lineTo(item.x, item.y);
+      if (canvas.width !== canvasWidth || canvas.height !== canvasHeight) {
+        canvas.width = canvasWidth;
+        canvas.height = canvasHeight;
       }
-      context.stroke();
-      context.restore();
-    }
+      if (canvas.style.width !== styleWidth) {
+        canvas.style.width = styleWidth;
+      }
+      if (canvas.style.height !== styleHeight) {
+        canvas.style.height = styleHeight;
+      }
+      context.setTransform(dpr, 0, 0, dpr, 0, 0);
+      context.clearRect(0, 0, size.width, size.height);
 
-    if (videoPathPoints.length > 1) {
-      context.save();
-      context.strokeStyle = hexToRgba(muted, 0.2);
+      const background = theme === 'dark' ? '#06100b' : '#f5f0e8';
+      const grid = theme === 'dark' ? 'rgba(197, 228, 203, 0.08)' : 'rgba(51, 104, 72, 0.12)';
+      const muted = theme === 'dark' ? '#9fb2a5' : '#617266';
+      const text = theme === 'dark' ? '#edf8ef' : '#17251b';
+      const selected = theme === 'dark' ? '#4ade80' : '#16a34a';
+      let projectionCache = projectionCacheRef.current;
+      if (
+        !projectionCache ||
+        projectionCache.sourcePoints !== data.points ||
+        projectionCache.clusterById !== clusterById ||
+        projectionCache.projectedPoints.length !== data.points.length
+      ) {
+        projectionCache = createProjectionCache(data.points, clusterById);
+        projectionCacheRef.current = projectionCache;
+      }
+
+      const view3d = view3dRef.current;
+      const projectedFrame = projectAtlasFrame(
+        projectionCache,
+        getProjectionGeometry(),
+        view3d,
+        size.width,
+        size.height,
+        visualFocus,
+      );
+      projectedFrameRef.current = projectedFrame;
+      const projectedPoints = projectedFrame.points;
+      const projectedPointByEntryId = projectedFrame.pointByEntryId;
+      const projectedIslandById = projectedFrame.islandById;
+
+      context.fillStyle = background;
+      context.fillRect(0, 0, size.width, size.height);
+
+      context.strokeStyle = grid;
       context.lineWidth = 1;
+      const gridStep = Math.max(80, Math.round(Math.min(size.width, size.height) / 7));
       context.beginPath();
-      const firstPoint = videoPathPoints[0]!;
-      context.moveTo(firstPoint.x, firstPoint.y);
-      for (const item of videoPathPoints.slice(1)) {
-        context.lineTo(item.x, item.y);
+      for (let x = (view3d.offsetX % gridStep) - gridStep; x < size.width + gridStep; x += gridStep) {
+        context.moveTo(x, 0);
+        context.lineTo(x, size.height);
+      }
+      for (let y = (view3d.offsetY % gridStep) - gridStep; y < size.height + gridStep; y += gridStep) {
+        context.moveTo(0, y);
+        context.lineTo(size.width, y);
       }
       context.stroke();
 
-      if (localSelectedIndex >= 0) {
-        context.lineWidth = 2;
-        const highlightedSegments: Array<[number, number]> = [
-          [localSelectedIndex - 1, localSelectedIndex],
-          [localSelectedIndex, localSelectedIndex + 1],
-        ];
-        for (const [fromIndex, toIndex] of highlightedSegments) {
-          const fromPoint = videoPathPoints[fromIndex];
-          const toPoint = videoPathPoints[toIndex];
-          if (fromPoint && toPoint) {
-            const blended = blendHexColors(fromPoint.point.color, toPoint.point.color);
-            context.strokeStyle = `rgba(${blended}, 0.72)`;
-            context.beginPath();
-            context.moveTo(fromPoint.x, fromPoint.y);
-            context.lineTo(toPoint.x, toPoint.y);
-            context.stroke();
+      if (sidebarMode === 'island' && selectedIslandId !== null && islandFlows.length > 0) {
+        const drawableFlows: IslandFlow[] = [];
+        let maxFlowCount = 1;
+
+        for (const flow of islandFlows) {
+          if (
+            flow.fromClusterId !== selectedIslandId &&
+            flow.toClusterId !== selectedIslandId
+          ) {
+            continue;
+          }
+
+          if (!projectedIslandById.has(flow.fromClusterId) || !projectedIslandById.has(flow.toClusterId)) {
+            continue;
+          }
+
+          drawableFlows.push(flow);
+          maxFlowCount = Math.max(maxFlowCount, flow.count);
+          if (drawableFlows.length >= FOCUSED_ISLAND_FLOW_LIMIT) {
+            break;
+          }
+        }
+
+        for (let index = drawableFlows.length - 1; index >= 0; index -= 1) {
+          const flow = drawableFlows[index]!;
+          const from = projectedIslandById.get(flow.fromClusterId);
+          const to = projectedIslandById.get(flow.toClusterId);
+          if (from && to) {
+            drawIslandFlowArc(context, flow, from, to, maxFlowCount, theme, true);
           }
         }
       }
-      context.restore();
-    }
 
-    const hasSearch = searchHitIds.size > 0 && sidebarMode === 'search';
-    const hasVideoPath = videoPathEntryIds.size > 0;
-    const pointRadiusScale = getCanvasRadiusScale(size.width, size.height);
+      const rankedSearchHits = topSearchResults
+        .map((result) => projectedPointByEntryId.get(result.entryId))
+        .filter((item): item is ProjectedPoint => !!item && !item.culled);
+      const allVideoPathPoints = transcriptVideoId
+        ? transcriptItems
+            .map((item) => projectedPointByEntryId.get(item.entryId))
+            .filter((item): item is ProjectedPoint => !!item && !item.culled)
+        : [];
+      const selectedVideoPathIndex = allVideoPathPoints.findIndex((item) => item.point.entryId === selectedEntryId);
+      const videoPathWindowRadius = 5;
+      const videoPathWindowStart = selectedVideoPathIndex >= 0
+        ? Math.max(0, selectedVideoPathIndex - videoPathWindowRadius)
+        : 0;
+      const videoPathWindowEnd = selectedVideoPathIndex >= 0
+        ? Math.min(allVideoPathPoints.length, selectedVideoPathIndex + videoPathWindowRadius + 1)
+        : allVideoPathPoints.length;
+      const videoPathPoints = allVideoPathPoints.slice(videoPathWindowStart, videoPathWindowEnd);
+      const videoPathEntryIds = new Set(videoPathPoints.map((item) => item.point.entryId));
+      const videoPathFocusColor = selectedPoint?.color ?? videoPathPoints[0]?.point.color ?? selected;
+      const localSelectedIndex = selectedVideoPathIndex >= 0 ? selectedVideoPathIndex - videoPathWindowStart : -1;
+      const emphasizedVideoPathIds = localSelectedIndex >= 0
+        ? new Set(
+            [localSelectedIndex - 1, localSelectedIndex, localSelectedIndex + 1]
+              .filter((index) => index >= 0 && index < videoPathPoints.length)
+              .map((index) => videoPathPoints[index]!.point.entryId),
+          )
+        : new Set<string>();
 
-    for (const item of projectedPoints) {
-      if (item.culled) {
-        continue;
-      }
-
-      const isSelected = item.point.entryId === selectedEntryId;
-      const isHovered = item.point.entryId === hoverState?.entryId;
-      const isSearchHit = searchHitIds.has(item.point.entryId);
-      const isVideoPathPoint = videoPathEntryIds.has(item.point.entryId);
-      const isEmphasizedVideoPathPoint = emphasizedVideoPathIds.has(item.point.entryId);
-      const isOutsideSelectedIsland = sidebarMode === 'island' && selectedIslandId !== null && item.point.clusterId !== selectedIslandId;
-      const depthRadiusScale = getDepthRadiusScale(item.depth);
-      const depthAlphaScale = getDepthAlphaScale(item.depth);
-      const baseRadius = isSelected
-        ? 5.2
-        : isHovered
-          ? 4.4
-          : isSearchHit || isEmphasizedVideoPathPoint
-            ? 3.4
-            : isVideoPathPoint
-              ? 2.7
-              : 2.35;
-      const radius = Math.max(
-        0.75,
-        baseRadius * pointRadiusScale * (isSelected || isHovered ? clamp(depthRadiusScale, 0.92, 1.14) : depthRadiusScale),
-      );
-      const baseAlpha = isSelected
-        ? 1
-        : isHovered
-          ? 0.95
-          : isSearchHit
-            ? 0.86
-            : isEmphasizedVideoPathPoint
-              ? 0.78
-            : isVideoPathPoint
-              ? 0.38
-            : hasSearch
-              ? 0.16
-              : hasVideoPath
-                ? 0.1
-              : isOutsideSelectedIsland
-                ? 0.08
-                : 0.68;
-      const alpha = isSelected ? 1 : clamp(baseAlpha * depthAlphaScale, 0.035, 1);
-
-      context.fillStyle = hexToRgba(isSearchHit && !isSelected ? selected : item.point.color, alpha);
-      context.beginPath();
-      context.arc(item.x, item.y, radius, 0, Math.PI * 2);
-      context.fill();
-
-      if (isEmphasizedVideoPathPoint && !isSelected && !isHovered) {
-        context.strokeStyle = hexToRgba(videoPathFocusColor, 0.45);
-        context.lineWidth = Math.max(0.7, pointRadiusScale);
+      if (sidebarMode === 'search' && rankedSearchHits.length > 1) {
+        context.save();
+        context.strokeStyle = hexToRgba(selected, 0.44);
+        context.lineWidth = 1.25;
+        context.setLineDash([5, 7]);
         context.beginPath();
-        context.arc(item.x, item.y, radius + 2.5 * pointRadiusScale, 0, Math.PI * 2);
+        const firstHit = rankedSearchHits[0]!;
+        context.moveTo(firstHit.x, firstHit.y);
+        for (const item of rankedSearchHits.slice(1)) {
+          context.lineTo(item.x, item.y);
+        }
         context.stroke();
+        context.restore();
       }
 
-      if (isSelected || isHovered) {
-        context.strokeStyle = hexToRgba(text, isSelected ? 0.92 : 0.7);
-        context.lineWidth = Math.max(0.8, (isSelected ? 1.8 : 1.2) * pointRadiusScale);
+      if (videoPathPoints.length > 1) {
+        context.save();
+        context.strokeStyle = hexToRgba(muted, 0.2);
+        context.lineWidth = 1;
         context.beginPath();
-        context.arc(item.x, item.y, radius + 3 * pointRadiusScale, 0, Math.PI * 2);
+        const firstPoint = videoPathPoints[0]!;
+        context.moveTo(firstPoint.x, firstPoint.y);
+        for (const item of videoPathPoints.slice(1)) {
+          context.lineTo(item.x, item.y);
+        }
         context.stroke();
-      }
-    }
 
-    if (sidebarMode === 'search' && rankedSearchHits.length > 0) {
-      context.save();
-      context.strokeStyle = hexToRgba(selected, 0.9);
-      context.lineWidth = Math.max(0.8, 1.5 * pointRadiusScale);
-      for (let index = 0; index < rankedSearchHits.length; index += 1) {
-        const item = rankedSearchHits[index]!;
-        context.beginPath();
-        context.arc(item.x, item.y, (8 + Math.min(index, 5) * 0.55) * pointRadiusScale, 0, Math.PI * 2);
-        context.stroke();
+        if (localSelectedIndex >= 0) {
+          context.lineWidth = 2;
+          const highlightedSegments: Array<[number, number]> = [
+            [localSelectedIndex - 1, localSelectedIndex],
+            [localSelectedIndex, localSelectedIndex + 1],
+          ];
+          for (const [fromIndex, toIndex] of highlightedSegments) {
+            const fromPoint = videoPathPoints[fromIndex];
+            const toPoint = videoPathPoints[toIndex];
+            if (fromPoint && toPoint) {
+              const blended = blendHexColors(fromPoint.point.color, toPoint.point.color);
+              context.strokeStyle = `rgba(${blended}, 0.72)`;
+              context.beginPath();
+              context.moveTo(fromPoint.x, fromPoint.y);
+              context.lineTo(toPoint.x, toPoint.y);
+              context.stroke();
+            }
+          }
+        }
+        context.restore();
       }
-      context.restore();
-    }
+
+      const hasSearch = searchHitIds.size > 0 && sidebarMode === 'search';
+      const hasVideoPath = videoPathEntryIds.size > 0;
+      const pointRadiusScale = getCanvasRadiusScale(size.width, size.height);
+
+      for (const item of projectedPoints) {
+        if (item.culled) {
+          continue;
+        }
+
+        const isSelected = item.point.entryId === selectedEntryId;
+        const isHovered = item.point.entryId === hoverState?.entryId;
+        const isSearchHit = searchHitIds.has(item.point.entryId);
+        const isVideoPathPoint = videoPathEntryIds.has(item.point.entryId);
+        const isEmphasizedVideoPathPoint = emphasizedVideoPathIds.has(item.point.entryId);
+        const isOutsideSelectedIsland = sidebarMode === 'island' && selectedIslandId !== null && item.point.clusterId !== selectedIslandId;
+        const depthRadiusScale = getDepthRadiusScale(item.depth);
+        const depthAlphaScale = getDepthAlphaScale(item.depth);
+        const baseRadius = isSelected
+          ? 5.2
+          : isHovered
+            ? 4.4
+            : isSearchHit || isEmphasizedVideoPathPoint
+              ? 3.4
+              : isVideoPathPoint
+                ? 2.7
+                : 2.35;
+        const radius = Math.max(
+          0.75,
+          baseRadius * pointRadiusScale * (isSelected || isHovered ? clamp(depthRadiusScale, 0.92, 1.14) : depthRadiusScale),
+        );
+        const baseAlpha = isSelected
+          ? 1
+          : isHovered
+            ? 0.95
+            : isSearchHit
+              ? 0.86
+              : isEmphasizedVideoPathPoint
+                ? 0.78
+              : isVideoPathPoint
+                ? 0.38
+              : hasSearch
+                ? 0.16
+                : hasVideoPath
+                  ? 0.1
+                : isOutsideSelectedIsland
+                  ? 0.08
+                  : 0.68;
+        const alpha = isSelected ? 1 : clamp(baseAlpha * depthAlphaScale, 0.035, 1);
+
+        context.fillStyle = hexToRgba(isSearchHit && !isSelected ? selected : item.point.color, alpha);
+        context.beginPath();
+        context.arc(item.x, item.y, radius, 0, Math.PI * 2);
+        context.fill();
+
+        if (isEmphasizedVideoPathPoint && !isSelected && !isHovered) {
+          context.strokeStyle = hexToRgba(videoPathFocusColor, 0.45);
+          context.lineWidth = Math.max(0.7, pointRadiusScale);
+          context.beginPath();
+          context.arc(item.x, item.y, radius + 2.5 * pointRadiusScale, 0, Math.PI * 2);
+          context.stroke();
+        }
+
+        if (isSelected || isHovered) {
+          context.strokeStyle = hexToRgba(text, isSelected ? 0.92 : 0.7);
+          context.lineWidth = Math.max(0.8, (isSelected ? 1.8 : 1.2) * pointRadiusScale);
+          context.beginPath();
+          context.arc(item.x, item.y, radius + 3 * pointRadiusScale, 0, Math.PI * 2);
+          context.stroke();
+        }
+      }
+
+      if (sidebarMode === 'search' && rankedSearchHits.length > 0) {
+        context.save();
+        context.strokeStyle = hexToRgba(selected, 0.9);
+        context.lineWidth = Math.max(0.8, 1.5 * pointRadiusScale);
+        for (let index = 0; index < rankedSearchHits.length; index += 1) {
+          const item = rankedSearchHits[index]!;
+          context.beginPath();
+          context.arc(item.x, item.y, (8 + Math.min(index, 5) * 0.55) * pointRadiusScale, 0, Math.PI * 2);
+          context.stroke();
+        }
+        context.restore();
+      }
+    };
+
+    requestAtlasRender();
+    return () => {
+      if (canvasRenderFrameRef.current) {
+        window.cancelAnimationFrame(canvasRenderFrameRef.current);
+        canvasRenderFrameRef.current = 0;
+      }
+    };
   }, [
+    clusterById,
     data,
     hoverState?.entryId,
     islandFlows,
-    projectedFrame,
-    projectedIslandById,
-    projectedPointByEntryId,
-    projectedPoints,
     searchHitIds,
     selectedEntryId,
     selectedIslandId,
@@ -1471,8 +1518,8 @@ export default function TmAtlasPanel({
     topSearchResults,
     transcriptItems,
     transcriptVideoId,
-    view3d.offsetX,
-    view3d.offsetY,
+    visualFocus,
+    visualGeometry,
   ]);
 
   function findPoint(clientX: number, clientY: number): ProjectedPoint | null {
@@ -1487,8 +1534,9 @@ export default function TmAtlasPanel({
     let nearest: ProjectedPoint | null = null;
     let nearestDistance = 100;
 
-    for (let index = projectedPoints.length - 1; index >= 0; index -= 1) {
-      const item = projectedPoints[index]!;
+    const points = projectedFrameRef.current.points;
+    for (let index = points.length - 1; index >= 0; index -= 1) {
+      const item = points[index]!;
       if (item.culled) {
         continue;
       }
@@ -1652,18 +1700,15 @@ export default function TmAtlasPanel({
       drag.moved = drag.moved || Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > 4;
 
       if (drag.mode === 'pan3d') {
-        setView3d((current) => ({
-          ...current,
-          offsetX: current.offsetX + dx,
-          offsetY: current.offsetY + dy,
-        }));
+        const current = view3dRef.current;
+        current.offsetX += dx;
+        current.offsetY += dy;
       } else {
-        setView3d((current) => ({
-          ...current,
-          rotateX: clamp(current.rotateX + dy * 0.005, -1.45, 1.45),
-          rotateY: current.rotateY + dx * 0.005,
-        }));
+        const current = view3dRef.current;
+        current.rotateX = clamp(current.rotateX + dy * 0.005, -1.45, 1.45);
+        current.rotateY += dx * 0.005;
       }
+      requestAtlasRender();
       return;
     }
 
@@ -1714,15 +1759,14 @@ export default function TmAtlasPanel({
     event.preventDefault();
     manualZoomOverrideRef.current = true;
     const zoomFactor = Math.exp(-event.deltaY * 0.001);
-
-    setView3d((current) => ({
-      ...current,
-      zoom: clamp(current.zoom * zoomFactor, 0.42, 12),
-    }));
+    const current = view3dRef.current;
+    current.zoom = clamp(current.zoom * zoomFactor, 0.42, 12);
+    requestAtlasRender();
   }
 
   function resetView(): void {
-    setView3d(effectiveInitialView);
+    view3dRef.current = { ...effectiveInitialView };
+    requestAtlasRender();
     setHoverState(null);
     clearAtlas();
   }
