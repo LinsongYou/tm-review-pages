@@ -127,6 +127,7 @@ interface ProjectionCache {
   pointByEntryId: Map<string, ProjectedPoint>;
   islandTotals: Map<number, { x: number; y: number; depth: number; count: number }>;
   islandById: Map<number, ProjectedIsland>;
+  frame: ProjectedFrame;
 }
 
 interface IslandFlow {
@@ -356,16 +357,28 @@ function createProjectionCache(
     depth: 0,
     culled: false,
   }));
+  const sortedPoints = [...projectedPoints];
+  const pointByEntryId = new Map<string, ProjectedPoint>();
+  const islandById = new Map<number, ProjectedIsland>();
+
+  for (const item of projectedPoints) {
+    pointByEntryId.set(item.point.entryId, item);
+  }
 
   return {
     sourcePoints: points,
     clusterById,
     projectedPoints,
-    sortedPoints: [...projectedPoints],
+    sortedPoints,
     radiusScratch: new Array(points.length),
-    pointByEntryId: new Map(),
+    pointByEntryId,
     islandTotals: new Map(),
-    islandById: new Map(),
+    islandById,
+    frame: {
+      points: sortedPoints,
+      pointByEntryId,
+      islandById,
+    },
   };
 }
 
@@ -465,12 +478,10 @@ function projectAtlasFrame(
   }
 
   cache.sortedPoints.sort((left, right) => right.depth - left.depth);
-  cache.pointByEntryId.clear();
   cache.islandTotals.clear();
   cache.islandById.clear();
 
   for (const item of cache.sortedPoints) {
-    cache.pointByEntryId.set(item.point.entryId, item);
     if (item.culled) {
       continue;
     }
@@ -500,11 +511,7 @@ function projectAtlasFrame(
     });
   }
 
-  return {
-    points: cache.sortedPoints,
-    pointByEntryId: cache.pointByEntryId,
-    islandById: cache.islandById,
-  };
+  return cache.frame;
 }
 
 function getDepthRadiusScale(depth: number): number {
