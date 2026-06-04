@@ -91,15 +91,6 @@ interface Spatial3d {
   z3d: number;
 }
 
-interface RawProjected3d {
-  point: SemanticLandscapePoint;
-  cluster: SemanticLandscapeCluster;
-  rawX: number;
-  rawY: number;
-  depth: number;
-  culled: boolean;
-}
-
 interface ProjectedPoint {
   point: SemanticLandscapePoint;
   cluster: SemanticLandscapeCluster;
@@ -109,11 +100,33 @@ interface ProjectedPoint {
   culled: boolean;
 }
 
+interface MutableProjectedPoint extends ProjectedPoint {
+  rawX: number;
+  rawY: number;
+}
+
 interface ProjectedIsland {
   cluster: SemanticLandscapeCluster;
   x: number;
   y: number;
   depth: number;
+}
+
+interface ProjectedFrame {
+  points: ProjectedPoint[];
+  pointByEntryId: Map<string, ProjectedPoint>;
+  islandById: Map<number, ProjectedIsland>;
+}
+
+interface ProjectionCache {
+  sourcePoints: SemanticLandscapePoint[];
+  clusterById: Map<number, SemanticLandscapeCluster>;
+  projectedPoints: MutableProjectedPoint[];
+  sortedPoints: MutableProjectedPoint[];
+  radiusScratch: number[];
+  pointByEntryId: Map<string, ProjectedPoint>;
+  islandTotals: Map<number, { x: number; y: number; depth: number; count: number }>;
+  islandById: Map<number, ProjectedIsland>;
 }
 
 interface IslandFlow {
@@ -179,6 +192,11 @@ const ENTRY_FOCUS_ZOOM = 4.35;
 const SEARCH_FOCUS_RESULT_LIMIT = 8;
 const SEARCH_FOCUS_MIN_ZOOM = 3.4;
 const SEARCH_FOCUS_MAX_ZOOM = 8;
+const EMPTY_PROJECTED_FRAME: ProjectedFrame = {
+  points: [],
+  pointByEntryId: new Map(),
+  islandById: new Map(),
+};
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
@@ -324,11 +342,39 @@ function computeTrig(view: View3d): TrigCache {
   };
 }
 
-function project3dRaw(
+function createProjectionCache(
+  points: SemanticLandscapePoint[],
+  clusterById: Map<number, SemanticLandscapeCluster>,
+): ProjectionCache {
+  const projectedPoints = points.map((point): MutableProjectedPoint => ({
+    point,
+    cluster: clusterById.get(point.clusterId)!,
+    rawX: 0,
+    rawY: 0,
+    x: 0,
+    y: 0,
+    depth: 0,
+    culled: false,
+  }));
+
+  return {
+    sourcePoints: points,
+    clusterById,
+    projectedPoints,
+    sortedPoints: [...projectedPoints],
+    radiusScratch: new Array(points.length),
+    pointByEntryId: new Map(),
+    islandTotals: new Map(),
+    islandById: new Map(),
+  };
+}
+
+function project3dRawInto(
   point: Spatial3d,
   geometry: VisualGeometry,
   trig: TrigCache,
-) {
+  target: MutableProjectedPoint,
+): void {
   const x = (point.x3d - geometry.centerX) / (geometry.radius * 2);
   const y = (geometry.centerY - point.y3d) / (geometry.radius * 2);
   const z = (point.z3d - geometry.centerZ) / (geometry.radius * 2);
@@ -338,26 +384,53 @@ function project3dRaw(
   const z2 = y * trig.sinX + z1 * trig.cosX;
   const perspective = 1 / (1 + z2 * 0.72);
 
-  return {
-    rawX: x1 * perspective,
-    rawY: y1 * perspective,
-    depth: z2,
-    culled: z2 < -1.1,
-  };
+  target.rawX = x1 * perspective;
+  target.rawY = y1 * perspective;
+  target.depth = z2;
+  target.culled = z2 < -1.1;
 }
 
-function fitProjected3d(items: RawProjected3d[], width: number, height: number) {
-  const visible = items.filter((item) => !item.culled);
-  const count = Math.max(1, visible.length);
-  const centerX = visible.reduce((total, item) => total + item.rawX, 0) / count;
-  const centerY = visible.reduce((total, item) => total + item.rawY, 0) / count;
-  const radius = Math.max(
-    percentile(
-      visible.map((item) => Math.hypot(item.rawX - centerX, item.rawY - centerY)),
-      0.98,
-    ),
-    0.01,
-  );
+function percentileScratch(values: number[], count: number, share: number): number {
+  if (count <= 0) {
+    return 1;
+  }
+
+  values.length = count;
+  values.sort((left, right) => left - right);
+  const index = Math.min(count - 1, Math.max(0, Math.round((count - 1) * share)));
+  return values[index] ?? 1;
+}
+
+function fitProjected3d(items: MutableProjectedPoint[], radiusScratch: number[], width: number, height: number) {
+  let visibleCount = 0;
+  let centerX = 0;
+  let centerY = 0;
+
+  for (const item of items) {
+    if (item.culled) {
+      continue;
+    }
+
+    visibleCount += 1;
+    centerX += item.rawX;
+    centerY += item.rawY;
+  }
+
+  const count = Math.max(1, visibleCount);
+  centerX /= count;
+  centerY /= count;
+
+  let radiusCount = 0;
+  for (const item of items) {
+    if (item.culled) {
+      continue;
+    }
+
+    radiusScratch[radiusCount] = Math.hypot(item.rawX - centerX, item.rawY - centerY);
+    radiusCount += 1;
+  }
+
+  const radius = Math.max(percentileScratch(radiusScratch, radiusCount, 0.98), 0.01);
   const scale = (Math.min(width, height) * 0.44) / radius;
 
   return { centerX, centerY, scale };
@@ -719,6 +792,7 @@ export default function TmAtlasPanel({
   const manualZoomOverrideRef = useRef(false);
   const targetCenterRef = useRef<{ x: number; y: number; z: number } | null>(null);
   const animatedCenterRef = useRef<{ x: number; y: number; z: number } | null>(null);
+  const projectionCacheRef = useRef<ProjectionCache | null>(null);
   const historyRef = useRef<NavState[]>([]);
   const [size, setSize] = useState({ width: 1, height: 1 });
   const effectiveInitialView = useMemo<View3d>(
@@ -889,70 +963,72 @@ export default function TmAtlasPanel({
     }
     return { ...visualGeometry, centerX: center.x, centerY: center.y, centerZ: center.z };
   }, [visualGeometry, visualFocus, view3d]);
-  const projectedPoints = useMemo<ProjectedPoint[]>(() => {
+  const projectedFrame = useMemo<ProjectedFrame>(() => {
     if (!data) {
-      return [];
+      projectionCacheRef.current = null;
+      return EMPTY_PROJECTED_FRAME;
+    }
+
+    let cache = projectionCacheRef.current;
+    if (
+      !cache ||
+      cache.sourcePoints !== data.points ||
+      cache.clusterById !== clusterById ||
+      cache.projectedPoints.length !== data.points.length
+    ) {
+      cache = createProjectionCache(data.points, clusterById);
+      projectionCacheRef.current = cache;
     }
 
     const trig = computeTrig(view3d);
-    const rawItems = data.points.map((point): RawProjected3d => ({
-      point,
-      cluster: clusterById.get(point.clusterId)!,
-      ...project3dRaw(point, projectionGeometry, trig),
-    }));
+    for (let index = 0; index < cache.projectedPoints.length; index += 1) {
+      const item = cache.projectedPoints[index]!;
+      project3dRawInto(item.point, projectionGeometry, trig, item);
+      cache.sortedPoints[index] = item;
+    }
+
     const sidebarGutter = size.width >= DESKTOP_ATLAS_MIN_WIDTH ? DESKTOP_SIDEBAR_WIDTH : 0;
     const topGutter = size.width <= MOBILE_ATLAS_MAX_WIDTH ? MOBILE_HUD_SAFE_TOP : 0;
     const plotWidth = Math.max(1, size.width - sidebarGutter);
     const plotHeight = Math.max(1, size.height - topGutter);
-    const fitted = fitProjected3d(rawItems, plotWidth, plotHeight);
+    const fitted = fitProjected3d(cache.projectedPoints, cache.radiusScratch, plotWidth, plotHeight);
     const centerX = visualFocus ? 0 : fitted.centerX;
     const centerY = visualFocus ? 0 : fitted.centerY;
-    const points = rawItems.map((item) => ({
-      point: item.point,
-      cluster: item.cluster,
-      x: (item.rawX - centerX) * fitted.scale * view3d.zoom + plotWidth / 2 + view3d.offsetX,
-      y: (item.rawY - centerY) * fitted.scale * view3d.zoom + topGutter + plotHeight / 2 + view3d.offsetY,
-      depth: item.depth,
-      culled: item.culled,
-    }));
 
-    points.sort((left, right) => right.depth - left.depth);
-    return points;
-  }, [clusterById, data, projectionGeometry, size.height, size.width, view3d, visualFocus]);
-  const projectedPointByEntryId = useMemo(() => {
-    const pointsByEntryId = new Map<string, ProjectedPoint>();
-    for (const item of projectedPoints) {
-      pointsByEntryId.set(item.point.entryId, item);
+    for (const item of cache.projectedPoints) {
+      item.x = (item.rawX - centerX) * fitted.scale * view3d.zoom + plotWidth / 2 + view3d.offsetX;
+      item.y = (item.rawY - centerY) * fitted.scale * view3d.zoom + topGutter + plotHeight / 2 + view3d.offsetY;
     }
-    return pointsByEntryId;
-  }, [projectedPoints]);
-  const projectedIslandById = useMemo(() => {
-    const totals = new Map<number, { x: number; y: number; depth: number; count: number }>();
 
-    for (const item of projectedPoints) {
+    cache.sortedPoints.sort((left, right) => right.depth - left.depth);
+    cache.pointByEntryId.clear();
+    cache.islandTotals.clear();
+    cache.islandById.clear();
+
+    for (const item of cache.sortedPoints) {
+      cache.pointByEntryId.set(item.point.entryId, item);
       if (item.culled) {
         continue;
       }
 
-      const total = totals.get(item.point.clusterId);
+      const total = cache.islandTotals.get(item.point.clusterId);
       if (total) {
         total.x += item.x;
         total.y += item.y;
         total.depth += item.depth;
         total.count += 1;
       } else {
-        totals.set(item.point.clusterId, { x: item.x, y: item.y, depth: item.depth, count: 1 });
+        cache.islandTotals.set(item.point.clusterId, { x: item.x, y: item.y, depth: item.depth, count: 1 });
       }
     }
 
-    const islands = new Map<number, ProjectedIsland>();
-    for (const [clusterId, total] of totals) {
+    for (const [clusterId, total] of cache.islandTotals) {
       const cluster = clusterById.get(clusterId);
       if (!cluster) {
         continue;
       }
 
-      islands.set(clusterId, {
+      cache.islandById.set(clusterId, {
         cluster,
         x: total.x / total.count,
         y: total.y / total.count,
@@ -960,8 +1036,15 @@ export default function TmAtlasPanel({
       });
     }
 
-    return islands;
-  }, [clusterById, projectedPoints]);
+    return {
+      points: cache.sortedPoints,
+      pointByEntryId: cache.pointByEntryId,
+      islandById: cache.islandById,
+    };
+  }, [clusterById, data, projectionGeometry, size.height, size.width, view3d, visualFocus]);
+  const projectedPoints = projectedFrame.points;
+  const projectedPointByEntryId = projectedFrame.pointByEntryId;
+  const projectedIslandById = projectedFrame.islandById;
   const transcriptHasTimestamps = transcriptItems.some((item) => item.startMs !== null || item.endMs !== null);
 
   const sidebarMode: SidebarMode = showTranscriptPanel
@@ -1373,6 +1456,7 @@ export default function TmAtlasPanel({
     data,
     hoverState?.entryId,
     islandFlows,
+    projectedFrame,
     projectedIslandById,
     projectedPointByEntryId,
     projectedPoints,
