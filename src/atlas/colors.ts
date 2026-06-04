@@ -1,19 +1,32 @@
 const DEFAULT_FALLBACK_RGB = '127, 176, 105';
+const hexRgbCache = new Map<string, [number, number, number] | null>();
 
 function parseHexRgb(hex: string): [number, number, number] | null {
+  if (hexRgbCache.has(hex)) {
+    return hexRgbCache.get(hex) ?? null;
+  }
+
   const value = hex.replace('#', '');
   const normalized =
     value.length === 3 ? value.split('').map((part) => `${part}${part}`).join('') : value;
 
-  if (normalized.length !== 6) return null;
+  if (normalized.length !== 6) {
+    hexRgbCache.set(hex, null);
+    return null;
+  }
 
   const r = Number.parseInt(normalized.slice(0, 2), 16);
   const g = Number.parseInt(normalized.slice(2, 4), 16);
   const b = Number.parseInt(normalized.slice(4, 6), 16);
 
-  if (Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b)) return null;
+  if (Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b)) {
+    hexRgbCache.set(hex, null);
+    return null;
+  }
 
-  return [r, g, b];
+  const rgb: [number, number, number] = [r, g, b];
+  hexRgbCache.set(hex, rgb);
+  return rgb;
 }
 
 export function hexToRgba(
