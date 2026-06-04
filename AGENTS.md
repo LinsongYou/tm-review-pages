@@ -93,6 +93,7 @@ Vite 7.3, React 19, TypeScript 5.9, `sql.js`, `@huggingface/transformers`, ONNX 
 
 ## Conventions
 
+- LF line endings exclusively — no CRLF. Enforced by `.gitattributes` (`* text=auto eol=lf`).
 - Strict TypeScript: `noUncheckedIndexedAccess`, `noUnusedLocals`, `noUnusedParameters` all enabled in `tsconfig.app.json`.
 - No CSS modules or utility framework — all styles in `src/styles.css` as plain CSS with CSS custom properties for theming (dark/light via `data-theme` attribute on `<html>`).
 - The sidebar overlays the canvas absolutely — it is not part of the CSS grid flow on desktop.
