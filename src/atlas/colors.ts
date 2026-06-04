@@ -3,7 +3,7 @@ const hexRgbCache = new Map<string, [number, number, number] | null>();
 
 function parseHexRgb(hex: string): [number, number, number] | null {
   if (hexRgbCache.has(hex)) {
-    return hexRgbCache.get(hex) ?? null;
+    return hexRgbCache.get(hex)!;
   }
 
   const value = hex.replace('#', '');

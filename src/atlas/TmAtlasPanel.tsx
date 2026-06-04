@@ -204,9 +204,13 @@ function clamp(value: number, minimum: number, maximum: number): number {
 }
 
 function percentile(values: number[], share: number): number {
+  if (values.length === 0) {
+    return 1;
+  }
+
   const sorted = [...values].sort((left, right) => left - right);
   const index = Math.min(sorted.length - 1, Math.max(0, Math.round((sorted.length - 1) * share)));
-  return sorted[index] ?? 1;
+  return sorted[index]!;
 }
 
 function createVisualGeometry(points: SemanticLandscapePoint[]): VisualGeometry {
@@ -411,7 +415,7 @@ function percentileScratch(values: number[], count: number, share: number): numb
   values.length = count;
   values.sort((left, right) => left - right);
   const index = Math.min(count - 1, Math.max(0, Math.round((count - 1) * share)));
-  return values[index] ?? 1;
+  return values[index]!;
 }
 
 function fitProjected3d(items: MutableProjectedPoint[], radiusScratch: number[], width: number, height: number) {
@@ -790,7 +794,7 @@ function PairCard({
 
       {hasTimestamps && (
         <div className="pair-card-timestamps">
-          <span>{formatCueTimestamp(startMs ?? null)}</span>
+          <span>{formatCueTimestamp(startMs)}</span>
           <span className="ts-sep">–</span>
           <span>{formatCueTimestamp(endMs ?? null)}</span>
         </div>
@@ -1186,13 +1190,9 @@ export default function TmAtlasPanel({
       current.offsetX = lerp(current.offsetX, 0, CAMERA_OFFSET_LERP);
       current.offsetY = lerp(current.offsetY, 0, CAMERA_OFFSET_LERP);
       renderAtlasNow();
-
-      if (!settled) {
-        cameraAnimRef.current = requestAnimationFrame(step);
-      }
+      cameraAnimRef.current = requestAnimationFrame(step);
     }
 
-    settled = false;
     cameraAnimRef.current = requestAnimationFrame(step);
     return () => {
       running = false;
@@ -1584,8 +1584,8 @@ export default function TmAtlasPanel({
     onSelectEntry(entryId);
   }
 
-  function createHistoryState(): NavState {
-    return {
+  function pushHistory(): void {
+    historyRef.current.push({
       query,
       searchResults: [...searchResults],
       searchNote,
@@ -1597,17 +1597,7 @@ export default function TmAtlasPanel({
       transcriptFocusEntryId,
       transcriptLoading,
       transcriptErrorText,
-    };
-  }
-
-  function pushHistory(): void {
-    historyRef.current.push(createHistoryState());
-  }
-
-  function restoreHistoryState(state: NavState): void {
-    const { selectedIslandId: nextSelectedIslandId, ...appState } = state;
-    setSelectedIslandId(nextSelectedIslandId);
-    onRestoreNavigationState(appState);
+    });
   }
 
   function selectIsland(cluster: SemanticLandscapeCluster): void {
@@ -1641,7 +1631,9 @@ export default function TmAtlasPanel({
   function handleBack(): void {
     const prev = historyRef.current.pop();
     if (prev) {
-      restoreHistoryState(prev);
+      const { selectedIslandId: prevIslandId, ...appState } = prev;
+      setSelectedIslandId(prevIslandId);
+      onRestoreNavigationState(appState);
     } else if (transcriptVideoId) {
       onCloseTranscript();
     } else {
