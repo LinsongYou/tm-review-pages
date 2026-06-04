@@ -919,6 +919,13 @@ export default function TmAtlasPanel({
     points.sort((left, right) => right.depth - left.depth);
     return points;
   }, [clusterById, data, projectionGeometry, size.height, size.width, view3d, visualFocus]);
+  const projectedPointByEntryId = useMemo(() => {
+    const pointsByEntryId = new Map<string, ProjectedPoint>();
+    for (const item of projectedPoints) {
+      pointsByEntryId.set(item.point.entryId, item);
+    }
+    return pointsByEntryId;
+  }, [projectedPoints]);
   const projectedIslandById = useMemo(() => {
     const totals = new Map<number, { x: number; y: number; depth: number; count: number }>();
 
@@ -1202,13 +1209,12 @@ export default function TmAtlasPanel({
       }
     }
 
-    const projectedByEntryId = new Map(projectedPoints.map((item) => [item.point.entryId, item]));
     const rankedSearchHits = topSearchResults
-      .map((result) => projectedByEntryId.get(result.entryId))
+      .map((result) => projectedPointByEntryId.get(result.entryId))
       .filter((item): item is ProjectedPoint => !!item && !item.culled);
     const allVideoPathPoints = transcriptVideoId
       ? transcriptItems
-          .map((item) => projectedByEntryId.get(item.entryId))
+          .map((item) => projectedPointByEntryId.get(item.entryId))
           .filter((item): item is ProjectedPoint => !!item && !item.culled)
       : [];
     const selectedVideoPathIndex = allVideoPathPoints.findIndex((item) => item.point.entryId === selectedEntryId);
@@ -1368,6 +1374,7 @@ export default function TmAtlasPanel({
     hoverState?.entryId,
     islandFlows,
     projectedIslandById,
+    projectedPointByEntryId,
     projectedPoints,
     searchHitIds,
     selectedEntryId,
