@@ -21,7 +21,6 @@ const ISLAND_EDGE_STRENGTH = 0.7;
 const ISLAND_GRID_CELL_SIZE = 44;
 const ISLAND_CANDIDATE_COUNT = 72;
 const ISLAND_MIN_SEED_SIZE = 40;
-const SAMPLE_COUNT = 4;
 const PHRASE_COUNT = 8;
 const STOPWORDS = new Set(
   `
@@ -660,14 +659,16 @@ function buildClusters(entries, assignments, scaled2d, scaled3d, centers, island
       Math.round(members.reduce((total, index) => total + scaled3d[index][2], 0) / members.length),
     ];
     const rawCenter = centers[clusterId];
-    const sampleIndexes = members
+    const medoid = members
       .map((index) => ({
         index,
         distance: squaredDistance(scaled3d[index], rawCenter),
       }))
-      .sort((left, right) => left.distance - right.distance || entries[left.index].entryId.localeCompare(entries[right.index].entryId))
-      .slice(0, SAMPLE_COUNT)
-      .map((item) => item.index);
+      .sort(
+        (left, right) =>
+          left.distance - right.distance ||
+          entries[left.index].entryId.localeCompare(entries[right.index].entryId),
+      )[0];
 
     const avgDist = Math.sqrt(
       members.reduce((total, index) => total + squaredDistance(scaled3d[index], rawCenter), 0) / members.length,
@@ -687,20 +688,8 @@ function buildClusters(entries, assignments, scaled2d, scaled3d, centers, island
       y3d: center3d[1],
       z3d: center3d[2],
       topPhrases: phraseStats[clusterId],
-      medoidEntryId: entries[sampleIndexes[0]].entryId,
+      medoidEntryId: entries[medoid.index].entryId,
       rawAvgDist: avgDist,
-      representativeEntryIds: sampleIndexes.map((index) => entries[index].entryId),
-      samples: sampleIndexes.map((index) => {
-        const entry = entries[index];
-        return {
-          entryId: entry.entryId,
-          videoId: entry.videoId,
-          segIndex: entry.segIndex,
-          en: entry.en,
-          zh: entry.zh,
-          blockName: entry.blockName,
-        };
-      }),
     };
   });
 }
