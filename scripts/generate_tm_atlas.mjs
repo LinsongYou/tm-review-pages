@@ -633,6 +633,12 @@ function labelFromPhrases(phrases) {
   return selected.length ? selected.map(titleCasePhrase).join(' / ') : 'Mixed Lines';
 }
 
+function descriptionFromPhrases(phrases, size, videoCount) {
+  const themeWords = selectDistinctPhrases(phrases, 5).map(titleCasePhrase);
+  const scope = `${size.toLocaleString('en-US')} lines from ${videoCount.toLocaleString('en-US')} videos`;
+  return themeWords.length ? `${themeWords.join(', ')}. ${scope}.` : scope;
+}
+
 function buildClusters(entries, assignments, scaled2d, scaled3d, centers, islandColors) {
   const clusterCount = centers.length;
   const phraseStats = buildPhraseStats(entries, assignments, clusterCount);
@@ -670,6 +676,7 @@ function buildClusters(entries, assignments, scaled2d, scaled3d, centers, island
     return {
       id: clusterId,
       label: labelFromPhrases(phraseStats[clusterId]),
+      description: descriptionFromPhrases(phraseStats[clusterId], members.length, videoIds.size),
       color: islandColors[clusterId].hex,
       size: members.length,
       videoCount: videoIds.size,

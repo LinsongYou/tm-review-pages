@@ -2020,6 +2020,7 @@ export default function TmAtlasPanel({
                       <span className="atlas-island-dot" aria-hidden="true" />
                       <span className="atlas-island-copy">
                         <strong>{cluster.label}</strong>
+                        <em>{cluster.description}</em>
                       </span>
                       <span className="atlas-island-count">{cluster.size.toLocaleString()}</span>
                     </button>
