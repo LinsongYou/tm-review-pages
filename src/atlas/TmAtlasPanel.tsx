@@ -1128,10 +1128,21 @@ export default function TmAtlasPanel({
     }
 
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.round(size.width * dpr);
-    canvas.height = Math.round(size.height * dpr);
-    canvas.style.width = `${size.width}px`;
-    canvas.style.height = `${size.height}px`;
+    const canvasWidth = Math.round(size.width * dpr);
+    const canvasHeight = Math.round(size.height * dpr);
+    const styleWidth = `${size.width}px`;
+    const styleHeight = `${size.height}px`;
+
+    if (canvas.width !== canvasWidth || canvas.height !== canvasHeight) {
+      canvas.width = canvasWidth;
+      canvas.height = canvasHeight;
+    }
+    if (canvas.style.width !== styleWidth) {
+      canvas.style.width = styleWidth;
+    }
+    if (canvas.style.height !== styleHeight) {
+      canvas.style.height = styleHeight;
+    }
     context.setTransform(dpr, 0, 0, dpr, 0, 0);
     context.clearRect(0, 0, size.width, size.height);
 
