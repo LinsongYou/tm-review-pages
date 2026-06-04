@@ -42,7 +42,7 @@ export function hexToRgba(
 export function isLightHex(hex: string): boolean {
   const rgb = parseHexRgb(hex);
   if (!rgb) return false;
-  return (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) > 128;
+  return (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) > 150;
 }
 
 export function blendHexColors(a: string, b: string, fallbackRgb = DEFAULT_FALLBACK_RGB): string {
