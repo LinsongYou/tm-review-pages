@@ -897,8 +897,11 @@ button:disabled {
 
 @media (max-width: 1180px) {
   .atlas-hud {
+    display: grid;
+    grid-template-columns: minmax(112px, max-content) minmax(0, 1fr) var(--hud-card-height) 64px;
+    align-items: center;
     gap: 6px;
-    overflow: visible;
+    overflow: hidden;
   }
 
   .atlas-title {
@@ -921,17 +924,21 @@ button:disabled {
   }
 
   .atlas-hud-status {
-    flex: 0 0 auto;
-    overflow: visible;
+    overflow: hidden;
   }
 
   .atlas-status-item {
-    flex: 0 0 96px;
+    flex: 1 1 86px;
     min-width: 0;
   }
 }
 
 @media (max-width: 1180px) and (min-width: 981px) {
+  .atlas-hud {
+    right: 14px;
+    max-width: none;
+  }
+
   .atlas-shell {
     grid-template-columns: minmax(0, 1fr) minmax(340px, 380px);
   }
@@ -940,6 +947,14 @@ button:disabled {
     position: static;
     width: auto;
     max-height: 100dvh;
+  }
+}
+
+@media (min-width: 1181px) and (max-width: 1400px) {
+  .atlas-hud {
+    right: 414px;
+    max-width: none;
+    overflow: hidden;
   }
 }
 
