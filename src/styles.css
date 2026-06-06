@@ -1033,11 +1033,15 @@ button:disabled {
   }
 
   .atlas-search {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .atlas-search:has(.atlas-back-btn) {
+    grid-template-columns: auto minmax(0, 1fr) auto;
   }
 
   .atlas-search button:not(.atlas-back-btn) {
-    width: 100%;
+    width: auto;
   }
 
   .atlas-video-header {
