@@ -22,6 +22,8 @@ const ISLAND_GRID_CELL_SIZE = 44;
 const ISLAND_CANDIDATE_COUNT = 160;
 const ISLAND_MIN_SEED_SIZE = 80;
 const PHRASE_COUNT = 8;
+const COMPACTNESS_CORE_SHARE = 0.8;
+const COMPACTNESS_REFERENCE_PERCENTILE = 0.9;
 const STOPWORDS = new Set(
   `
   a about actually after again all almost also am an and any anyway are around as at back be
@@ -640,6 +642,18 @@ function descriptionFromPhrases(phrases, size, videoCount) {
   return themeWords.length ? `${themeWords.join(', ')}. ${scope}.` : scope;
 }
 
+// Compactness describes the dense core of an island, so distant fragments do not define the score.
+function compactRadius(members, scaled3d, center) {
+  const distances = members
+    .map((index) => Math.sqrt(squaredDistance(scaled3d[index], center)))
+    .sort((left, right) => left - right);
+  const coreCount = Math.max(1, Math.ceil(distances.length * COMPACTNESS_CORE_SHARE));
+  const coreDistance = distances
+    .slice(0, coreCount)
+    .reduce((total, distance) => total + distance, 0);
+  return coreDistance / coreCount;
+}
+
 function buildClusters(entries, assignments, scaled2d, scaled3d, centers, islandColors) {
   const clusterCount = centers.length;
   const phraseStats = buildPhraseStats(entries, assignments, clusterCount);
@@ -672,10 +686,6 @@ function buildClusters(entries, assignments, scaled2d, scaled3d, centers, island
           entries[left.index].entryId.localeCompare(entries[right.index].entryId),
       )[0];
 
-    const avgDist = Math.sqrt(
-      members.reduce((total, index) => total + squaredDistance(scaled3d[index], rawCenter), 0) / members.length,
-    );
-
     return {
       id: clusterId,
       label: labelFromPhrases(phraseStats[clusterId]),
@@ -691,7 +701,7 @@ function buildClusters(entries, assignments, scaled2d, scaled3d, centers, island
       z3d: center3d[2],
       topPhrases: phraseStats[clusterId],
       medoidEntryId: entries[medoid.index].entryId,
-      rawAvgDist: avgDist,
+      rawCompactRadius: compactRadius(members, scaled3d, rawCenter),
     };
   });
 }
@@ -754,10 +764,18 @@ async function main() {
   const clusterCount = centers.length;
   const islandColors = assignIslandColors(centers);
   const clusters = buildClusters(entries, assignments, scaled2d, scaled3d, centers, islandColors);
-  const maxAvgDist = Math.max(...clusters.map((cluster) => cluster.rawAvgDist));
+  const compactRadii = clusters
+    .map((cluster) => cluster.rawCompactRadius)
+    .sort((left, right) => left - right);
+  const compactReference = percentile(compactRadii, COMPACTNESS_REFERENCE_PERCENTILE);
   for (const cluster of clusters) {
-    cluster.compactness = maxAvgDist > 0 ? Math.round((1 - cluster.rawAvgDist / maxAvgDist) * 100) : 100;
-    delete cluster.rawAvgDist;
+    cluster.compactness = compactReference > 0
+      ? Math.max(
+          1,
+          Math.min(100, Math.round((compactReference / (compactReference + cluster.rawCompactRadius)) * 100)),
+        )
+      : 100;
+    delete cluster.rawCompactRadius;
   }
   console.log('Computing optimal initial view.');
   const initialView = computeInitialView(scaled3d);
