@@ -16,11 +16,11 @@ const UMAP_NEIGHBORS = 22;
 const UMAP_MIN_DIST = 0.035;
 const UMAP_SPREAD = 1.2;
 const UMAP_EPOCHS = 220;
-const ISLAND_NEIGHBOR_COUNT = 7;
+const ISLAND_NEIGHBOR_COUNT = 8;
 const ISLAND_EDGE_STRENGTH = 0.7;
 const ISLAND_GRID_CELL_SIZE = 44;
-const ISLAND_CANDIDATE_COUNT = 72;
-const ISLAND_MIN_SEED_SIZE = 40;
+const ISLAND_CANDIDATE_COUNT = 160;
+const ISLAND_MIN_SEED_SIZE = 80;
 const PHRASE_COUNT = 8;
 const STOPWORDS = new Set(
   `
@@ -33,6 +33,7 @@ const STOPWORDS = new Set(
   than thank thanks that thats the their them then there these they thing think this those
   through time to too two up us very was way we well went were what when where which while who
   why will with would yeah yes you your
+  arent cant couldnt didnt doesnt dont hasnt havent isnt shouldnt wasnt wont wouldnt youre
   `.trim().split(/\s+/),
 );
 
@@ -549,6 +550,7 @@ function tokenize(text) {
   return text
     .normalize('NFC')
     .toLowerCase()
+    .replace(/[’‘`]/g, "'")
     .match(/[\p{L}\p{N}']+/gu)
     ?.map((token) => {
       let normalized = token.replace(/^'+|'+$/g, '');
@@ -560,7 +562,7 @@ function tokenize(text) {
       }
       return normalized;
     })
-    .filter((token) => token.length > 2 && !STOPWORDS.has(token) && !/^\p{N}+$/u.test(token)) ?? [];
+    .filter((token) => token.length > 2 && !token.includes("'") && !STOPWORDS.has(token) && !/^\p{N}+$/u.test(token)) ?? [];
 }
 
 function phrasesForText(text) {
