@@ -1086,10 +1086,14 @@ export default function TmAtlasPanel({
         return;
       }
 
-      setSize({
+      const nextSize = {
         width: Math.max(1, Math.floor(entry.contentRect.width)),
         height: Math.max(1, Math.floor(entry.contentRect.height)),
-      });
+      };
+
+      setSize((currentSize) =>
+        currentSize.width === nextSize.width && currentSize.height === nextSize.height ? currentSize : nextSize,
+      );
     });
 
     observer.observe(container);
