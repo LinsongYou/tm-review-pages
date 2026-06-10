@@ -5,9 +5,6 @@ export interface SemanticLandscapeCluster {
   color: string;
   size: number;
   videoCount: number;
-  x: number;
-  y: number;
-  z: number;
   x3d: number;
   y3d: number;
   z3d: number;
@@ -22,12 +19,8 @@ export interface SemanticLandscapePoint {
   segIndex: number;
   en: string;
   zh: string;
-  blockName: string;
   startMs: number | null;
   endMs: number | null;
-  x: number;
-  y: number;
-  z: number;
   x3d: number;
   y3d: number;
   z3d: number;
@@ -44,22 +37,7 @@ export interface InitialView {
 }
 
 export interface SemanticLandscapeData {
-  version: number;
-  projection: string;
-  clusterAlgorithm: string;
-  generatedAt: string;
-  sourceDb: string;
-  modelId: string;
   pointCount: number;
-  vectorDim: number;
-  clusterCount?: number;
-  umap?: {
-    neighbors: number;
-    minDist: number;
-    spread: number;
-    epochs: number;
-    randomSeed: number;
-  };
   initialView?: InitialView;
   clusters: SemanticLandscapeCluster[];
   points: SemanticLandscapePoint[];

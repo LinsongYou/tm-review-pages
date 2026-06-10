@@ -3,13 +3,10 @@ import sqlWasmUrl from 'sql.js/dist/sql-wasm.wasm?url';
 import { env, pipeline } from '@huggingface/transformers';
 import { getDisplayModelName } from '../format';
 import type {
-  BootProgressResponse,
   BootProgressSnapshot,
   BootRequest,
   BootStats,
-  ContextItem,
   EntrySummary,
-  ErrorResponse,
   SearchRequest,
   SearchResult,
   TranscriptRequest,
@@ -22,7 +19,7 @@ const VECTOR_MODEL_ID = 'sentence-transformers/all-MiniLM-L6-v2';
 const QUERY_MODEL_ID = 'Xenova/all-MiniLM-L6-v2';
 const ORT_WASM_BASE_URL =
   'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0-dev.20250409-89f8206ba4/dist/';
-const PAIRS_LABEL = 'English/中文 Pairs';
+const SEARCH_TOP_K = 24;
 const ENTRY_PROGRESS_BATCH_SIZE = 2_000;
 const VECTOR_PROGRESS_BATCH_SIZE = 2_000;
 
@@ -40,19 +37,13 @@ type ModelProgressInfo =
       status: 'progress';
       name: string;
       file: string;
-      progress: number;
       loaded: number;
       total: number;
     }
   | {
       status: 'ready';
-      task: string;
       model: string;
     };
-
-interface Entry extends EntrySummary {
-  enLength: number;
-}
 
 interface RankedHit {
   entryIndex: number;
@@ -60,8 +51,7 @@ interface RankedHit {
 }
 
 interface LoadedState {
-  entries: Entry[];
-  entryById: Map<string, number>;
+  entries: EntrySummary[];
   videoGroups: Map<string, number[]>;
   semanticEntryIndexes: Int32Array;
   semanticVectors: Float32Array;
@@ -75,57 +65,28 @@ let extractorPromise: Promise<Extractor> | null = null;
 env.allowLocalModels = false;
 env.useBrowserCache = true;
 
-if (env.backends.onnx.wasm) {
-  env.backends.onnx.wasm.wasmPaths = ORT_WASM_BASE_URL;
-  env.backends.onnx.wasm.numThreads = 1;
-  env.backends.onnx.wasm.proxy = false;
-}
-
-function post(message: WorkerResponse): void {
-  workerScope.postMessage(message);
-}
-
-function postError(requestId: number, error: unknown): void {
-  const message = error instanceof Error ? error.message : String(error);
-  post({
-    kind: 'error',
-    requestId,
-    message,
-  } satisfies ErrorResponse);
-}
-
-function postBootProgress(requestId: number, progress: BootProgressSnapshot): void {
-  post({
-    kind: 'boot:progress',
-    requestId,
-    progress: {
-      ...progress,
-      progress: clamp01(progress.progress),
-    },
-  } satisfies BootProgressResponse);
-}
+const wasmBackend = env.backends.onnx.wasm!;
+wasmBackend.wasmPaths = ORT_WASM_BASE_URL;
+wasmBackend.numThreads = 1;
+wasmBackend.proxy = false;
 
 function createProgressReporter(
   requestId: number,
   target: BootProgressSnapshot['target'],
-  initialName: string,
 ): ProgressReporter {
   let lastProgress = -1;
   let lastStatusText = '';
   let lastDetail = '';
-  let lastName = initialName;
 
   return (progress) => {
     const nextProgress = clamp01(progress.progress);
-    const nextName = progress.name || lastName;
     const nextStatusText = progress.statusText;
     const nextDetail = progress.detail ?? '';
     const shouldSkip =
       nextProgress < 1 &&
       Math.abs(nextProgress - lastProgress) < 0.01 &&
       nextStatusText === lastStatusText &&
-      nextDetail === lastDetail &&
-      nextName === lastName;
+      nextDetail === lastDetail;
 
     if (shouldSkip) {
       return;
@@ -134,14 +95,12 @@ function createProgressReporter(
     lastProgress = nextProgress;
     lastStatusText = nextStatusText;
     lastDetail = nextDetail;
-    lastName = nextName;
 
-    postBootProgress(requestId, {
-      ...progress,
-      target,
-      name: nextName,
-      progress: nextProgress,
-    });
+    workerScope.postMessage({
+      kind: 'boot:progress',
+      requestId,
+      progress: { ...progress, target, progress: nextProgress },
+    } satisfies WorkerResponse);
   };
 }
 
@@ -191,7 +150,7 @@ function formatCount(value: number): string {
 
 async function downloadAsset(
   url: string,
-  onProgress?: (loaded: number, total: number | null) => void,
+  onProgress: (loaded: number, total: number | null) => void,
 ): Promise<Uint8Array> {
   const response = await fetch(url);
   if (!response.ok) {
@@ -204,13 +163,7 @@ async function downloadAsset(
       ? Number(contentLengthHeader)
       : null;
 
-  if (!response.body) {
-    const buffer = new Uint8Array(await response.arrayBuffer());
-    onProgress?.(buffer.byteLength, total ?? buffer.byteLength);
-    return buffer;
-  }
-
-  const reader = response.body.getReader();
+  const reader = response.body!.getReader();
   const chunks: Uint8Array[] = [];
   let loaded = 0;
 
@@ -226,7 +179,7 @@ async function downloadAsset(
 
     chunks.push(value);
     loaded += value.byteLength;
-    onProgress?.(loaded, total);
+    onProgress(loaded, total);
   }
 
   const buffer = new Uint8Array(loaded);
@@ -236,7 +189,7 @@ async function downloadAsset(
     offset += chunk.byteLength;
   }
 
-  onProgress?.(loaded, total ?? loaded);
+  onProgress(loaded, total ?? loaded);
   return buffer;
 }
 
@@ -256,54 +209,24 @@ function compareRankedHits(left: RankedHit, right: RankedHit): number {
   return left.entryIndex - right.entryIndex;
 }
 
-function pushRankedHit(hits: RankedHit[], candidate: RankedHit, topK: number): void {
-  if (topK <= 0) {
-    return;
-  }
-
+function pushRankedHit(hits: RankedHit[], candidate: RankedHit): void {
   let insertAt = hits.length;
   while (insertAt > 0 && compareRankedHits(candidate, hits[insertAt - 1]!) < 0) {
     insertAt -= 1;
   }
 
-  if (hits.length === topK && insertAt === hits.length) {
+  if (hits.length === SEARCH_TOP_K && insertAt === hits.length) {
     return;
   }
 
   hits.splice(insertAt, 0, candidate);
-  if (hits.length > topK) {
+  if (hits.length > SEARCH_TOP_K) {
     hits.pop();
   }
 }
 
-function summarize(entry: Entry): EntrySummary {
-  return {
-    entryId: entry.entryId,
-    videoId: entry.videoId,
-    segIndex: entry.segIndex,
-    en: entry.en,
-    zh: entry.zh,
-    blockName: entry.blockName,
-    startMs: entry.startMs,
-    endMs: entry.endMs,
-  };
-}
-
-function toSearchResult(entry: Entry, score: number): SearchResult {
-  return {
-    ...summarize(entry),
-    score,
-    textLength: entry.enLength,
-  };
-}
-
-function toFloat32(blob: SqlBlob, dim: number): Float32Array {
-  return new Float32Array(blob.buffer.slice(blob.byteOffset, blob.byteOffset + dim * 4));
-}
-
 async function loadDatabase(request: BootRequest, reportProgress: ProgressReporter): Promise<BootStats> {
   reportProgress({
-    name: PAIRS_LABEL,
     progress: 0,
     statusText: 'Downloading TM snapshot',
     detail: 'Starting download',
@@ -317,7 +240,6 @@ async function loadDatabase(request: BootRequest, reportProgress: ProgressReport
         : `${formatByteCount(loaded)} downloaded`;
 
     reportProgress({
-      name: PAIRS_LABEL,
       progress,
       statusText: 'Downloading TM snapshot',
       detail,
@@ -325,7 +247,6 @@ async function loadDatabase(request: BootRequest, reportProgress: ProgressReport
   });
 
   reportProgress({
-    name: PAIRS_LABEL,
     progress: 0.54,
     statusText: 'Initializing SQLite runtime',
     detail: 'Opening the browser-side snapshot',
@@ -336,7 +257,6 @@ async function loadDatabase(request: BootRequest, reportProgress: ProgressReport
   });
 
   reportProgress({
-    name: PAIRS_LABEL,
     progress: 0.58,
     statusText: 'Reading English/中文 pairs',
     detail: 'Scanning tm_main',
@@ -364,23 +284,14 @@ async function loadDatabase(request: BootRequest, reportProgress: ProgressReport
       }
     };
 
-    const entries: Entry[] = [];
+    const entries: EntrySummary[] = [];
     const entryById = new Map<string, number>();
     const videoGroups = new Map<string, number[]>();
-    const tmMainColumns = new Set<string>();
-
-    const tableInfoStatement = db.prepare(`PRAGMA table_info(tm_main)`);
-    while (tableInfoStatement.step()) {
-      const row = tableInfoStatement.getAsObject() as Record<string, string | number | null>;
-      tmMainColumns.add(String(row.name ?? ''));
-    }
-    tableInfoStatement.free();
 
     const totalEntryCount = readCount(`SELECT COUNT(*) AS count FROM tm_main`);
-    const hasCueTiming = tmMainColumns.has('start_ms') && tmMainColumns.has('end_ms');
 
     const textStatement = db.prepare(`
-      SELECT video_id, seg_index, en, zh, block_name${hasCueTiming ? ', start_ms, end_ms' : ''}
+      SELECT video_id, seg_index, en, zh, start_ms, end_ms
       FROM tm_main
       ORDER BY video_id, seg_index
     `);
@@ -391,21 +302,18 @@ async function loadDatabase(request: BootRequest, reportProgress: ProgressReport
       const segIndex = Number(row.seg_index ?? 0);
       const en = String(row.en ?? '');
       const zh = String(row.zh ?? '');
-      const blockName = String(row.block_name ?? '');
-      const startMs = hasCueTiming ? toNullableNumber(row.start_ms) : null;
-      const endMs = hasCueTiming ? toNullableNumber(row.end_ms) : null;
+      const startMs = toNullableNumber(row.start_ms);
+      const endMs = toNullableNumber(row.end_ms);
       const id = toEntryId(videoId, segIndex);
 
-      const entry: Entry = {
+      const entry: EntrySummary = {
         entryId: id,
         videoId,
         segIndex,
         en,
         zh,
-        blockName,
         startMs,
         endMs,
-        enLength: en.length,
       };
 
       const nextIndex = entries.length;
@@ -426,7 +334,6 @@ async function loadDatabase(request: BootRequest, reportProgress: ProgressReport
       ) {
         const entryProgress = totalEntryCount > 0 ? entries.length / totalEntryCount : 1;
         reportProgress({
-          name: PAIRS_LABEL,
           progress: scaleProgress(0.58, 0.8, entryProgress),
           statusText: 'Reading English/中文 pairs',
           detail: `${formatCount(entries.length)} / ${formatCount(totalEntryCount)}`,
@@ -437,7 +344,6 @@ async function loadDatabase(request: BootRequest, reportProgress: ProgressReport
     textStatement.free();
 
     reportProgress({
-      name: PAIRS_LABEL,
       progress: 0.82,
       statusText: 'Loading semantic vectors',
       detail: `Preparing ${getDisplayModelName(VECTOR_MODEL_ID)} vectors`,
@@ -470,23 +376,12 @@ async function loadDatabase(request: BootRequest, reportProgress: ProgressReport
       const row = vectorStatement.getAsObject() as Record<string, string | number | SqlBlob | null>;
       const videoId = String(row.video_id ?? '');
       const segIndex = Number(row.seg_index ?? 0);
-      const blob = row.vector;
-
-      if (!(blob instanceof Uint8Array)) {
-        continue;
-      }
+      const blob = row.vector as SqlBlob;
 
       const id = toEntryId(videoId, segIndex);
-      const sourceIndex = entryById.get(id);
-      if (sourceIndex === undefined) {
-        continue;
-      }
+      const sourceIndex = entryById.get(id)!;
 
       const dim = blob.byteLength / 4;
-      if (!Number.isInteger(dim) || dim <= 0) {
-        continue;
-      }
-
       if (vectorDim === 0) {
         vectorDim = dim;
       } else if (vectorDim !== dim) {
@@ -494,7 +389,7 @@ async function loadDatabase(request: BootRequest, reportProgress: ProgressReport
       }
 
       semanticIndexes.push(sourceIndex);
-      vectorRows.push(toFloat32(blob, dim));
+      vectorRows.push(new Float32Array(blob.buffer.slice(blob.byteOffset, blob.byteOffset + blob.byteLength)));
 
       if (
         vectorRows.length === 1 ||
@@ -503,7 +398,6 @@ async function loadDatabase(request: BootRequest, reportProgress: ProgressReport
       ) {
         const vectorProgress = totalVectorCount > 0 ? vectorRows.length / totalVectorCount : 1;
         reportProgress({
-          name: PAIRS_LABEL,
           progress: scaleProgress(0.82, 0.96, vectorProgress),
           statusText: 'Loading semantic vectors',
           detail: `${formatCount(vectorRows.length)} / ${formatCount(totalVectorCount)}`,
@@ -514,7 +408,6 @@ async function loadDatabase(request: BootRequest, reportProgress: ProgressReport
     vectorStatement.free();
 
     reportProgress({
-      name: PAIRS_LABEL,
       progress: 0.98,
       statusText: 'Finalizing cue indexes',
       detail: `${formatCount(entries.length)} pairs cached in memory`,
@@ -527,7 +420,6 @@ async function loadDatabase(request: BootRequest, reportProgress: ProgressReport
 
     state = {
       entries,
-      entryById,
       videoGroups,
       semanticEntryIndexes: Int32Array.from(semanticIndexes),
       semanticVectors,
@@ -535,7 +427,6 @@ async function loadDatabase(request: BootRequest, reportProgress: ProgressReport
     };
 
     reportProgress({
-      name: PAIRS_LABEL,
       progress: 1,
       statusText: 'Ready',
       detail: `${formatCount(entries.length)} pairs loaded`,
@@ -553,7 +444,7 @@ async function loadDatabase(request: BootRequest, reportProgress: ProgressReport
 function createModelProgressCallback(reportProgress: ProgressReporter): (info: ModelProgressInfo) => void {
   const files = new Map<string, { loaded: number; total: number | null; done: boolean }>();
 
-  const emit = (statusText: string, detail: string, modelId = QUERY_MODEL_ID): void => {
+  const emit = (statusText: string, detail: string): void => {
     let completedFiles = 0;
     let progressTotal = 0;
 
@@ -569,7 +460,6 @@ function createModelProgressCallback(reportProgress: ProgressReporter): (info: M
     const progress = files.size > 0 ? progressTotal / files.size : 0;
 
     reportProgress({
-      name: getDisplayModelName(modelId),
       progress,
       statusText,
       detail,
@@ -579,7 +469,6 @@ function createModelProgressCallback(reportProgress: ProgressReporter): (info: M
   return (info) => {
     if (info.status === 'ready') {
       reportProgress({
-        name: getDisplayModelName(info.model),
         progress: 1,
         statusText: 'Ready',
         detail: info.model,
@@ -594,13 +483,13 @@ function createModelProgressCallback(reportProgress: ProgressReporter): (info: M
     switch (info.status) {
       case 'initiate': {
         files.set(key, current);
-        emit('Checking model files', `${files.size} file${files.size === 1 ? '' : 's'} queued`, info.name);
+        emit('Checking model files', `${files.size} file${files.size === 1 ? '' : 's'} queued`);
         return;
       }
 
       case 'download': {
         files.set(key, current);
-        emit('Downloading model files', `Fetching ${fileName}`, info.name);
+        emit('Downloading model files', `Fetching ${fileName}`);
         return;
       }
 
@@ -612,7 +501,6 @@ function createModelProgressCallback(reportProgress: ProgressReporter): (info: M
         emit(
           'Downloading model files',
           `${fileName} - ${formatByteCount(info.loaded)} / ${formatByteCount(info.total)}`,
-          info.name,
         );
         return;
       }
@@ -629,7 +517,6 @@ function createModelProgressCallback(reportProgress: ProgressReporter): (info: M
         emit(
           completedFiles === files.size ? 'Finalizing embedding model' : 'Downloading model files',
           `${completedFiles} / ${files.size} files ready`,
-          info.name,
         );
         return;
       }
@@ -640,7 +527,6 @@ function createModelProgressCallback(reportProgress: ProgressReporter): (info: M
 async function ensureExtractor(reportProgress?: ProgressReporter): Promise<Extractor> {
   if (extractor) {
     reportProgress?.({
-      name: getDisplayModelName(QUERY_MODEL_ID),
       progress: 1,
       statusText: 'Ready',
       detail: QUERY_MODEL_ID,
@@ -650,7 +536,6 @@ async function ensureExtractor(reportProgress?: ProgressReporter): Promise<Extra
 
   if (!extractorPromise) {
     reportProgress?.({
-      name: getDisplayModelName(QUERY_MODEL_ID),
       progress: 0,
       statusText: 'Preparing embedding model',
       detail: QUERY_MODEL_ID,
@@ -672,7 +557,6 @@ async function ensureExtractor(reportProgress?: ProgressReporter): Promise<Extra
 
   const loadedExtractor = await extractorPromise;
   reportProgress?.({
-    name: getDisplayModelName(QUERY_MODEL_ID),
     progress: 1,
     statusText: 'Ready',
     detail: QUERY_MODEL_ID,
@@ -690,27 +574,11 @@ async function embedQuery(query: string, reportProgress?: ProgressReporter): Pro
   return data instanceof Float32Array ? data : Float32Array.from(data);
 }
 
-function searchSemantic(
-  request: SearchRequest,
-  loaded: LoadedState,
-  queryVector: Float32Array,
-): SearchResult[] {
+function searchSemantic(loaded: LoadedState, queryVector: Float32Array): SearchResult[] {
   const topHits: RankedHit[] = [];
 
   for (let row = 0; row < loaded.semanticEntryIndexes.length; row += 1) {
-    const entryIndex = loaded.semanticEntryIndexes[row];
-    if (entryIndex === undefined) {
-      continue;
-    }
-
-    const entry = loaded.entries[entryIndex];
-    if (!entry) {
-      continue;
-    }
-
-    if (request.minLength > 0 && entry.enLength < request.minLength) {
-      continue;
-    }
+    const entryIndex = loaded.semanticEntryIndexes[row]!;
 
     const offset = row * loaded.vectorDim;
     let score = 0;
@@ -719,12 +587,12 @@ function searchSemantic(
       score += loaded.semanticVectors[offset + dim]! * queryVector[dim]!;
     }
 
-    if (score >= request.minScore) {
-      pushRankedHit(topHits, { entryIndex, score }, request.topK);
+    if (score >= 0) {
+      pushRankedHit(topHits, { entryIndex, score });
     }
   }
 
-  return topHits.map(({ entryIndex, score }) => toSearchResult(loaded.entries[entryIndex]!, score));
+  return topHits.map(({ entryIndex, score }) => ({ ...loaded.entries[entryIndex]!, score }));
 }
 
 async function handleSearch(
@@ -752,10 +620,10 @@ async function handleSearch(
     );
   }
 
-  return { results: searchSemantic(request, loaded, queryVector) };
+  return { results: searchSemantic(loaded, queryVector) };
 }
 
-function handleTranscript(request: TranscriptRequest): ContextItem[] {
+function handleTranscript(request: TranscriptRequest): EntrySummary[] {
   const loaded = ensureState();
   const group = loaded.videoGroups.get(request.videoId);
 
@@ -763,20 +631,7 @@ function handleTranscript(request: TranscriptRequest): ContextItem[] {
     throw new Error(`No TM entries found for video ${request.videoId}.`);
   }
 
-  const items: ContextItem[] = [];
-  for (const entryIndex of group) {
-    const entry = loaded.entries[entryIndex];
-    if (!entry) {
-      continue;
-    }
-
-    items.push({
-      ...summarize(entry),
-      isFocus: entry.entryId === request.focusEntryId,
-    });
-  }
-
-  return items;
+  return group.map((entryIndex) => loaded.entries[entryIndex]!);
 }
 
 workerScope.addEventListener('message', async (event: MessageEvent<WorkerRequest>) => {
@@ -785,55 +640,46 @@ workerScope.addEventListener('message', async (event: MessageEvent<WorkerRequest
   try {
     switch (request.kind) {
       case 'boot': {
-        const pairsProgress = createProgressReporter(request.requestId, 'pairs', PAIRS_LABEL);
+        const pairsProgress = createProgressReporter(request.requestId, 'pairs');
 
         const stats = await loadDatabase(request, pairsProgress);
-        post({
+        workerScope.postMessage({
           kind: 'boot:ok',
           requestId: request.requestId,
           stats,
-        });
+        } satisfies WorkerResponse);
         return;
       }
 
       case 'prepare-model': {
-        const modelProgress = createProgressReporter(
-          request.requestId,
-          'model',
-          getDisplayModelName(QUERY_MODEL_ID),
-        );
+        const modelProgress = createProgressReporter(request.requestId, 'model');
         await ensureExtractor(modelProgress);
-        post({
+        workerScope.postMessage({
           kind: 'prepare-model:ok',
           requestId: request.requestId,
-        });
+        } satisfies WorkerResponse);
         return;
       }
 
       case 'search': {
-        const modelProgress = createProgressReporter(
-          request.requestId,
-          'model',
-          getDisplayModelName(QUERY_MODEL_ID),
-        );
+        const modelProgress = createProgressReporter(request.requestId, 'model');
         const { results, note } = await handleSearch(request, modelProgress);
-        post({
+        workerScope.postMessage({
           kind: 'search:ok',
           requestId: request.requestId,
           results,
           note,
-        });
+        } satisfies WorkerResponse);
         return;
       }
 
       case 'transcript': {
         const items = handleTranscript(request);
-        post({
+        workerScope.postMessage({
           kind: 'transcript:ok',
           requestId: request.requestId,
-          videoId: request.videoId,
           items,
-        });
+        } satisfies WorkerResponse);
         return;
       }
 
@@ -843,6 +689,10 @@ workerScope.addEventListener('message', async (event: MessageEvent<WorkerRequest
       }
     }
   } catch (error) {
-    postError(request.requestId, error);
+    workerScope.postMessage({
+      kind: 'error',
+      requestId: request.requestId,
+      message: error instanceof Error ? error.message : String(error),
+    } satisfies WorkerResponse);
   }
 });

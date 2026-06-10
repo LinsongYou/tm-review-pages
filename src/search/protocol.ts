@@ -4,25 +4,18 @@ export interface EntrySummary {
   segIndex: number;
   en: string;
   zh: string;
-  blockName: string;
   startMs: number | null;
   endMs: number | null;
 }
 
 export interface SearchResult extends EntrySummary {
   score: number;
-  textLength: number;
-}
-
-export interface ContextItem extends EntrySummary {
-  isFocus: boolean;
 }
 
 export type BootProgressTarget = 'pairs' | 'model';
 
 export interface BootProgressSnapshot {
   target: BootProgressTarget;
-  name: string;
   progress: number;
   statusText: string;
   detail?: string;
@@ -48,16 +41,12 @@ export interface SearchRequest {
   kind: 'search';
   requestId: number;
   query: string;
-  topK: number;
-  minLength: number;
-  minScore: number;
 }
 
 export interface TranscriptRequest {
   kind: 'transcript';
   requestId: number;
   videoId: string;
-  focusEntryId?: string;
 }
 
 export type WorkerRequest = BootRequest | PrepareModelRequest | SearchRequest | TranscriptRequest;
@@ -94,8 +83,7 @@ export interface SearchOkResponse {
 export interface TranscriptOkResponse {
   kind: 'transcript:ok';
   requestId: number;
-  videoId: string;
-  items: ContextItem[];
+  items: EntrySummary[];
 }
 
 export interface ErrorResponse {

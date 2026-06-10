@@ -654,7 +654,7 @@ function compactRadius(members, scaled3d, center) {
   return coreDistance / coreCount;
 }
 
-function buildClusters(entries, assignments, scaled2d, scaled3d, centers, islandColors) {
+function buildClusters(entries, assignments, scaled3d, centers, islandColors) {
   const clusterCount = centers.length;
   const phraseStats = buildPhraseStats(entries, assignments, clusterCount);
   const memberIndexes = Array.from({ length: clusterCount }, () => []);
@@ -665,10 +665,6 @@ function buildClusters(entries, assignments, scaled2d, scaled3d, centers, island
 
   return memberIndexes.map((members, clusterId) => {
     const videoIds = new Set(members.map((index) => entries[index].videoId));
-    const center2d = [
-      Math.round(members.reduce((total, index) => total + scaled2d[index][0], 0) / members.length),
-      Math.round(members.reduce((total, index) => total + scaled2d[index][1], 0) / members.length),
-    ];
     const center3d = [
       Math.round(members.reduce((total, index) => total + scaled3d[index][0], 0) / members.length),
       Math.round(members.reduce((total, index) => total + scaled3d[index][1], 0) / members.length),
@@ -693,9 +689,6 @@ function buildClusters(entries, assignments, scaled2d, scaled3d, centers, island
       color: islandColors[clusterId].hex,
       size: members.length,
       videoCount: videoIds.size,
-      x: center2d[0],
-      y: center2d[1],
-      z: center3d[2],
       x3d: center3d[0],
       y3d: center3d[1],
       z3d: center3d[2],
@@ -709,7 +702,7 @@ function buildClusters(entries, assignments, scaled2d, scaled3d, centers, island
 function readSemanticRows(SQL) {
   const db = new SQL.Database(fs.readFileSync(DB_PATH));
   const statement = db.prepare(`
-    SELECT m.video_id, m.seg_index, m.en, m.zh, m.block_name, m.start_ms, m.end_ms, v.vector
+    SELECT m.video_id, m.seg_index, m.en, m.zh, m.start_ms, m.end_ms, v.vector
     FROM tm_main AS m
     JOIN tm_vectors AS v USING (content_sha)
     WHERE v.model_id = $modelId
@@ -735,7 +728,6 @@ function readSemanticRows(SQL) {
       segIndex: Number(row.seg_index),
       en: String(row.en),
       zh: String(row.zh),
-      blockName: String(row.block_name ?? ''),
       startMs: row.start_ms === null ? null : Number(row.start_ms),
       endMs: row.end_ms === null ? null : Number(row.end_ms),
     });
@@ -753,17 +745,14 @@ async function main() {
   const { entries, vectors, vectorDim } = readSemanticRows(SQL);
   console.log(`Read ${entries.length.toLocaleString()} MiniLM vectors (${vectorDim} dimensions).`);
 
-  console.log('Running UMAP 2D.');
-  const coords2d = runUmap(vectors, 2, 0);
   console.log('Running UMAP 3D.');
   const coords3d = runUmap(vectors, 3, 1);
 
-  const scaled2d = scaleCoordinates(coords2d);
   const scaled3d = scaleCoordinates(coords3d);
   const { assignments, centers } = clusterMutualKnnIslands(scaled3d);
   const clusterCount = centers.length;
   const islandColors = assignIslandColors(centers);
-  const clusters = buildClusters(entries, assignments, scaled2d, scaled3d, centers, islandColors);
+  const clusters = buildClusters(entries, assignments, scaled3d, centers, islandColors);
   const compactRadii = clusters
     .map((cluster) => cluster.rawCompactRadius)
     .sort((left, right) => left - right);
@@ -787,12 +776,8 @@ async function main() {
     segIndex: entry.segIndex,
     en: entry.en,
     zh: entry.zh,
-    blockName: entry.blockName,
     startMs: entry.startMs,
     endMs: entry.endMs,
-    x: scaled2d[index][0],
-    y: scaled2d[index][1],
-    z: scaled3d[index][2],
     x3d: scaled3d[index][0],
     y3d: scaled3d[index][1],
     z3d: scaled3d[index][2],
@@ -801,8 +786,8 @@ async function main() {
   }));
 
   const payload = {
-    version: 8,
-    projection: 'umap-2d-3d',
+    version: 9,
+    projection: 'umap-3d',
     clusterAlgorithm: 'umap-3d-mutual-knn-islands',
     clusterBasis: 'umap-3d-mutual-knn-island',
     generatedAt: new Date().toISOString(),

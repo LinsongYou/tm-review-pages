@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "vite",
     "generate:tm-atlas": "node scripts/generate_tm_atlas.mjs",
-    "generate:semantic-landscape": "npm run generate:tm-atlas",
     "build": "tsc -b && vite build",
     "preview": "vite preview"
   },

@@ -3,8 +3,6 @@ import { getDisplayModelName } from './format';
 import type {
   BootProgressSnapshot,
   BootStats,
-  ContextItem,
-  SearchResult,
   WorkerPayload,
   WorkerResponse,
 } from './search/protocol';
@@ -22,19 +20,34 @@ type HeaderLoadState = Record<BootProgressSnapshot['target'], BootProgressSnapsh
 const DB_ASSET = 'data/tm_misha_minilm.db';
 const ATLAS_DATA_ASSET = 'data/tm-atlas.json';
 const THEME_STORAGE_KEY = 'tm-review-theme';
-const DEFAULT_SEARCH_TOP_K = 24;
-const PAIRS_CHIP_LABEL = 'English/中文 Pairs';
-const MODEL_CHIP_LABEL = 'Embedding Model';
+const EMPTY_TRANSCRIPT = {
+  transcriptVideoId: null,
+  transcriptItems: [],
+  transcriptFocusEntryId: null,
+  transcriptLoading: false,
+  transcriptErrorText: null,
+} satisfies Pick<
+  AtlasNavigationState,
+  | 'transcriptVideoId'
+  | 'transcriptItems'
+  | 'transcriptFocusEntryId'
+  | 'transcriptLoading'
+  | 'transcriptErrorText'
+>;
+const INITIAL_NAVIGATION: AtlasNavigationState = {
+  query: '',
+  searchResults: [],
+  searchNote: null,
+  errorText: null,
+  selectedEntryId: null,
+  ...EMPTY_TRANSCRIPT,
+};
 
 function withAssetVersion(path: string, version: string): string {
   return `${path}?v=${encodeURIComponent(version)}`;
 }
 
 function getInitialTheme(): Theme {
-  if (typeof window === 'undefined') {
-    return 'dark';
-  }
-
   const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
   if (storedTheme === 'dark' || storedTheme === 'light') {
     return storedTheme;
@@ -47,13 +60,11 @@ function createInitialBootProgressState(): HeaderLoadState {
   return {
     pairs: {
       target: 'pairs',
-      name: PAIRS_CHIP_LABEL,
       progress: 0,
       statusText: 'Preparing TM snapshot',
     },
     model: {
       target: 'model',
-      name: MODEL_CHIP_LABEL,
       progress: 0,
       statusText: 'Queued after pairs',
       detail: 'Waiting for TM pairs',
@@ -62,8 +73,7 @@ function createInitialBootProgressState(): HeaderLoadState {
 }
 
 function formatProgressPercent(progress: number): string {
-  const bounded = Math.min(1, Math.max(0, progress));
-  return `${Math.round(bounded * 100)}%`;
+  return `${Math.round(progress * 100)}%`;
 }
 
 function App() {
@@ -76,22 +86,12 @@ function App() {
   const [bootStats, setBootStats] = useState<BootStats | null>(null);
   const [bootProgress, setBootProgress] = useState<HeaderLoadState>(createInitialBootProgressState);
   const [modelReady, setModelReady] = useState(false);
-  const [booting, setBooting] = useState(true);
   const [searching, setSearching] = useState(false);
-  const [errorText, setErrorText] = useState<string | null>(null);
-  const [searchNote, setSearchNote] = useState<string | null>(null);
-  const [query, setQuery] = useState('');
   const [theme, setTheme] = useState<Theme>(getInitialTheme);
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
-  const [transcriptVideoId, setTranscriptVideoId] = useState<string | null>(null);
-  const [transcriptItems, setTranscriptItems] = useState<ContextItem[]>([]);
-  const [transcriptFocusEntryId, setTranscriptFocusEntryId] = useState<string | null>(null);
-  const [transcriptLoading, setTranscriptLoading] = useState(false);
-  const [transcriptErrorText, setTranscriptErrorText] = useState<string | null>(null);
+  const [navigation, setNavigation] = useState<AtlasNavigationState>(INITIAL_NAVIGATION);
   const [atlasData, setAtlasData] = useState<SemanticLandscapeData | null>(null);
-  const [atlasDataLoading, setAtlasDataLoading] = useState(true);
   const [atlasDataErrorText, setAtlasDataErrorText] = useState<string | null>(null);
+  const { query } = navigation;
 
   const dbUrl = `${import.meta.env.BASE_URL}${withAssetVersion(DB_ASSET, __TM_DB_VERSION__)}`;
   const atlasDataUrl = `${import.meta.env.BASE_URL}${withAssetVersion(
@@ -148,8 +148,10 @@ function App() {
         return;
       }
 
-      setErrorText(event.message || 'The search worker crashed.');
-      setBooting(false);
+      setNavigation((current) => ({
+        ...current,
+        errorText: event.message || 'The search worker crashed.',
+      }));
       setSearching(false);
     });
 
@@ -187,9 +189,9 @@ function App() {
     });
   }
 
-  async function boot(isStale?: () => boolean): Promise<void> {
-    setBooting(true);
-    setErrorText(null);
+  async function boot(isStale: () => boolean): Promise<void> {
+    setBootStats(null);
+    setNavigation((current) => ({ ...current, errorText: null }));
     setModelReady(false);
     setBootProgress(createInitialBootProgressState());
 
@@ -199,7 +201,7 @@ function App() {
         dbUrl,
       })) as Extract<WorkerResponse, { kind: 'boot:ok' }>;
 
-      if (isStale?.()) {
+      if (isStale()) {
         return;
       }
 
@@ -214,22 +216,22 @@ function App() {
           },
           model: {
             target: 'model',
-            name: getDisplayModelName(response.stats.embeddingModelId),
             progress: 0,
             statusText: 'Warming cache',
             detail: response.stats.embeddingModelId,
           },
         }));
-        setBooting(false);
       });
       void prepareModel();
     } catch (error) {
-      if (isStale?.()) {
+      if (isStale()) {
         return;
       }
 
-      setBooting(false);
-      setErrorText(error instanceof Error ? error.message : String(error));
+      setNavigation((current) => ({
+        ...current,
+        errorText: error instanceof Error ? error.message : String(error),
+      }));
     }
   }
 
@@ -250,7 +252,6 @@ function App() {
   }
 
   async function loadAtlasData(signal: AbortSignal): Promise<void> {
-    setAtlasDataLoading(true);
     setAtlasDataErrorText(null);
 
     try {
@@ -266,14 +267,12 @@ function App() {
 
       startTransition(() => {
         setAtlasData(payload);
-        setAtlasDataLoading(false);
       });
     } catch (error) {
       if (signal.aborted) {
         return;
       }
 
-      setAtlasDataLoading(false);
       setAtlasDataErrorText(error instanceof Error ? error.message : String(error));
     }
   }
@@ -283,31 +282,31 @@ function App() {
 
     if (!trimmed) {
       latestSearchRef.current += 1;
-      setResults([]);
-      setSearchNote(null);
+      setNavigation((current) => ({ ...current, searchResults: [], searchNote: null }));
       return;
     }
 
     if (!bootStats) {
-      setErrorText('The TM database is still loading.');
+      setNavigation((current) => ({ ...current, errorText: 'The TM database is still loading.' }));
       return;
     }
 
     const sequence = latestSearchRef.current + 1;
     latestSearchRef.current = sequence;
-    closeTranscript();
+    latestTranscriptRef.current += 1;
 
     setSearching(true);
-    setErrorText(null);
-    setSearchNote(null);
+    setNavigation((current) => ({
+      ...current,
+      ...EMPTY_TRANSCRIPT,
+      errorText: null,
+      searchNote: null,
+    }));
 
     try {
       const response = (await callWorker({
         kind: 'search',
         query: trimmed,
-        topK: DEFAULT_SEARCH_TOP_K,
-        minLength: 0,
-        minScore: 0,
       })) as Extract<WorkerResponse, { kind: 'search:ok' }>;
 
       if (latestSearchRef.current !== sequence) {
@@ -315,9 +314,12 @@ function App() {
       }
 
       startTransition(() => {
-        setResults(response.results);
-        setSelectedEntryId(response.results[0]?.entryId ?? null);
-        setSearchNote(response.note ?? null);
+        setNavigation((current) => ({
+          ...current,
+          searchResults: response.results,
+          selectedEntryId: response.results[0]?.entryId ?? null,
+          searchNote: response.note ?? null,
+        }));
         setSearching(false);
       });
     } catch (error) {
@@ -326,13 +328,19 @@ function App() {
       }
 
       setSearching(false);
-      setErrorText(error instanceof Error ? error.message : String(error));
+      setNavigation((current) => ({
+        ...current,
+        errorText: error instanceof Error ? error.message : String(error),
+      }));
     }
   }
 
   function setTranscriptSelection(entryId: string): void {
-    setSelectedEntryId(entryId);
-    setTranscriptFocusEntryId(entryId);
+    setNavigation((current) => ({
+      ...current,
+      selectedEntryId: entryId,
+      transcriptFocusEntryId: entryId,
+    }));
   }
 
   function searchFromLine(text: string): void {
@@ -341,13 +349,13 @@ function App() {
       return;
     }
 
-    setQuery(trimmed);
+    setNavigation((current) => ({ ...current, query: trimmed }));
     void runSearch(trimmed);
   }
 
   async function openTranscript(videoId: string, focusEntryId: string): Promise<void> {
     if (!bootStats) {
-      setErrorText('The TM database is still loading.');
+      setNavigation((current) => ({ ...current, errorText: 'The TM database is still loading.' }));
       return;
     }
 
@@ -355,23 +363,24 @@ function App() {
     latestTranscriptRef.current = sequence;
     latestSearchRef.current += 1;
 
-    setQuery('');
     setSearching(false);
-    setErrorText(null);
-    setSearchNote(null);
-    setResults([]);
-    setSelectedEntryId(focusEntryId);
-    setTranscriptVideoId(videoId);
-    setTranscriptItems([]);
-    setTranscriptFocusEntryId(focusEntryId);
-    setTranscriptLoading(true);
-    setTranscriptErrorText(null);
+    setNavigation({
+      query: '',
+      searchResults: [],
+      searchNote: null,
+      errorText: null,
+      selectedEntryId: focusEntryId,
+      transcriptVideoId: videoId,
+      transcriptItems: [],
+      transcriptFocusEntryId: focusEntryId,
+      transcriptLoading: true,
+      transcriptErrorText: null,
+    });
 
     try {
       const response = (await callWorker({
         kind: 'transcript',
         videoId,
-        focusEntryId,
       })) as Extract<WorkerResponse, { kind: 'transcript:ok' }>;
 
       if (latestTranscriptRef.current !== sequence) {
@@ -379,57 +388,42 @@ function App() {
       }
 
       startTransition(() => {
-        setTranscriptItems(response.items);
-        setTranscriptLoading(false);
+        setNavigation((current) => ({
+          ...current,
+          transcriptItems: response.items,
+          transcriptLoading: false,
+        }));
       });
     } catch (error) {
       if (latestTranscriptRef.current !== sequence) {
         return;
       }
 
-      setTranscriptLoading(false);
-      setTranscriptErrorText(error instanceof Error ? error.message : String(error));
+      setNavigation((current) => ({
+        ...current,
+        transcriptLoading: false,
+        transcriptErrorText: error instanceof Error ? error.message : String(error),
+      }));
     }
   }
 
   function closeTranscript(): void {
     latestTranscriptRef.current += 1;
-    setTranscriptVideoId(null);
-    setTranscriptItems([]);
-    setTranscriptFocusEntryId(null);
-    setTranscriptLoading(false);
-    setTranscriptErrorText(null);
+    setNavigation((current) => ({ ...current, ...EMPTY_TRANSCRIPT }));
   }
 
   function clearAtlas(): void {
     latestSearchRef.current += 1;
-    closeTranscript();
-    setQuery('');
+    latestTranscriptRef.current += 1;
     setSearching(false);
-    setErrorText(null);
-    setSearchNote(null);
-    setResults([]);
-    setSelectedEntryId(null);
+    setNavigation(INITIAL_NAVIGATION);
   }
 
   function restoreNavigationState(state: AtlasNavigationState): void {
     latestSearchRef.current += 1;
     latestTranscriptRef.current += 1;
-    setQuery(state.query);
     setSearching(false);
-    setErrorText(state.errorText);
-    setSearchNote(state.searchNote);
-    setResults(state.searchResults);
-    setSelectedEntryId(state.selectedEntryId);
-    setTranscriptVideoId(state.transcriptVideoId);
-    setTranscriptItems(state.transcriptItems);
-    setTranscriptFocusEntryId(state.transcriptFocusEntryId);
-    setTranscriptLoading(state.transcriptLoading);
-    setTranscriptErrorText(state.transcriptErrorText);
-  }
-
-  function toggleTheme(): void {
-    setTheme((currentTheme) => (currentTheme === 'dark' ? 'light' : 'dark'));
+    setNavigation(state);
   }
 
   const statusItems = [
@@ -440,7 +434,7 @@ function App() {
         : formatProgressPercent(bootProgress.pairs.progress),
       detail: bootProgress.pairs.detail ?? bootProgress.pairs.statusText,
       progress: bootProgress.pairs.progress,
-      ready: !booting && !!bootStats,
+      ready: !!bootStats,
     },
     {
       label: 'Model',
@@ -459,27 +453,22 @@ function App() {
     <main className="app-shell">
       <TmAtlasPanel
         data={atlasData}
-        dataLoading={atlasDataLoading}
+        dataLoading={!atlasData && !atlasDataErrorText}
         dataErrorText={atlasDataErrorText}
         theme={theme}
         statusItems={statusItems}
-        query={query}
-        searchReady={!booting && !!bootStats}
+        navigation={navigation}
+        searchReady={!!bootStats}
         searching={searching}
-        searchResults={results}
-        searchNote={searchNote}
-        errorText={errorText}
-        selectedEntryId={selectedEntryId}
-        transcriptVideoId={transcriptVideoId}
-        transcriptItems={transcriptItems}
-        transcriptFocusEntryId={transcriptFocusEntryId}
-        transcriptLoading={transcriptLoading}
-        transcriptErrorText={transcriptErrorText}
-        onQueryChange={setQuery}
+        onQueryChange={(nextQuery) => {
+          setNavigation((current) => ({ ...current, query: nextQuery }));
+        }}
         onSearch={() => {
           void runSearch();
         }}
-        onSelectEntry={setSelectedEntryId}
+        onSelectEntry={(entryId) => {
+          setNavigation((current) => ({ ...current, selectedEntryId: entryId }));
+        }}
         onOpenTranscript={(videoId, focusEntryId) => {
           void openTranscript(videoId, focusEntryId);
         }}
@@ -488,7 +477,9 @@ function App() {
         onCloseTranscript={closeTranscript}
         onRestoreNavigationState={restoreNavigationState}
         onClear={clearAtlas}
-        onToggleTheme={toggleTheme}
+        onToggleTheme={() => {
+          setTheme((currentTheme) => (currentTheme === 'dark' ? 'light' : 'dark'));
+        }}
       />
     </main>
   );

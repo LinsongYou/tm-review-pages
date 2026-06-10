@@ -1,7 +1,6 @@
 import { type CSSProperties, type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { classNames } from '../classes';
-import { handleSelectKey } from '../keyboard';
-import type { ContextItem, SearchResult } from '../search/protocol';
+import type { EntrySummary, SearchResult } from '../search/protocol';
 import type {
   SemanticLandscapeCluster,
   SemanticLandscapeData,
@@ -25,18 +24,9 @@ interface TmAtlasPanelProps {
   dataErrorText: string | null;
   theme: ThemeMode;
   statusItems: StatusItem[];
-  query: string;
+  navigation: AtlasNavigationState;
   searchReady: boolean;
   searching: boolean;
-  searchResults: SearchResult[];
-  searchNote: string | null;
-  errorText: string | null;
-  selectedEntryId: string | null;
-  transcriptVideoId: string | null;
-  transcriptItems: ContextItem[];
-  transcriptFocusEntryId: string | null;
-  transcriptLoading: boolean;
-  transcriptErrorText: string | null;
   onQueryChange: (query: string) => void;
   onSearch: () => void;
   onSelectEntry: (entryId: string | null) => void;
@@ -56,7 +46,7 @@ export interface AtlasNavigationState {
   errorText: string | null;
   selectedEntryId: string | null;
   transcriptVideoId: string | null;
-  transcriptItems: ContextItem[];
+  transcriptItems: EntrySummary[];
   transcriptFocusEntryId: string | null;
   transcriptLoading: boolean;
   transcriptErrorText: string | null;
@@ -85,24 +75,14 @@ interface VisualFocus {
   zoom: number;
 }
 
-interface Spatial3d {
-  x3d: number;
-  y3d: number;
-  z3d: number;
-}
-
 interface ProjectedPoint {
   point: SemanticLandscapePoint;
-  cluster: SemanticLandscapeCluster;
+  rawX: number;
+  rawY: number;
   x: number;
   y: number;
   depth: number;
   culled: boolean;
-}
-
-interface MutableProjectedPoint extends ProjectedPoint {
-  rawX: number;
-  rawY: number;
 }
 
 interface ProjectedIsland {
@@ -121,8 +101,8 @@ interface ProjectedFrame {
 interface ProjectionCache {
   sourcePoints: SemanticLandscapePoint[];
   clusterById: Map<number, SemanticLandscapeCluster>;
-  projectedPoints: MutableProjectedPoint[];
-  sortedPoints: MutableProjectedPoint[];
+  projectedPoints: ProjectedPoint[];
+  sortedPoints: ProjectedPoint[];
   radiusScratch: number[];
   pointByEntryId: Map<string, ProjectedPoint>;
   islandTotals: Map<number, { x: number; y: number; depth: number; count: number }>;
@@ -150,7 +130,6 @@ interface IslandPanelData {
 }
 
 interface DragState {
-  active: boolean;
   mode: 'rotate3d' | 'pan3d';
   pointerId: number;
   lastX: number;
@@ -164,10 +143,6 @@ type SidebarMode = 'transcript' | 'island' | 'entry' | 'search' | 'idle';
 
 interface NavState extends AtlasNavigationState {
   selectedIslandId: number | null;
-}
-
-interface IconProps {
-  className?: string;
 }
 
 const INITIAL_VIEW_3D: View3d = {
@@ -230,19 +205,6 @@ function createVisualGeometry(points: SemanticLandscapePoint[]): VisualGeometry 
     centerY,
     centerZ,
     radius,
-  };
-}
-
-function geometryWithFocus(geometry: VisualGeometry, focus: VisualFocus | null): VisualGeometry {
-  if (!focus) {
-    return geometry;
-  }
-
-  return {
-    ...geometry,
-    centerX: focus.centerX,
-    centerY: focus.centerY,
-    centerZ: focus.centerZ,
   };
 }
 
@@ -351,9 +313,8 @@ function createProjectionCache(
   points: SemanticLandscapePoint[],
   clusterById: Map<number, SemanticLandscapeCluster>,
 ): ProjectionCache {
-  const projectedPoints = points.map((point): MutableProjectedPoint => ({
+  const projectedPoints = points.map((point): ProjectedPoint => ({
     point,
-    cluster: clusterById.get(point.clusterId)!,
     rawX: 0,
     rawY: 0,
     x: 0,
@@ -387,10 +348,10 @@ function createProjectionCache(
 }
 
 function project3dRawInto(
-  point: Spatial3d,
+  point: SemanticLandscapePoint,
   geometry: VisualGeometry,
   trig: TrigCache,
-  target: MutableProjectedPoint,
+  target: ProjectedPoint,
 ): void {
   const x = (point.x3d - geometry.centerX) / (geometry.radius * 2);
   const y = (geometry.centerY - point.y3d) / (geometry.radius * 2);
@@ -418,7 +379,7 @@ function percentileScratch(values: number[], count: number, share: number): numb
   return values[index]!;
 }
 
-function fitProjected3d(items: MutableProjectedPoint[], radiusScratch: number[], width: number, height: number) {
+function fitProjected3d(items: ProjectedPoint[], radiusScratch: number[], width: number, height: number) {
   let visibleCount = 0;
   let centerX = 0;
   let centerY = 0;
@@ -516,14 +477,6 @@ function projectAtlasFrame(
   }
 
   return cache.frame;
-}
-
-function getDepthRadiusScale(depth: number): number {
-  return clamp(1 - depth * 0.9, 0.55, 1.45);
-}
-
-function getCanvasRadiusScale(width: number, height: number): number {
-  return clamp(Math.min(width, height) / 720, 0.5, 1);
 }
 
 function getDepthAlphaScale(depth: number): number {
@@ -664,68 +617,18 @@ function formatCueTimestamp(ms: number | null): string {
 }
 
 
-function ResetIcon({ className }: IconProps) {
-  return (
-    <svg className={className} aria-hidden="true" viewBox="0 0 24 24">
-      <path d="M5 12a7 7 0 1 0 2.1-5H4" />
-      <path d="M4 3v4h4" />
-    </svg>
-  );
-}
-
-
-function SunIcon({ className }: IconProps) {
-  return (
-    <svg className={className} aria-hidden="true" viewBox="0 0 24 24">
-      <circle cx="12" cy="12" r="4" />
-      <path d="M12 2v2" />
-      <path d="M12 20v2" />
-      <path d="m4.9 4.9 1.4 1.4" />
-      <path d="m17.7 17.7 1.4 1.4" />
-      <path d="M2 12h2" />
-      <path d="M20 12h2" />
-      <path d="m4.9 19.1 1.4-1.4" />
-      <path d="m17.7 6.3 1.4-1.4" />
-    </svg>
-  );
-}
-
-function MoonIcon({ className }: IconProps) {
-  return (
-    <svg className={className} aria-hidden="true" viewBox="0 0 24 24">
-      <path d="M20 14.5A8 8 0 0 1 9.5 4a7 7 0 1 0 10.5 10.5Z" />
-    </svg>
-  );
-}
-
-function BackArrowIcon({ className }: IconProps) {
-  return (
-    <svg className={className} aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M19 12H5" />
-      <path d="m12 5-7 7 7 7" />
-    </svg>
-  );
-}
-
 interface PairCardProps {
-  entryId: string;
-  videoId: string;
-  segIndex: number;
-  en: string;
-  zh: string;
+  entry: EntrySummary;
   isFocus?: boolean;
   onSelect: (entryId: string) => void;
   onOpenTranscript: (videoId: string, entryId: string) => void;
   onSearchLine: (text: string) => void;
-  startMs?: number | null;
-  endMs?: number | null;
   score?: number;
   clusterColor?: string;
   clusterLabel?: string;
   onClusterClick?: () => void;
 }
 
-type PairCardData = Pick<PairCardProps, 'entryId' | 'videoId' | 'segIndex' | 'en' | 'zh'>;
 type CssVars = CSSProperties & Record<`--${string}`, string>;
 
 function islandPanelStyle(panel: IslandPanelData): CssVars {
@@ -740,35 +643,18 @@ function islandPanelStyle(panel: IslandPanelData): CssVars {
   };
 }
 
-function islandMetrics(panel: IslandPanelData): Array<[string, string]> {
-  return [
-    ['Lines', panel.cluster.size.toLocaleString()],
-    ['Videos', panel.cluster.videoCount.toLocaleString()],
-    ['Share', `${panel.share.toFixed(1)}%`],
-    ['Compact', `${panel.cluster.compactness}%`],
-  ];
-}
-
 function PairCard({
-  entryId,
-  videoId,
-  segIndex,
-  en,
-  zh,
+  entry,
   isFocus,
   onSelect,
   onOpenTranscript,
   onSearchLine,
-  startMs,
-  endMs,
   score,
   clusterColor,
   clusterLabel,
   onClusterClick,
 }: PairCardProps) {
-  const hasTimestamps = startMs != null;
-  const hasScore = score !== undefined;
-  const hasCluster = onClusterClick !== undefined;
+  const { entryId, videoId, segIndex, en, zh, startMs, endMs } = entry;
 
   return (
     <article
@@ -776,9 +662,14 @@ function PairCard({
       role="button"
       tabIndex={0}
       onClick={() => onSelect(entryId)}
-      onKeyDown={(event) => handleSelectKey(event, () => onSelect(entryId))}
+      onKeyDown={(event) => {
+        if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
+          event.preventDefault();
+          onSelect(entryId);
+        }
+      }}
     >
-      {hasCluster && (
+      {onClusterClick && (
         <button
           className="pair-card-cluster"
           style={{ ['--cluster-color' as string]: clusterColor }}
@@ -792,7 +683,7 @@ function PairCard({
         </button>
       )}
 
-      {hasTimestamps && (
+      {startMs != null && (
         <div className="pair-card-timestamps">
           <span>{formatCueTimestamp(startMs)}</span>
           <span className="ts-sep">–</span>
@@ -815,7 +706,7 @@ function PairCard({
           <span className="pair-card-seg">#{segIndex}</span>
         </div>
 
-        {hasScore && <span className="pair-card-score">{score.toFixed(3)}</span>}
+        {score !== undefined && <span className="pair-card-score">{score.toFixed(3)}</span>}
       </div>
 
       <button
@@ -841,18 +732,9 @@ export default function TmAtlasPanel({
   dataErrorText,
   theme,
   statusItems,
-  query,
+  navigation,
   searchReady,
   searching,
-  searchResults,
-  searchNote,
-  errorText,
-  selectedEntryId,
-  transcriptVideoId,
-  transcriptItems,
-  transcriptFocusEntryId,
-  transcriptLoading,
-  transcriptErrorText,
   onQueryChange,
   onSearch,
   onSelectEntry,
@@ -864,6 +746,18 @@ export default function TmAtlasPanel({
   onClear,
   onToggleTheme,
 }: TmAtlasPanelProps) {
+  const {
+    query,
+    searchResults,
+    searchNote,
+    errorText,
+    selectedEntryId,
+    transcriptVideoId,
+    transcriptItems,
+    transcriptFocusEntryId,
+    transcriptLoading,
+    transcriptErrorText,
+  } = navigation;
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
@@ -993,16 +887,6 @@ export default function TmAtlasPanel({
   ]);
   const hoveredPoint = hoverState ? pointById.get(hoverState.entryId)! : null;
   const visualFocus = useMemo<VisualFocus | null>(() => {
-    if (showTranscriptPanel && selectedPoint) {
-      return {
-        key: `entry:${selectedPoint.entryId}`,
-        centerX: selectedPoint.x3d,
-        centerY: selectedPoint.y3d,
-        centerZ: selectedPoint.z3d,
-        zoom: ENTRY_FOCUS_ZOOM,
-      };
-    }
-
     if (selectedIslandPanel) {
       const cluster = selectedIslandPanel.cluster;
       return {
@@ -1029,23 +913,20 @@ export default function TmAtlasPanel({
     }
 
     return null;
-  }, [searchFocus, selectedIslandPanel, selectedPoint, showTranscriptPanel]);
+  }, [searchFocus, selectedIslandPanel, selectedPoint]);
   const cameraZoomLerp = visualFocus?.key.startsWith('entry:') ? CAMERA_ENTRY_ZOOM_LERP : CAMERA_ZOOM_LERP;
-
-  function updateTargetCenter(focus: VisualFocus | null, base: VisualGeometry): void {
-    const target = focus
-      ? { x: focus.centerX, y: focus.centerY, z: focus.centerZ }
-      : { x: base.centerX, y: base.centerY, z: base.centerZ };
-    targetCenterRef.current = target;
-    if (!animatedCenterRef.current) {
-      animatedCenterRef.current = { ...target };
-    }
-  }
 
   function getProjectionGeometry(): VisualGeometry {
     const center = animatedCenterRef.current;
     if (!center) {
-      return geometryWithFocus(visualGeometry, visualFocus);
+      return visualFocus
+        ? {
+            ...visualGeometry,
+            centerX: visualFocus.centerX,
+            centerY: visualFocus.centerY,
+            centerZ: visualFocus.centerZ,
+          }
+        : visualGeometry;
     }
     return { ...visualGeometry, centerX: center.x, centerY: center.y, centerZ: center.z };
   }
@@ -1152,14 +1033,17 @@ export default function TmAtlasPanel({
 
     const targetZoom = visualFocus ? visualFocus.zoom : effectiveInitialView.zoom;
     manualZoomOverrideRef.current = false;
-    updateTargetCenter(visualFocus, visualGeometry);
+    const target = visualFocus
+      ? { x: visualFocus.centerX, y: visualFocus.centerY, z: visualFocus.centerZ }
+      : { x: visualGeometry.centerX, y: visualGeometry.centerY, z: visualGeometry.centerZ };
+    targetCenterRef.current = target;
+    animatedCenterRef.current ??= { ...target };
 
     const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
     let running = true;
-    let settled = false;
 
     function step() {
-      if (!running || settled) return;
+      if (!running) return;
 
       const center = animatedCenterRef.current;
       const target = targetCenterRef.current;
@@ -1181,7 +1065,6 @@ export default function TmAtlasPanel({
         zoomDistance < CAMERA_ZOOM_EPSILON &&
         centerDistance < CAMERA_CENTER_EPSILON
       ) {
-        settled = true;
         manualZoomOverrideRef.current = false;
         current.zoom = shouldZoom ? targetZoom : current.zoom;
         current.offsetX = 0;
@@ -1423,7 +1306,7 @@ export default function TmAtlasPanel({
 
       const hasSearch = searchHitIds.size > 0 && sidebarMode === 'search';
       const hasVideoPath = videoPathEntryIds.size > 0;
-      const pointRadiusScale = getCanvasRadiusScale(size.width, size.height);
+      const pointRadiusScale = clamp(Math.min(size.width, size.height) / 720, 0.5, 1);
 
       for (const item of projectedPoints) {
         if (item.culled) {
@@ -1436,7 +1319,7 @@ export default function TmAtlasPanel({
         const isVideoPathPoint = videoPathEntryIds.has(item.point.entryId);
         const isEmphasizedVideoPathPoint = emphasizedVideoPathIds.has(item.point.entryId);
         const isOutsideSelectedIsland = sidebarMode === 'island' && selectedIslandId !== null && item.point.clusterId !== selectedIslandId;
-        const depthRadiusScale = getDepthRadiusScale(item.depth);
+        const depthRadiusScale = clamp(1 - item.depth * 0.9, 0.55, 1.45);
         const depthAlphaScale = getDepthAlphaScale(item.depth);
         const baseRadius = isSelected
           ? 5.2
@@ -1591,13 +1474,13 @@ export default function TmAtlasPanel({
   function pushHistory(): void {
     historyRef.current.push({
       query,
-      searchResults: [...searchResults],
+      searchResults,
       searchNote,
       errorText,
       selectedEntryId,
       selectedIslandId,
       transcriptVideoId,
-      transcriptItems: [...transcriptItems],
+      transcriptItems,
       transcriptFocusEntryId,
       transcriptLoading,
       transcriptErrorText,
@@ -1645,32 +1528,9 @@ export default function TmAtlasPanel({
     }
   }
 
-  function pairCardProps(entry: PairCardData) {
-    return {
-      entryId: entry.entryId,
-      videoId: entry.videoId,
-      segIndex: entry.segIndex,
-      en: entry.en,
-      zh: entry.zh,
-      isFocus: entry.entryId === selectedEntryId,
-      onSelect: selectEntry,
-      onOpenTranscript: openTranscript,
-      onSearchLine: searchLine,
-    };
-  }
-
   function selectTranscriptCard(entryId: string): void {
     pushHistory();
     onSelectTranscriptEntry(entryId);
-  }
-
-  function setTranscriptItemRef(entryId: string, element: HTMLLIElement | null): void {
-    if (element) {
-      transcriptItemRefs.current.set(entryId, element);
-      return;
-    }
-
-    transcriptItemRefs.current.delete(entryId);
   }
 
   function handlePointerDown(event: React.PointerEvent<HTMLCanvasElement>): void {
@@ -1681,7 +1541,6 @@ export default function TmAtlasPanel({
     const canvas = event.currentTarget;
     canvas.setPointerCapture(event.pointerId);
     dragRef.current = {
-      active: true,
       mode: event.ctrlKey || event.metaKey ? 'pan3d' : 'rotate3d',
       pointerId: event.pointerId,
       lastX: event.clientX,
@@ -1695,7 +1554,7 @@ export default function TmAtlasPanel({
 
   function handlePointerMove(event: React.PointerEvent<HTMLCanvasElement>): void {
     const drag = dragRef.current;
-    if (drag?.active) {
+    if (drag) {
       const dx = event.clientX - drag.lastX;
       const dy = event.clientY - drag.lastY;
       drag.lastX = event.clientX;
@@ -1732,7 +1591,7 @@ export default function TmAtlasPanel({
     const drag = dragRef.current;
     event.currentTarget.classList.remove('is-dragging');
 
-    if (!drag?.active || drag.pointerId !== event.pointerId) {
+    if (!drag || drag.pointerId !== event.pointerId) {
       dragRef.current = null;
       return;
     }
@@ -1753,7 +1612,7 @@ export default function TmAtlasPanel({
   }
 
   function handlePointerLeave(): void {
-    if (!dragRef.current?.active) {
+    if (!dragRef.current) {
       setHoverState(null);
     }
   }
@@ -1821,7 +1680,10 @@ export default function TmAtlasPanel({
           </div>
 
           <button className="atlas-icon-button" type="button" onClick={resetView} title="Reset atlas" aria-label="Reset atlas">
-            <ResetIcon className="atlas-button-icon" />
+            <svg className="atlas-button-icon" aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M5 12a7 7 0 1 0 2.1-5H4" />
+              <path d="M4 3v4h4" />
+            </svg>
             <span>Reset</span>
           </button>
 
@@ -1835,8 +1697,20 @@ export default function TmAtlasPanel({
             title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
           >
             <span className="atlas-theme-toggle-track" aria-hidden="true">
-              <SunIcon className="atlas-theme-icon atlas-theme-icon--sun" />
-              <MoonIcon className="atlas-theme-icon atlas-theme-icon--moon" />
+              <svg className="atlas-theme-icon atlas-theme-icon--sun" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="4" />
+                <path d="M12 2v2" />
+                <path d="M12 20v2" />
+                <path d="m4.9 4.9 1.4 1.4" />
+                <path d="m17.7 17.7 1.4 1.4" />
+                <path d="M2 12h2" />
+                <path d="M20 12h2" />
+                <path d="m4.9 19.1 1.4-1.4" />
+                <path d="m17.7 6.3 1.4-1.4" />
+              </svg>
+              <svg className="atlas-theme-icon atlas-theme-icon--moon" viewBox="0 0 24 24">
+                <path d="M20 14.5A8 8 0 0 1 9.5 4a7 7 0 1 0 10.5 10.5Z" />
+              </svg>
             </span>
           </button>
         </div>
@@ -1859,7 +1733,10 @@ export default function TmAtlasPanel({
         <form className="atlas-search" onSubmit={handleSubmit}>
           {canGoBack && (
             <button className="atlas-back-btn" type="button" onClick={handleBack} aria-label="Go back">
-              <BackArrowIcon />
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 12H5" />
+                <path d="m12 5-7 7 7 7" />
+              </svg>
             </button>
           )}
           <input
@@ -1911,13 +1788,17 @@ export default function TmAtlasPanel({
                     {transcriptItems.map((item) => (
                       <li
                         key={item.entryId}
-                        ref={(element) => setTranscriptItemRef(item.entryId, element)}
+                        ref={(element) => {
+                          if (element) transcriptItemRefs.current.set(item.entryId, element);
+                          else transcriptItemRefs.current.delete(item.entryId);
+                        }}
                       >
                         <PairCard
-                          {...pairCardProps(item)}
+                          entry={item}
+                          isFocus={item.entryId === selectedEntryId}
                           onSelect={selectTranscriptCard}
-                          startMs={item.startMs}
-                          endMs={item.endMs}
+                          onOpenTranscript={openTranscript}
+                          onSearchLine={searchLine}
                         />
                       </li>
                     ))}
@@ -1938,7 +1819,12 @@ export default function TmAtlasPanel({
                 </div>
 
                 <dl className="atlas-island-metrics">
-                  {islandMetrics(selectedIslandPanel).map(([label, value]) => (
+                  {[
+                    ['Lines', selectedIslandPanel.cluster.size.toLocaleString()],
+                    ['Videos', selectedIslandPanel.cluster.videoCount.toLocaleString()],
+                    ['Share', `${selectedIslandPanel.share.toFixed(1)}%`],
+                    ['Compact', `${selectedIslandPanel.cluster.compactness}%`],
+                  ].map(([label, value]) => (
                     <div key={label}>
                       <dt>{label}</dt>
                       <dd>{value}</dd>
@@ -1960,7 +1846,13 @@ export default function TmAtlasPanel({
               <ol className="atlas-island-entry-list">
                 {selectedIslandPanel.entries.map((entry) => (
                   <li key={entry.entryId}>
-                    <PairCard {...pairCardProps(entry)} />
+                    <PairCard
+                      entry={entry}
+                      isFocus={entry.entryId === selectedEntryId}
+                      onSelect={selectEntry}
+                      onOpenTranscript={openTranscript}
+                      onSearchLine={searchLine}
+                    />
                   </li>
                 ))}
               </ol>
@@ -1969,8 +1861,11 @@ export default function TmAtlasPanel({
 
           {sidebarMode === 'entry' && selectedEntry && (
             <PairCard
-              {...pairCardProps(selectedEntry)}
+              entry={selectedEntry}
               isFocus
+              onSelect={selectEntry}
+              onOpenTranscript={openTranscript}
+              onSearchLine={searchLine}
               clusterColor={selectedCluster?.color}
               clusterLabel={selectedCluster?.label}
               onClusterClick={selectedCluster ? () => selectIsland(selectedCluster) : undefined}
@@ -1990,7 +1885,11 @@ export default function TmAtlasPanel({
                   return (
                     <li key={result.entryId}>
                       <PairCard
-                        {...pairCardProps(result)}
+                        entry={result}
+                        isFocus={result.entryId === selectedEntryId}
+                        onSelect={selectEntry}
+                        onOpenTranscript={openTranscript}
+                        onSearchLine={searchLine}
                         score={result.score}
                         clusterColor={cluster?.color}
                         clusterLabel={cluster?.label}
