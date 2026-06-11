@@ -9,6 +9,7 @@ import type {
 import { hexToRgba, blendHexColors, isLightHex } from './colors';
 
 type ThemeMode = 'dark' | 'light';
+export type AtlasViewMode = 'atlas' | 'text';
 
 interface StatusItem {
   label: string;
@@ -23,6 +24,7 @@ interface TmAtlasPanelProps {
   dataLoading: boolean;
   dataErrorText: string | null;
   theme: ThemeMode;
+  viewMode: AtlasViewMode;
   statusItems: StatusItem[];
   navigation: AtlasNavigationState;
   searchReady: boolean;
@@ -37,6 +39,7 @@ interface TmAtlasPanelProps {
   onRestoreNavigationState: (state: AtlasNavigationState) => void;
   onClear: () => void;
   onToggleTheme: () => void;
+  onToggleViewMode: () => void;
 }
 
 export interface AtlasNavigationState {
@@ -731,6 +734,7 @@ export default function TmAtlasPanel({
   dataLoading,
   dataErrorText,
   theme,
+  viewMode,
   statusItems,
   navigation,
   searchReady,
@@ -745,6 +749,7 @@ export default function TmAtlasPanel({
   onRestoreNavigationState,
   onClear,
   onToggleTheme,
+  onToggleViewMode,
 }: TmAtlasPanelProps) {
   const {
     query,
@@ -780,14 +785,15 @@ export default function TmAtlasPanel({
     [data?.initialView],
   );
   const appliedDataViewRef = useRef(false);
+  const isTextMode = viewMode === 'text';
 
   useEffect(() => {
-    if (data?.initialView && !appliedDataViewRef.current) {
+    if (!isTextMode && data?.initialView && !appliedDataViewRef.current) {
       appliedDataViewRef.current = true;
       view3dRef.current = { ...data.initialView };
       requestAtlasRender();
     }
-  }, [data?.initialView]);
+  }, [data?.initialView, isTextMode]);
   const [hoverState, setHoverState] = useState<HoverState | null>(null);
   const [selectedIslandId, setSelectedIslandId] = useState<number | null>(null);
 
@@ -1027,7 +1033,8 @@ export default function TmAtlasPanel({
   }, [selectedEntryId, transcriptFocusEntryId, transcriptItems, transcriptVideoId]);
 
   useEffect(() => {
-    if (!data?.points.length) {
+    if (isTextMode || !data?.points.length) {
+      cancelAnimationFrame(cameraAnimRef.current);
       return;
     }
 
@@ -1094,6 +1101,7 @@ export default function TmAtlasPanel({
     visualFocus?.zoom,
     visualGeometry,
     cameraZoomLerp,
+    isTextMode,
   ]);
 
   function requestAtlasRender(): void {
@@ -1118,7 +1126,10 @@ export default function TmAtlasPanel({
   useEffect(() => {
     renderAtlasRef.current = () => {
       const canvas = canvasRef.current;
-      if (!canvas || !data) {
+      if (isTextMode || !canvas || !data) {
+        if (isTextMode) {
+          projectionCacheRef.current = null;
+        }
         projectedFrameRef.current = EMPTY_PROJECTED_FRAME;
         return;
       }
@@ -1401,6 +1412,7 @@ export default function TmAtlasPanel({
     data,
     hoverState?.entryId,
     islandFlows,
+    isTextMode,
     searchHitIds,
     selectedEntryId,
     selectedIslandId,
@@ -1634,9 +1646,12 @@ export default function TmAtlasPanel({
   }
 
   return (
-    <section className="atlas-shell" aria-label="Translation memory atlas">
+    <section
+      className={classNames('atlas-shell', isTextMode && 'is-text-mode')}
+      aria-label={isTextMode ? 'Translation memory text browser' : 'Translation memory atlas'}
+    >
       <div ref={wrapRef} className="atlas-canvas-wrap">
-        {data ? (
+        {!isTextMode && data ? (
           <canvas
             ref={canvasRef}
             className="atlas-canvas"
@@ -1646,12 +1661,12 @@ export default function TmAtlasPanel({
             onPointerUp={handlePointerUp}
             onWheel={handleWheel}
           />
-        ) : (
+        ) : !isTextMode ? (
           <div className="atlas-loading">
             <strong>{dataErrorText ? 'Atlas unavailable' : dataLoading ? 'Loading UMAP atlas' : 'No atlas data'}</strong>
             <span>{dataErrorText ?? 'Preparing the browser visualization.'}</span>
           </div>
-        )}
+        ) : null}
 
         <div className="atlas-hud">
           <button className="atlas-title" type="button" onClick={clearAtlas}>
@@ -1679,12 +1694,47 @@ export default function TmAtlasPanel({
             ) : null}
           </div>
 
-          <button className="atlas-icon-button" type="button" onClick={resetView} title="Reset atlas" aria-label="Reset atlas">
+          <button
+            className={classNames('atlas-view-toggle', isTextMode && 'is-text')}
+            type="button"
+            onClick={onToggleViewMode}
+            role="switch"
+            aria-checked={isTextMode}
+            aria-label={`Switch to ${isTextMode ? '3D atlas' : 'text-only'} view`}
+            title={`Switch to ${isTextMode ? '3D atlas' : 'text-only'} view`}
+          >
+            <span className="atlas-view-toggle-track" aria-hidden="true">
+              <span className="atlas-view-option">
+                <svg viewBox="0 0 24 24">
+                  <circle cx="6" cy="7" r="1.5" />
+                  <circle cx="17" cy="5" r="1.5" />
+                  <circle cx="14" cy="16" r="1.5" />
+                  <circle cx="5" cy="18" r="1.5" />
+                  <path d="m7.4 6.8 8.1-1.5M6.9 8.2l6.2 6.6m2.2-.2 1.4-8M6.5 17.5l6-1.2" />
+                </svg>
+                <span>Atlas</span>
+              </span>
+              <span className="atlas-view-option">
+                <svg viewBox="0 0 24 24">
+                  <path d="M5 6h14M5 11h14M5 16h9" />
+                </svg>
+                <span>Text</span>
+              </span>
+            </span>
+          </button>
+
+          <button
+            className="atlas-icon-button"
+            type="button"
+            onClick={isTextMode ? clearAtlas : resetView}
+            title={isTextMode ? 'Return to the island browser' : 'Reset atlas'}
+            aria-label={isTextMode ? 'Return to the island browser' : 'Reset atlas'}
+          >
             <svg className="atlas-button-icon" aria-hidden="true" viewBox="0 0 24 24">
               <path d="M5 12a7 7 0 1 0 2.1-5H4" />
               <path d="M4 3v4h4" />
             </svg>
-            <span>Reset</span>
+            <span>{isTextMode ? 'Home' : 'Reset'}</span>
           </button>
 
           <button
@@ -1715,7 +1765,7 @@ export default function TmAtlasPanel({
           </button>
         </div>
 
-        {hoveredPoint ? (
+        {!isTextMode && hoveredPoint ? (
           <div
             className="atlas-tooltip"
             style={{
@@ -1757,6 +1807,30 @@ export default function TmAtlasPanel({
         <div ref={sidebarBodyRef} className="atlas-sidebar-body">
           {errorText ? <p className="atlas-message atlas-message--error">{errorText}</p> : null}
           {searchNote ? <p className="atlas-message">{searchNote}</p> : null}
+
+          {isTextMode && isIdle && showIslandBrowser && data ? (
+            <header className="text-mode-intro">
+              <div>
+                <span>Text-only workspace</span>
+                <h1>Browse the subtitle library</h1>
+                <p>Search by meaning, open a semantic island, or follow every cue in a video transcript.</p>
+              </div>
+              <dl>
+                <div>
+                  <dt>Subtitle pairs</dt>
+                  <dd>{data.pointCount.toLocaleString()}</dd>
+                </div>
+                <div>
+                  <dt>Semantic islands</dt>
+                  <dd>{data.clusters.length.toLocaleString()}</dd>
+                </div>
+                <div>
+                  <dt>Videos</dt>
+                  <dd>{videoCount.toLocaleString()}</dd>
+                </div>
+              </dl>
+            </header>
+          ) : null}
 
           {sidebarMode === 'transcript' && (
             <section className="atlas-section atlas-video-transcript">

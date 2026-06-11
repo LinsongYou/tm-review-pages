@@ -6,7 +6,10 @@ import type {
   WorkerPayload,
   WorkerResponse,
 } from './search/protocol';
-import TmAtlasPanel, { type AtlasNavigationState } from './atlas/TmAtlasPanel';
+import TmAtlasPanel, {
+  type AtlasNavigationState,
+  type AtlasViewMode,
+} from './atlas/TmAtlasPanel';
 import type { SemanticLandscapeData } from './atlas/semantic-landscape';
 
 type PendingRequest = {
@@ -88,6 +91,7 @@ function App() {
   const [modelReady, setModelReady] = useState(false);
   const [searching, setSearching] = useState(false);
   const [theme, setTheme] = useState<Theme>(getInitialTheme);
+  const [viewMode, setViewMode] = useState<AtlasViewMode>('atlas');
   const [navigation, setNavigation] = useState<AtlasNavigationState>(INITIAL_NAVIGATION);
   const [atlasData, setAtlasData] = useState<SemanticLandscapeData | null>(null);
   const [atlasDataErrorText, setAtlasDataErrorText] = useState<string | null>(null);
@@ -456,6 +460,7 @@ function App() {
         dataLoading={!atlasData && !atlasDataErrorText}
         dataErrorText={atlasDataErrorText}
         theme={theme}
+        viewMode={viewMode}
         statusItems={statusItems}
         navigation={navigation}
         searchReady={!!bootStats}
@@ -479,6 +484,9 @@ function App() {
         onClear={clearAtlas}
         onToggleTheme={() => {
           setTheme((currentTheme) => (currentTheme === 'dark' ? 'light' : 'dark'));
+        }}
+        onToggleViewMode={() => {
+          setViewMode((currentMode) => (currentMode === 'atlas' ? 'text' : 'atlas'));
         }}
       />
     </main>
