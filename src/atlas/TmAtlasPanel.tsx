@@ -1841,18 +1841,16 @@ export default function TmAtlasPanel({
 
           {sidebarMode === 'transcript' && (
             <section className="atlas-section atlas-video-transcript">
-              <div className="atlas-video-header">
-                <div className="transcript-heading">
-                  <span>YouTube ID</span>
-                  <h2>{transcriptVideoId}</h2>
-                  <p>
-                    {transcriptLoading
-                      ? 'Loading transcript cues...'
-                      : `${transcriptItems.length.toLocaleString()} cues${
-                          transcriptHasTimestamps ? ' with timestamps' : ''
-                        }`}
-                  </p>
-                </div>
+              <div className="transcript-heading">
+                <span>YouTube ID</span>
+                <h2>{transcriptVideoId}</h2>
+                <p>
+                  {transcriptLoading
+                    ? 'Loading transcript cues...'
+                    : `${transcriptItems.length.toLocaleString()} cues${
+                        transcriptHasTimestamps ? ' with timestamps' : ''
+                      }`}
+                </p>
               </div>
 
               {transcriptLoading ? (
@@ -1885,9 +1883,7 @@ export default function TmAtlasPanel({
               style={islandPanelStyle(selectedIslandPanel)}
             >
               <article className="atlas-island-card">
-                <div className="atlas-island-heading">
-                  <strong>{selectedIslandPanel.cluster.label}</strong>
-                </div>
+                <strong className="atlas-island-title">{selectedIslandPanel.cluster.label}</strong>
 
                 <dl className="atlas-island-metrics">
                   {[

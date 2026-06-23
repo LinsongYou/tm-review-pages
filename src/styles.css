@@ -588,10 +588,6 @@ button:disabled {
   transition: border-color 300ms ease;
 }
 
-.atlas-island-card .atlas-island-heading strong {
-  color: var(--island-text, #020a06);
-}
-
 .atlas-island-card .atlas-island-metrics div {
   border-color: var(--island-overlay-border, rgba(0, 0, 0, 0.1));
   background: var(--island-overlay, rgba(0, 0, 0, 0.06));
@@ -616,15 +612,8 @@ button:disabled {
   background: var(--island-overlay, rgba(0, 0, 0, 0.1));
 }
 
-.atlas-island-heading {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: center;
-}
-
-.atlas-island-heading strong {
-  color: var(--text);
+.atlas-island-title {
+  color: var(--island-text, var(--text));
   font-family: 'Rajdhani', sans-serif;
   font-size: 1.08rem;
   font-weight: 600;
@@ -788,13 +777,6 @@ button:disabled {
 .atlas-video-transcript {
   grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
-}
-
-.atlas-video-header {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
-  align-items: start;
 }
 
 .transcript-heading {
@@ -1006,9 +988,6 @@ button:disabled {
     width: auto;
   }
 
-  .atlas-video-header {
-    display: grid;
-  }
 }
 
 /* ─── Back Button ──────────────────────────────────────────────── */
