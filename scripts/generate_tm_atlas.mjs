@@ -28,7 +28,12 @@ const VISUAL_INITIAL_ZOOM = 1.36;
 const PHRASE_COUNT = 8;
 const COMPACTNESS_CORE_SHARE = 0.8;
 const COMPACTNESS_REFERENCE_PERCENTILE = 0.9;
-const STOPWORDS = new Set(
+
+function wordSet(words) {
+  return new Set(words.trim().split(/\s+/));
+}
+
+const STOPWORDS = wordSet(
   `
   a about actually after again all almost also am an and any anyway are around as at back be
   because been being bit but by can car cars come could day did do does doing done down drive
@@ -40,79 +45,35 @@ const STOPWORDS = new Set(
   through time to too two up us very was way we well went were what when where which while who
   why will with would yeah yes you your
   arent cant couldnt didnt doesnt dont hasnt havent isnt shouldnt wasnt wont wouldnt youre
-  `.trim().split(/\s+/),
+  `,
 );
-const LABEL_WEAK_TERMS = new Set(
+const LABEL_WEAK_TERMS = wordSet(
   `
   actually ahead alright alrighty already amazing awesome bad basically bcy bye cause chop ciao
   com cool course definitely drove driven else enjoy enjoyed euros everything exactly fantastic fine fun
   gonna goodbye good great guess guys happen happy hello hey hopefully hour insane kilometers
   kilos loved makes man maybe might nice nur ok okay people per please power pretty quite really
   reason sad sense stuff sure sweaters thing things totally want welcome wow year years yeah yep
-  `.trim().split(/\s+/),
+  `,
 );
 const LABEL_CONCEPTS = [
-  {
-    label: 'short replies',
-    terms: new Set('yes no okay ok alright alrighty sure exactly probably yep neutral'.split(' ')),
-  },
-  {
-    label: 'confirmations',
-    terms: new Set('yes no okay ok alright alrighty sure exactly probably yep'.split(' ')),
-  },
-  {
-    label: 'signoffs',
-    terms: new Set('bye ciao hello welcome goodbye watching'.split(' ')),
-  },
-  {
-    label: 'thanks',
-    terms: new Set('thanks thank'.split(' ')),
-  },
-  {
-    label: 'courtesy',
-    terms: new Set('please sorry welcome thank thanks'.split(' ')),
-  },
-  {
-    label: 'plans',
-    terms: new Set('gonna next soon coming ahead hopefully hope start started happen happening'.split(' ')),
-  },
-  {
-    label: 'timing',
-    terms: new Set('months season winter summer today tomorrow yesterday year years'.split(' ')),
-  },
-  {
-    label: 'reasons',
-    terms: new Set('because cause reason reasons means why since'.split(' ')),
-  },
-  {
-    label: 'explanations',
-    terms: new Set('because cause reason reasons means why since'.split(' ')),
-  },
-  {
-    label: 'opinions',
-    terms: new Set('opinion honest important true fact overall reality impressions experience verdict dissatisfied'.split(' ')),
-  },
-  {
-    label: 'praise',
-    terms: new Set('nice loved enjoyed cool fantastic amazing happy impressed liked beautiful epic good'.split(' ')),
-  },
-  {
-    label: 'merch',
-    terms: new Set('products product licensed buy socks sweaters merch merchandise shop'.split(' ')),
-  },
-  {
-    label: 'specs',
-    terms: new Set('horsepower kilometers kilos weight rpm temperature euros'.split(' ')),
-  },
-  {
-    label: 'drivers',
-    terms: new Set('driver drivers drove driven taxi'.split(' ')),
-  },
-  {
-    label: 'passengers',
-    terms: new Set('passenger passengers'.split(' ')),
-  },
-];
+  ['short replies', 'yes no okay ok alright alrighty sure exactly probably yep neutral'],
+  ['confirmations', 'yes no okay ok alright alrighty sure exactly probably yep'],
+  ['signoffs', 'bye ciao hello welcome goodbye watching'],
+  ['thanks', 'thanks thank'],
+  ['courtesy', 'please sorry welcome thank thanks'],
+  ['plans', 'gonna next soon coming ahead hopefully hope start started happen happening'],
+  ['timing', 'months season winter summer today tomorrow yesterday year years'],
+  ['reasons', 'because cause reason reasons means why since'],
+  ['explanations', 'because cause reason reasons means why since'],
+  ['opinions', 'opinion honest important true fact overall reality impressions experience verdict dissatisfied'],
+  ['praise', 'nice loved enjoyed cool fantastic amazing happy impressed liked beautiful epic good'],
+  ['merch', 'products product licensed buy socks sweaters merch merchandise shop'],
+  ['specs', 'horsepower kilometers kilos weight rpm temperature euros'],
+  ['drivers', 'driver drivers drove driven taxi'],
+  ['passengers', 'passenger passengers'],
+].map(([label, terms]) => ({ label, terms: wordSet(terms) }));
+const LABEL_CONCEPT_LABELS = new Set(LABEL_CONCEPTS.map((concept) => concept.label));
 
 function seededRandom(seed) {
   let state = seed >>> 0;
@@ -167,19 +128,17 @@ function scaleCoordinates(coordinates) {
   );
 }
 
-function runUmap(vectors, nComponents, seedOffset, supervisedLabels) {
+function runUmap(vectors, assignments) {
   const umap = new UMAP({
-    nComponents,
+    nComponents: 3,
     nNeighbors: UMAP_NEIGHBORS,
     minDist: UMAP_MIN_DIST,
     spread: UMAP_SPREAD,
     nEpochs: UMAP_EPOCHS,
     distanceFn: cosineDistance,
-    random: seededRandom(RANDOM_SEED + seedOffset),
+    random: seededRandom(RANDOM_SEED + 1),
   });
-  if (supervisedLabels) {
-    umap.setSupervisedProjection(supervisedLabels, { targetWeight: UMAP_SUPERVISED_TARGET_WEIGHT });
-  }
+  umap.setSupervisedProjection(assignments, { targetWeight: UMAP_SUPERVISED_TARGET_WEIGHT });
   return umap.fit(vectors);
 }
 
@@ -360,11 +319,15 @@ function sphericalKMeans(vectors, clusterCount, maxIterations, randomSeed) {
   return { assignments, iterations };
 }
 
-function buildClusterCenters(points, assignments, clusterCount) {
-  const memberIndexes = Array.from({ length: clusterCount }, () => []);
+function groupIndexes(assignments, clusterCount) {
+  const groups = Array.from({ length: clusterCount }, () => []);
   for (let index = 0; index < assignments.length; index += 1) {
-    memberIndexes[assignments[index]].push(index);
+    groups[assignments[index]].push(index);
   }
+  return groups;
+}
+
+function buildClusterCenters(points, memberIndexes) {
   return memberIndexes.map((members, clusterId) => {
     if (members.length === 0) {
       throw new Error(`Cluster ${clusterId} has no members.`);
@@ -404,8 +367,8 @@ function compressedClusterDeltas(point, center) {
   return deltas.map((value) => value * scale);
 }
 
-function applyVisualCompression(points, assignments, clusterCount) {
-  const centers = buildClusterCenters(points, assignments, clusterCount);
+function applyVisualCompression(points, assignments, memberIndexes) {
+  const centers = buildClusterCenters(points, memberIndexes);
   const atlasCenter = globalCenter(points);
   const compressedCenters = centers.map((center) =>
     center.map(
@@ -809,7 +772,7 @@ function buildLabelStats(entries, assignments, clusterCount) {
         const outsideCoverage = outsideCount / outsideSize;
         const lift = Math.log2((coverage + 0.001) / (outsideCoverage + 0.001));
         const exclusivity = count / globalCount;
-        const isConcept = LABEL_CONCEPTS.some((concept) => concept.label === phrase);
+        const isConcept = LABEL_CONCEPT_LABELS.has(phrase);
         const score =
           Math.log1p(count) *
           Math.max(0, lift) *
@@ -862,11 +825,10 @@ function labelFromStats(stats, fallbackPhrases) {
 }
 
 function labelUsesConcept(label) {
-  const conceptLabels = new Set(LABEL_CONCEPTS.map((concept) => concept.label));
   return label
     .split('/')
     .map((phrase) => phrase.trim().toLowerCase())
-    .some((phrase) => conceptLabels.has(phrase));
+    .some((phrase) => LABEL_CONCEPT_LABELS.has(phrase));
 }
 
 function descriptionFromPhrases(phrases, label, size, videoCount) {
@@ -895,15 +857,10 @@ function compactRadius(members, scaled3d, center) {
   return coreDistance / coreCount;
 }
 
-function buildClusters(entries, assignments, scaled3d, centers, islandColors) {
+function buildClusters(entries, assignments, scaled3d, centers, islandColors, memberIndexes) {
   const clusterCount = centers.length;
   const phraseStats = buildPhraseStats(entries, assignments, clusterCount);
   const labelStats = buildLabelStats(entries, assignments, clusterCount);
-  const memberIndexes = Array.from({ length: clusterCount }, () => []);
-
-  for (let index = 0; index < assignments.length; index += 1) {
-    memberIndexes[assignments[index]].push(index);
-  }
 
   return memberIndexes.map((members, clusterId) => {
     const topPhrases = phraseStats[clusterId].slice(0, PHRASE_COUNT).map((item) => item.phrase);
@@ -999,12 +956,12 @@ async function main() {
   console.log(`  converged in ${iterations} iteration${iterations === 1 ? '' : 's'}.`);
 
   console.log('Running supervised UMAP 3D.');
-  const coords3d = runUmap(vectors, 3, 1, assignments);
   const clusterCount = SEMANTIC_CLUSTER_COUNT;
-  const scaled3d = applyVisualCompression(scaleCoordinates(coords3d), assignments, clusterCount);
-  const centers = buildClusterCenters(scaled3d, assignments, clusterCount);
+  const memberIndexes = groupIndexes(assignments, clusterCount);
+  const scaled3d = applyVisualCompression(scaleCoordinates(runUmap(vectors, assignments)), assignments, memberIndexes);
+  const centers = buildClusterCenters(scaled3d, memberIndexes);
   const islandColors = assignIslandColors(centers);
-  const clusters = buildClusters(entries, assignments, scaled3d, centers, islandColors);
+  const clusters = buildClusters(entries, assignments, scaled3d, centers, islandColors, memberIndexes);
   const compactRadii = clusters
     .map((cluster) => cluster.rawCompactRadius)
     .sort((left, right) => left - right);
