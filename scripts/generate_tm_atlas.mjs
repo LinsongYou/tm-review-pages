@@ -44,51 +44,73 @@ const STOPWORDS = new Set(
 );
 const LABEL_WEAK_TERMS = new Set(
   `
-  actually ahead alright alrighty already amazing awesome bad basically bcy bye ciao com cool
-  definitely else enjoy enjoyed everything fantastic fine fun gonna goodbye good great guess
-  happy hello hey hopefully hour insane kilometers kilos loved man maybe nice nur ok okay people
-  pretty quite really reason sad sure sweaters thing things totally want wow year years yeah yep
+  actually ahead alright alrighty already amazing awesome bad basically bcy bye cause chop ciao
+  com cool course definitely drove driven else enjoy enjoyed euros everything exactly fantastic fine fun
+  gonna goodbye good great guess guys happen happy hello hey hopefully hour insane kilometers
+  kilos loved makes man maybe might nice nur ok okay people per please power pretty quite really
+  reason sad sense stuff sure sweaters thing things totally want welcome wow year years yeah yep
   `.trim().split(/\s+/),
 );
-const LABEL_CATEGORY_RULES = [
+const LABEL_CONCEPTS = [
   {
-    label: 'Driving Impressions',
-    terms: new Set(
-      `
-      abs aero brake brakes braking camber chassis corner curb downshift engine exhaust fast
-      faster gear gearbox grip handling horsepower lap laps pads pedal power steering suspension
-      mod mods speed tire tires torque traction track turbo tyres understeer wheel wing
-      `.trim().split(/\s+/),
-    ),
+    label: 'short replies',
+    terms: new Set('yes no okay ok alright alrighty sure exactly probably yep neutral'.split(' ')),
   },
   {
-    label: 'Video Meta',
-    terms: new Set(
-      `
-      bcy camera channel channels check code com comment comments description episode filmed
-      link livestream merch patreon published subscribe sweater sweaters thumbnail video videos
-      vlog watching website
-      `.trim().split(/\s+/),
-    ),
+    label: 'confirmations',
+    terms: new Set('yes no okay ok alright alrighty sure exactly probably yep'.split(' ')),
   },
   {
-    label: 'Updates',
-    terms: new Set(
-      `
-      ahead already arrived coming december event finished hopefully later may monday morning
-      new next organized organizing preparation ready soon summer today tomorrow update updates
-      waiting winter year years yesterday
-      `.trim().split(/\s+/),
-    ),
+    label: 'signoffs',
+    terms: new Set('bye ciao hello welcome goodbye watching'.split(' ')),
   },
   {
-    label: 'Reactions',
-    terms: new Set(
-      `
-      afraid alright alrighty awesome beautiful crazy difficult enjoyed excited fantastic funny
-      happy insane love loved sad scary sorry thank thanks unfortunate wow
-      `.trim().split(/\s+/),
-    ),
+    label: 'thanks',
+    terms: new Set('thanks thank'.split(' ')),
+  },
+  {
+    label: 'courtesy',
+    terms: new Set('please sorry welcome thank thanks'.split(' ')),
+  },
+  {
+    label: 'plans',
+    terms: new Set('gonna next soon coming ahead hopefully hope start started happen happening'.split(' ')),
+  },
+  {
+    label: 'timing',
+    terms: new Set('months season winter summer today tomorrow yesterday year years'.split(' ')),
+  },
+  {
+    label: 'reasons',
+    terms: new Set('because cause reason reasons means why since'.split(' ')),
+  },
+  {
+    label: 'explanations',
+    terms: new Set('because cause reason reasons means why since'.split(' ')),
+  },
+  {
+    label: 'opinions',
+    terms: new Set('opinion honest important true fact overall reality impressions experience verdict dissatisfied'.split(' ')),
+  },
+  {
+    label: 'praise',
+    terms: new Set('nice loved enjoyed cool fantastic amazing happy impressed liked beautiful epic good'.split(' ')),
+  },
+  {
+    label: 'merch',
+    terms: new Set('products product licensed buy socks sweaters merch merchandise shop'.split(' ')),
+  },
+  {
+    label: 'specs',
+    terms: new Set('horsepower kilometers kilos weight rpm temperature euros'.split(' ')),
+  },
+  {
+    label: 'drivers',
+    terms: new Set('driver drivers drove driven taxi'.split(' ')),
+  },
+  {
+    label: 'passengers',
+    terms: new Set('passenger passengers'.split(' ')),
   },
 ];
 
@@ -640,7 +662,7 @@ function pointColorFromIsland(coordinate, islandColor) {
   return hslToHex(hue, saturation, lightness);
 }
 
-function tokenize(text) {
+function rawTokens(text) {
   return text
     .normalize('NFC')
     .toLowerCase()
@@ -656,7 +678,12 @@ function tokenize(text) {
       }
       return normalized;
     })
-    .filter((token) => token.length > 2 && !token.includes("'") && !STOPWORDS.has(token) && !/^\p{N}+$/u.test(token)) ?? [];
+    .filter(Boolean) ?? [];
+}
+
+function tokenize(text) {
+  return rawTokens(text)
+    .filter((token) => token.length > 2 && !token.includes("'") && !STOPWORDS.has(token) && !/^\p{N}+$/u.test(token));
 }
 
 function phrasesForText(text) {
@@ -733,61 +760,125 @@ function phraseTerms(phrase) {
 }
 
 function isWeakLabelPhrase(phrase) {
-  return phraseTerms(phrase).some((term) => LABEL_WEAK_TERMS.has(term));
+  const terms = phraseTerms(phrase);
+  return (
+    terms.every((term) => LABEL_WEAK_TERMS.has(term)) ||
+    terms.some((term) => term === 'bcy' || term === 'com' || term === 'nur') ||
+    /\b(\w+)\b \1\b/.test(phrase)
+  );
 }
 
-function selectDistinctPhraseStats(stats, limit) {
+function conceptsForText(text) {
+  const tokens = new Set(rawTokens(text));
+  return LABEL_CONCEPTS
+    .filter((concept) => [...concept.terms].some((term) => tokens.has(term)))
+    .map((concept) => concept.label);
+}
+
+function labelCandidatesForText(text) {
+  return [...phrasesForText(text).filter((phrase) => !isWeakLabelPhrase(phrase)), ...conceptsForText(text)];
+}
+
+function buildLabelStats(entries, assignments, clusterCount) {
+  const globalEntryCounts = new Map();
+  const clusterEntryCounts = Array.from({ length: clusterCount }, () => new Map());
+  const clusterSizes = new Array(clusterCount).fill(0);
+
+  for (let index = 0; index < entries.length; index += 1) {
+    const clusterId = assignments[index];
+    clusterSizes[clusterId] += 1;
+    const seen = new Set(labelCandidatesForText(entries[index].en));
+
+    for (const phrase of seen) {
+      globalEntryCounts.set(phrase, (globalEntryCounts.get(phrase) ?? 0) + 1);
+      const counts = clusterEntryCounts[clusterId];
+      counts.set(phrase, (counts.get(phrase) ?? 0) + 1);
+    }
+  }
+
+  return clusterEntryCounts.map((counts, clusterId) => {
+    const clusterSize = clusterSizes[clusterId];
+    const outsideSize = entries.length - clusterSize;
+    const minEntryCount = Math.max(4, Math.ceil(clusterSize * 0.004));
+
+    return [...counts.entries()]
+      .map(([phrase, count]) => {
+        const globalCount = globalEntryCounts.get(phrase) ?? count;
+        const outsideCount = globalCount - count;
+        const coverage = count / clusterSize;
+        const outsideCoverage = outsideCount / outsideSize;
+        const lift = Math.log2((coverage + 0.001) / (outsideCoverage + 0.001));
+        const exclusivity = count / globalCount;
+        const isConcept = LABEL_CONCEPTS.some((concept) => concept.label === phrase);
+        const score =
+          Math.log1p(count) *
+          Math.max(0, lift) *
+          Math.pow(coverage, 0.62) *
+          (0.4 + 0.6 * exclusivity) *
+          (isConcept ? 0.85 : 1);
+        return { phrase, count, score, lift };
+      })
+      .filter((item) => item.count >= minEntryCount && item.lift > 0.45)
+      .sort((left, right) => right.score - left.score || right.count - left.count || left.phrase.localeCompare(right.phrase));
+  });
+}
+
+function canonicalLabelRoot(phrase) {
+  return phrase.replace(/s$/, '');
+}
+
+function selectDistinctLabelStats(stats, limit) {
   const selected = [];
   for (const item of stats) {
-    if (selected.some((selectedItem) => selectedItem.phrase.includes(item.phrase) || item.phrase.includes(selectedItem.phrase))) {
-      continue;
-    }
-    selected.push(item);
-    if (selected.length === limit) {
-      break;
+    const terms = new Set(phraseTerms(item.phrase).map(canonicalLabelRoot));
+    const overlapsExisting = selected.some((selectedItem) => {
+      const selectedTerms = new Set(phraseTerms(selectedItem.phrase).map(canonicalLabelRoot));
+      let overlap = 0;
+      for (const term of terms) {
+        if (selectedTerms.has(term)) {
+          overlap += 1;
+        }
+      }
+      return overlap >= Math.min(terms.size, selectedTerms.size);
+    });
+
+    if (!overlapsExisting) {
+      selected.push(item);
+      if (selected.length === limit) {
+        break;
+      }
     }
   }
   return selected;
 }
 
-function fallbackCategoryLabel(stats) {
-  const scores = LABEL_CATEGORY_RULES.map((rule) => ({ label: rule.label, score: 0 }));
-  for (const item of stats) {
-    for (const term of phraseTerms(item.phrase)) {
-      for (let index = 0; index < LABEL_CATEGORY_RULES.length; index += 1) {
-        if (LABEL_CATEGORY_RULES[index].terms.has(term)) {
-          scores[index].score += item.score;
-        }
-      }
-    }
+function labelFromStats(stats, fallbackPhrases) {
+  const selected = selectDistinctLabelStats(stats, 2);
+  if (selected.length > 0) {
+    return selected.map((item) => titleCasePhrase(item.phrase)).join(' / ');
   }
-
-  const best = scores.sort((left, right) => right.score - left.score || left.label.localeCompare(right.label))[0];
-  return best.score > 0 ? best.label : 'General Dialogue';
+  const fallback = selectDistinctPhrases(fallbackPhrases.filter((phrase) => !isWeakLabelPhrase(phrase)), 2);
+  return fallback.length ? fallback.map(titleCasePhrase).join(' / ') : 'Mixed Lines';
 }
 
-function labelFromPhraseStats(stats) {
-  const candidates = stats.filter((item) => !isWeakLabelPhrase(item.phrase));
-  const selected = selectDistinctPhraseStats(candidates, 2);
-  const strongestScore = stats[0]?.score ?? 0;
-  const selectedScore = selected[0]?.score ?? 0;
-  const weakTopCount = stats.slice(0, 4).filter((item) => isWeakLabelPhrase(item.phrase)).length;
-  const phraseLabelIsWeak =
-    selected.length === 0 ||
-    selectedScore < strongestScore * 0.3 ||
-    weakTopCount >= 3 ||
-    (weakTopCount >= 2 && selectedScore < strongestScore * 0.8);
-
-  if (phraseLabelIsWeak) {
-    return fallbackCategoryLabel(stats);
-  }
-
-  return selected.map((item) => titleCasePhrase(item.phrase)).join(' / ');
+function labelUsesConcept(label) {
+  const conceptLabels = new Set(LABEL_CONCEPTS.map((concept) => concept.label));
+  return label
+    .split('/')
+    .map((phrase) => phrase.trim().toLowerCase())
+    .some((phrase) => conceptLabels.has(phrase));
 }
 
-function descriptionFromPhrases(phrases, size, videoCount) {
+function descriptionFromPhrases(phrases, label, size, videoCount) {
   const strongPhrases = phrases.filter((phrase) => !isWeakLabelPhrase(phrase));
-  const themeWords = selectDistinctPhrases(strongPhrases.length ? strongPhrases : phrases, 5).map(titleCasePhrase);
+  const labelPhrases = label
+    .split('/')
+    .map((phrase) => phrase.trim())
+    .filter(Boolean);
+  const phraseWords = strongPhrases.length >= 2 && !labelUsesConcept(label)
+    ? selectDistinctPhrases(strongPhrases, 5).map(titleCasePhrase)
+    : [];
+  const themeWords = phraseWords.length >= 2 ? phraseWords : labelPhrases;
   const scope = `${size.toLocaleString('en-US')} lines from ${videoCount.toLocaleString('en-US')} videos`;
   return themeWords.length ? `${themeWords.join(', ')}. ${scope}.` : scope;
 }
@@ -807,6 +898,7 @@ function compactRadius(members, scaled3d, center) {
 function buildClusters(entries, assignments, scaled3d, centers, islandColors) {
   const clusterCount = centers.length;
   const phraseStats = buildPhraseStats(entries, assignments, clusterCount);
+  const labelStats = buildLabelStats(entries, assignments, clusterCount);
   const memberIndexes = Array.from({ length: clusterCount }, () => []);
 
   for (let index = 0; index < assignments.length; index += 1) {
@@ -815,6 +907,7 @@ function buildClusters(entries, assignments, scaled3d, centers, islandColors) {
 
   return memberIndexes.map((members, clusterId) => {
     const topPhrases = phraseStats[clusterId].slice(0, PHRASE_COUNT).map((item) => item.phrase);
+    const label = labelFromStats(labelStats[clusterId], topPhrases);
     const videoIds = new Set(members.map((index) => entries[index].videoId));
     const center3d = [
       Math.round(members.reduce((total, index) => total + scaled3d[index][0], 0) / members.length),
@@ -835,8 +928,8 @@ function buildClusters(entries, assignments, scaled3d, centers, islandColors) {
 
     return {
       id: clusterId,
-      label: labelFromPhraseStats(phraseStats[clusterId]),
-      description: descriptionFromPhrases(topPhrases, members.length, videoIds.size),
+      label,
+      description: descriptionFromPhrases(topPhrases, label, members.length, videoIds.size),
       color: islandColors[clusterId].hex,
       size: members.length,
       videoCount: videoIds.size,
