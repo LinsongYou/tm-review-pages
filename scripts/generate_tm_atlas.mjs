@@ -16,11 +16,10 @@ const UMAP_NEIGHBORS = 22;
 const UMAP_MIN_DIST = 0.035;
 const UMAP_SPREAD = 1.2;
 const UMAP_EPOCHS = 220;
-const ISLAND_NEIGHBOR_COUNT = 8;
-const ISLAND_EDGE_STRENGTH = 0.7;
-const ISLAND_GRID_CELL_SIZE = 44;
-const ISLAND_CANDIDATE_COUNT = 160;
-const ISLAND_MIN_SEED_SIZE = 80;
+const UMAP_SUPERVISED_TARGET_WEIGHT = 0.25;
+const SEMANTIC_CLUSTER_COUNT = 15;
+const SEMANTIC_KMEANS_MAX_ITERATIONS = 30;
+const SEMANTIC_KMEANS_SEED = RANDOM_SEED + 97;
 const PHRASE_COUNT = 8;
 const COMPACTNESS_CORE_SHARE = 0.8;
 const COMPACTNESS_REFERENCE_PERCENTILE = 0.9;
@@ -38,6 +37,55 @@ const STOPWORDS = new Set(
   arent cant couldnt didnt doesnt dont hasnt havent isnt shouldnt wasnt wont wouldnt youre
   `.trim().split(/\s+/),
 );
+const LABEL_WEAK_TERMS = new Set(
+  `
+  actually ahead alright alrighty already amazing awesome bad basically bcy bye ciao com cool
+  definitely else enjoy enjoyed everything fantastic fine fun gonna goodbye good great guess
+  happy hello hey hopefully hour insane kilometers kilos loved man maybe nice nur ok okay people
+  pretty quite really reason sad sure sweaters thing things totally want wow year years yeah yep
+  `.trim().split(/\s+/),
+);
+const LABEL_CATEGORY_RULES = [
+  {
+    label: 'Driving Impressions',
+    terms: new Set(
+      `
+      abs aero brake brakes braking camber chassis corner curb downshift engine exhaust fast
+      faster gear gearbox grip handling horsepower lap laps pads pedal power steering suspension
+      mod mods speed tire tires torque traction track turbo tyres understeer wheel wing
+      `.trim().split(/\s+/),
+    ),
+  },
+  {
+    label: 'Video Meta',
+    terms: new Set(
+      `
+      bcy camera channel channels check code com comment comments description episode filmed
+      link livestream merch patreon published subscribe sweater sweaters thumbnail video videos
+      vlog watching website
+      `.trim().split(/\s+/),
+    ),
+  },
+  {
+    label: 'Updates',
+    terms: new Set(
+      `
+      ahead already arrived coming december event finished hopefully later may monday morning
+      new next organized organizing preparation ready soon summer today tomorrow update updates
+      waiting winter year years yesterday
+      `.trim().split(/\s+/),
+    ),
+  },
+  {
+    label: 'Reactions',
+    terms: new Set(
+      `
+      afraid alright alrighty awesome beautiful crazy difficult enjoyed excited fantastic funny
+      happy insane love loved sad scary sorry thank thanks unfortunate wow
+      `.trim().split(/\s+/),
+    ),
+  },
+];
 
 function seededRandom(seed) {
   let state = seed >>> 0;
@@ -92,7 +140,7 @@ function scaleCoordinates(coordinates) {
   );
 }
 
-function runUmap(vectors, nComponents, seedOffset) {
+function runUmap(vectors, nComponents, seedOffset, supervisedLabels) {
   const umap = new UMAP({
     nComponents,
     nNeighbors: UMAP_NEIGHBORS,
@@ -102,6 +150,9 @@ function runUmap(vectors, nComponents, seedOffset) {
     distanceFn: cosineDistance,
     random: seededRandom(RANDOM_SEED + seedOffset),
   });
+  if (supervisedLabels) {
+    umap.setSupervisedProjection(supervisedLabels, { targetWeight: UMAP_SUPERVISED_TARGET_WEIGHT });
+  }
   return umap.fit(vectors);
 }
 
@@ -112,97 +163,6 @@ function squaredDistance(left, right) {
     total += delta * delta;
   }
   return total;
-}
-
-function cellKey(x, y, z) {
-  return `${x},${y},${z}`;
-}
-
-function buildCoordinateGrid(points) {
-  const buckets = new Map();
-  const pointCells = [];
-
-  for (let index = 0; index < points.length; index += 1) {
-    const point = points[index];
-    const cell = point.map((value) => Math.floor(value / ISLAND_GRID_CELL_SIZE));
-    const key = cellKey(cell[0], cell[1], cell[2]);
-    const bucket = buckets.get(key) ?? [];
-    bucket.push(index);
-    buckets.set(key, bucket);
-    pointCells.push(cell);
-  }
-
-  return { buckets, pointCells };
-}
-
-function nearbyCandidateIndexes(grid, cell) {
-  const candidates = [];
-  const maxShell = Math.ceil(1000 / ISLAND_GRID_CELL_SIZE) + 1;
-
-  for (let shell = 0; candidates.length < ISLAND_CANDIDATE_COUNT && shell <= maxShell; shell += 1) {
-    for (let dx = -shell; dx <= shell; dx += 1) {
-      for (let dy = -shell; dy <= shell; dy += 1) {
-        for (let dz = -shell; dz <= shell; dz += 1) {
-          if (Math.max(Math.abs(dx), Math.abs(dy), Math.abs(dz)) !== shell) {
-            continue;
-          }
-
-          const bucket = grid.buckets.get(cellKey(cell[0] + dx, cell[1] + dy, cell[2] + dz));
-          if (bucket) {
-            candidates.push(...bucket);
-          }
-        }
-      }
-    }
-  }
-
-  return candidates;
-}
-
-function buildNearestNeighbors(points) {
-  const grid = buildCoordinateGrid(points);
-  const neighbors = [];
-  const neighborDistances = [];
-
-  for (let index = 0; index < points.length; index += 1) {
-    const point = points[index];
-    const candidates = nearbyCandidateIndexes(grid, grid.pointCells[index]);
-    const nearest = candidates
-      .filter((candidateIndex) => candidateIndex !== index)
-      .map((candidateIndex) => ({
-        index: candidateIndex,
-        distance: squaredDistance(point, points[candidateIndex]),
-      }))
-      .sort((left, right) => left.distance - right.distance || left.index - right.index)
-      .slice(0, ISLAND_NEIGHBOR_COUNT);
-
-    neighbors.push(nearest.map((candidate) => candidate.index));
-    neighborDistances.push(nearest.at(-1)?.distance ?? Number.POSITIVE_INFINITY);
-  }
-
-  return { neighbors, neighborDistances };
-}
-
-function createDisjointSet(size) {
-  const parents = Array.from({ length: size }, (_, index) => index);
-
-  function find(index) {
-    while (parents[index] !== index) {
-      parents[index] = parents[parents[index]];
-      index = parents[index];
-    }
-    return index;
-  }
-
-  function union(left, right) {
-    const leftRoot = find(left);
-    const rightRoot = find(right);
-    if (leftRoot !== rightRoot) {
-      parents[rightRoot] = leftRoot;
-    }
-  }
-
-  return { find, union };
 }
 
 function centerOfMembers(points, members) {
@@ -216,98 +176,174 @@ function centerOfMembers(points, members) {
   return center.map((value) => value / members.length);
 }
 
-function componentSort(left, right) {
-  return (
-    right.members.length - left.members.length ||
-    left.center[0] - right.center[0] ||
-    left.center[1] - right.center[1] ||
-    left.center[2] - right.center[2]
-  );
+function dotProduct(left, right) {
+  let total = 0;
+  for (let index = 0; index < left.length; index += 1) {
+    total += left[index] * right[index];
+  }
+  return total;
 }
 
-function mergeComponentIntoIsland(island, component) {
-  const islandSize = island.members.length;
-  const componentSize = component.members.length;
-  const nextSize = islandSize + componentSize;
-
-  island.center = island.center.map(
-    (value, dimension) => (value * islandSize + component.center[dimension] * componentSize) / nextSize,
-  );
-  island.members.push(...component.members);
+function chooseWeightedIndex(weights, totalWeight, random) {
+  let threshold = random() * totalWeight;
+  for (let index = 0; index < weights.length; index += 1) {
+    threshold -= weights[index];
+    if (threshold <= 0) {
+      return index;
+    }
+  }
+  return weights.length - 1;
 }
 
-function clusterMutualKnnIslands(points) {
-  const { neighbors, neighborDistances } = buildNearestNeighbors(points);
-  const neighborSets = neighbors.map((indexes) => new Set(indexes));
-  const disjointSet = createDisjointSet(points.length);
+function initializeKMeansPlusPlus(vectors, clusterCount, randomSeed) {
+  const random = seededRandom(randomSeed);
+  const firstIndex = Math.floor(random() * vectors.length);
+  const centroidIndexes = [firstIndex];
+  const minDistances = vectors.map((vector) => cosineDistance(vector, vectors[firstIndex]));
 
-  for (let index = 0; index < points.length; index += 1) {
-    for (const neighborIndex of neighbors[index]) {
-      if (neighborIndex <= index || !neighborSets[neighborIndex].has(index)) {
+  while (centroidIndexes.length < clusterCount) {
+    const totalDistance = minDistances.reduce((total, distance) => total + distance, 0);
+    let nextIndex = -1;
+
+    if (totalDistance > 0) {
+      nextIndex = chooseWeightedIndex(minDistances, totalDistance, random);
+    } else {
+      nextIndex = vectors.findIndex((_, index) => !centroidIndexes.includes(index));
+    }
+
+    if (nextIndex < 0 || centroidIndexes.includes(nextIndex)) {
+      nextIndex = vectors.findIndex((_, index) => !centroidIndexes.includes(index));
+    }
+    centroidIndexes.push(nextIndex);
+
+    for (let index = 0; index < vectors.length; index += 1) {
+      minDistances[index] = Math.min(minDistances[index], cosineDistance(vectors[index], vectors[nextIndex]));
+    }
+  }
+
+  return centroidIndexes.map((index) => vectors[index].slice());
+}
+
+function assignToNearestCentroids(vectors, centroids, assignments) {
+  let changed = 0;
+  for (let index = 0; index < vectors.length; index += 1) {
+    const vector = vectors[index];
+    let bestCluster = 0;
+    let bestSimilarity = Number.NEGATIVE_INFINITY;
+
+    for (let clusterId = 0; clusterId < centroids.length; clusterId += 1) {
+      const similarity = dotProduct(vector, centroids[clusterId]);
+      if (similarity > bestSimilarity) {
+        bestSimilarity = similarity;
+        bestCluster = clusterId;
+      }
+    }
+
+    if (assignments[index] !== bestCluster) {
+      assignments[index] = bestCluster;
+      changed += 1;
+    }
+  }
+  return changed;
+}
+
+function countAssignments(assignments, clusterCount) {
+  const counts = new Array(clusterCount).fill(0);
+  for (const clusterId of assignments) {
+    counts[clusterId] += 1;
+  }
+  return counts;
+}
+
+function reseedEmptyClusters(vectors, centroids, assignments) {
+  const counts = countAssignments(assignments, centroids.length);
+  let changed = 0;
+
+  for (let emptyCluster = 0; emptyCluster < counts.length; emptyCluster += 1) {
+    if (counts[emptyCluster] > 0) {
+      continue;
+    }
+
+    let farthestIndex = -1;
+    let farthestDistance = Number.NEGATIVE_INFINITY;
+    for (let index = 0; index < vectors.length; index += 1) {
+      const assignedCluster = assignments[index];
+      if (counts[assignedCluster] <= 1) {
         continue;
       }
 
-      const distance = squaredDistance(points[index], points[neighborIndex]);
-      const localLimit = Math.min(neighborDistances[index], neighborDistances[neighborIndex]) * ISLAND_EDGE_STRENGTH;
-      if (distance <= localLimit) {
-        disjointSet.union(index, neighborIndex);
+      const distance = cosineDistance(vectors[index], centroids[assignedCluster]);
+      if (distance > farthestDistance || (distance === farthestDistance && index < farthestIndex)) {
+        farthestDistance = distance;
+        farthestIndex = index;
       }
     }
-  }
 
-  const componentMap = new Map();
-  for (let index = 0; index < points.length; index += 1) {
-    const root = disjointSet.find(index);
-    const members = componentMap.get(root) ?? [];
-    members.push(index);
-    componentMap.set(root, members);
-  }
-
-  const components = [...componentMap.values()].map((members) => ({
-    members,
-    center: centerOfMembers(points, members),
-  }));
-  const islands = components
-    .filter((component) => component.members.length >= ISLAND_MIN_SEED_SIZE)
-    .sort(componentSort)
-    .map((component) => ({
-      members: [...component.members],
-      center: component.center.slice(),
-    }));
-  const fragments = components
-    .filter((component) => component.members.length < ISLAND_MIN_SEED_SIZE)
-    .sort(componentSort);
-
-  for (const fragment of fragments) {
-    let bestIsland = islands[0];
-    let bestDistance = Number.POSITIVE_INFINITY;
-    for (const island of islands) {
-      const distance = squaredDistance(fragment.center, island.center);
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        bestIsland = island;
-      }
+    if (farthestIndex < 0) {
+      throw new Error(`Unable to re-seed empty semantic cluster ${emptyCluster}.`);
     }
-    mergeComponentIntoIsland(bestIsland, fragment);
+
+    counts[assignments[farthestIndex]] -= 1;
+    assignments[farthestIndex] = emptyCluster;
+    counts[emptyCluster] = 1;
+    changed += 1;
   }
 
-  islands.sort((left, right) =>
-    left.center[0] - right.center[0] ||
-    left.center[1] - right.center[1] ||
-    left.center[2] - right.center[2],
-  );
+  return changed;
+}
 
-  const assignments = new Array(points.length);
-  for (let islandId = 0; islandId < islands.length; islandId += 1) {
-    for (const member of islands[islandId].members) {
-      assignments[member] = islandId;
+function updateSphericalCentroids(vectors, assignments, clusterCount) {
+  const dimensions = vectors[0].length;
+  const sums = Array.from({ length: clusterCount }, () => new Array(dimensions).fill(0));
+  const counts = new Array(clusterCount).fill(0);
+
+  for (let index = 0; index < vectors.length; index += 1) {
+    const clusterId = assignments[index];
+    const vector = vectors[index];
+    counts[clusterId] += 1;
+    for (let dimension = 0; dimension < dimensions; dimension += 1) {
+      sums[clusterId][dimension] += vector[dimension];
     }
   }
 
-  return {
-    assignments,
-    centers: islands.map((island) => island.center),
-  };
+  return sums.map((sum, clusterId) => {
+    if (counts[clusterId] === 0) {
+      throw new Error(`Semantic cluster ${clusterId} has no members after re-seeding.`);
+    }
+    return normalizeVector(sum);
+  });
+}
+
+function sphericalKMeans(vectors, clusterCount, maxIterations, randomSeed) {
+  let centroids = initializeKMeansPlusPlus(vectors, clusterCount, randomSeed);
+  const assignments = new Array(vectors.length).fill(-1);
+  let iterations = 0;
+
+  for (let iteration = 0; iteration < maxIterations; iteration += 1) {
+    const assignedChanges = assignToNearestCentroids(vectors, centroids, assignments);
+    const reseededChanges = reseedEmptyClusters(vectors, centroids, assignments);
+    centroids = updateSphericalCentroids(vectors, assignments, clusterCount);
+    iterations = iteration + 1;
+
+    if (assignedChanges + reseededChanges === 0) {
+      break;
+    }
+  }
+
+  return { assignments, iterations };
+}
+
+function buildClusterCenters(points, assignments, clusterCount) {
+  const memberIndexes = Array.from({ length: clusterCount }, () => []);
+  for (let index = 0; index < assignments.length; index += 1) {
+    memberIndexes[assignments[index]].push(index);
+  }
+  return memberIndexes.map((members, clusterId) => {
+    if (members.length === 0) {
+      throw new Error(`Cluster ${clusterId} has no members.`);
+    }
+    return centerOfMembers(points, members);
+  });
 }
 
 function toHexChannel(value) {
@@ -578,30 +614,35 @@ function phrasesForText(text) {
 }
 
 function buildPhraseStats(entries, assignments, clusterCount) {
-  const globalEntryCounts = new Map();
   const clusterCounts = Array.from({ length: clusterCount }, () => new Map());
+  const clusterTotals = new Array(clusterCount).fill(0);
 
   for (let index = 0; index < entries.length; index += 1) {
     const phrases = phrasesForText(entries[index].en);
-    const seen = new Set(phrases);
-    for (const phrase of seen) {
-      globalEntryCounts.set(phrase, (globalEntryCounts.get(phrase) ?? 0) + 1);
-    }
     for (const phrase of phrases) {
       const counts = clusterCounts[assignments[index]];
       counts.set(phrase, (counts.get(phrase) ?? 0) + 1);
+      clusterTotals[assignments[index]] += 1;
     }
   }
 
-  return clusterCounts.map((counts) =>
+  const phraseClusterCounts = new Map();
+  for (const counts of clusterCounts) {
+    for (const phrase of counts.keys()) {
+      phraseClusterCounts.set(phrase, (phraseClusterCounts.get(phrase) ?? 0) + 1);
+    }
+  }
+
+  return clusterCounts.map((counts, clusterId) =>
     [...counts.entries()]
       .map(([phrase, count]) => ({
         phrase,
-        score: count * Math.log(1 + entries.length / (globalEntryCounts.get(phrase) ?? 1)),
+        count,
+        score:
+          (count / Math.max(1, clusterTotals[clusterId])) *
+          Math.log(1 + clusterCount / (phraseClusterCounts.get(phrase) ?? 1)),
       }))
-      .sort((left, right) => right.score - left.score || left.phrase.localeCompare(right.phrase))
-      .slice(0, PHRASE_COUNT)
-      .map((item) => item.phrase),
+      .sort((left, right) => right.score - left.score || right.count - left.count || left.phrase.localeCompare(right.phrase)),
   );
 }
 
@@ -631,13 +672,66 @@ function selectDistinctPhrases(phrases, limit) {
   return selected;
 }
 
-function labelFromPhrases(phrases) {
-  const selected = selectDistinctPhrases(phrases, 2);
-  return selected.length ? selected.map(titleCasePhrase).join(' / ') : 'Mixed Lines';
+function phraseTerms(phrase) {
+  return phrase.split(' ');
+}
+
+function isWeakLabelPhrase(phrase) {
+  return phraseTerms(phrase).some((term) => LABEL_WEAK_TERMS.has(term));
+}
+
+function selectDistinctPhraseStats(stats, limit) {
+  const selected = [];
+  for (const item of stats) {
+    if (selected.some((selectedItem) => selectedItem.phrase.includes(item.phrase) || item.phrase.includes(selectedItem.phrase))) {
+      continue;
+    }
+    selected.push(item);
+    if (selected.length === limit) {
+      break;
+    }
+  }
+  return selected;
+}
+
+function fallbackCategoryLabel(stats) {
+  const scores = LABEL_CATEGORY_RULES.map((rule) => ({ label: rule.label, score: 0 }));
+  for (const item of stats) {
+    for (const term of phraseTerms(item.phrase)) {
+      for (let index = 0; index < LABEL_CATEGORY_RULES.length; index += 1) {
+        if (LABEL_CATEGORY_RULES[index].terms.has(term)) {
+          scores[index].score += item.score;
+        }
+      }
+    }
+  }
+
+  const best = scores.sort((left, right) => right.score - left.score || left.label.localeCompare(right.label))[0];
+  return best.score > 0 ? best.label : 'General Dialogue';
+}
+
+function labelFromPhraseStats(stats) {
+  const candidates = stats.filter((item) => !isWeakLabelPhrase(item.phrase));
+  const selected = selectDistinctPhraseStats(candidates, 2);
+  const strongestScore = stats[0]?.score ?? 0;
+  const selectedScore = selected[0]?.score ?? 0;
+  const weakTopCount = stats.slice(0, 4).filter((item) => isWeakLabelPhrase(item.phrase)).length;
+  const phraseLabelIsWeak =
+    selected.length === 0 ||
+    selectedScore < strongestScore * 0.3 ||
+    weakTopCount >= 3 ||
+    (weakTopCount >= 2 && selectedScore < strongestScore * 0.8);
+
+  if (phraseLabelIsWeak) {
+    return fallbackCategoryLabel(stats);
+  }
+
+  return selected.map((item) => titleCasePhrase(item.phrase)).join(' / ');
 }
 
 function descriptionFromPhrases(phrases, size, videoCount) {
-  const themeWords = selectDistinctPhrases(phrases, 5).map(titleCasePhrase);
+  const strongPhrases = phrases.filter((phrase) => !isWeakLabelPhrase(phrase));
+  const themeWords = selectDistinctPhrases(strongPhrases.length ? strongPhrases : phrases, 5).map(titleCasePhrase);
   const scope = `${size.toLocaleString('en-US')} lines from ${videoCount.toLocaleString('en-US')} videos`;
   return themeWords.length ? `${themeWords.join(', ')}. ${scope}.` : scope;
 }
@@ -664,6 +758,7 @@ function buildClusters(entries, assignments, scaled3d, centers, islandColors) {
   }
 
   return memberIndexes.map((members, clusterId) => {
+    const topPhrases = phraseStats[clusterId].slice(0, PHRASE_COUNT).map((item) => item.phrase);
     const videoIds = new Set(members.map((index) => entries[index].videoId));
     const center3d = [
       Math.round(members.reduce((total, index) => total + scaled3d[index][0], 0) / members.length),
@@ -684,15 +779,15 @@ function buildClusters(entries, assignments, scaled3d, centers, islandColors) {
 
     return {
       id: clusterId,
-      label: labelFromPhrases(phraseStats[clusterId]),
-      description: descriptionFromPhrases(phraseStats[clusterId], members.length, videoIds.size),
+      label: labelFromPhraseStats(phraseStats[clusterId]),
+      description: descriptionFromPhrases(topPhrases, members.length, videoIds.size),
       color: islandColors[clusterId].hex,
       size: members.length,
       videoCount: videoIds.size,
       x3d: center3d[0],
       y3d: center3d[1],
       z3d: center3d[2],
-      topPhrases: phraseStats[clusterId],
+      topPhrases,
       medoidEntryId: entries[medoid.index].entryId,
       rawCompactRadius: compactRadius(members, scaled3d, rawCenter),
     };
@@ -745,12 +840,20 @@ async function main() {
   const { entries, vectors, vectorDim } = readSemanticRows(SQL);
   console.log(`Read ${entries.length.toLocaleString()} MiniLM vectors (${vectorDim} dimensions).`);
 
-  console.log('Running UMAP 3D.');
-  const coords3d = runUmap(vectors, 3, 1);
+  console.log(`Running spherical k-means (${SEMANTIC_CLUSTER_COUNT} semantic islands).`);
+  const { assignments, iterations } = sphericalKMeans(
+    vectors,
+    SEMANTIC_CLUSTER_COUNT,
+    SEMANTIC_KMEANS_MAX_ITERATIONS,
+    SEMANTIC_KMEANS_SEED,
+  );
+  console.log(`  converged in ${iterations} iteration${iterations === 1 ? '' : 's'}.`);
 
+  console.log('Running supervised UMAP 3D.');
+  const coords3d = runUmap(vectors, 3, 1, assignments);
   const scaled3d = scaleCoordinates(coords3d);
-  const { assignments, centers } = clusterMutualKnnIslands(scaled3d);
-  const clusterCount = centers.length;
+  const clusterCount = SEMANTIC_CLUSTER_COUNT;
+  const centers = buildClusterCenters(scaled3d, assignments, clusterCount);
   const islandColors = assignIslandColors(centers);
   const clusters = buildClusters(entries, assignments, scaled3d, centers, islandColors);
   const compactRadii = clusters
@@ -788,27 +891,27 @@ async function main() {
   const payload = {
     version: 9,
     projection: 'umap-3d',
-    clusterAlgorithm: 'umap-3d-mutual-knn-islands',
-    clusterBasis: 'umap-3d-mutual-knn-island',
+    clusterAlgorithm: 'minilm-kmeans-supervised-umap-islands',
+    clusterBasis: 'minilm-spherical-kmeans',
     generatedAt: new Date().toISOString(),
     sourceDb: path.basename(DB_PATH),
     modelId: MODEL_ID,
     pointCount: points.length,
     vectorDim,
     clusterCount,
+    semanticKMeans: {
+      clusters: SEMANTIC_CLUSTER_COUNT,
+      iterations: SEMANTIC_KMEANS_MAX_ITERATIONS,
+      randomSeed: SEMANTIC_KMEANS_SEED,
+      distance: 'cosine',
+    },
     umap: {
       neighbors: UMAP_NEIGHBORS,
       minDist: UMAP_MIN_DIST,
       spread: UMAP_SPREAD,
       epochs: UMAP_EPOCHS,
       randomSeed: RANDOM_SEED,
-    },
-    mutualKnn: {
-      neighbors: ISLAND_NEIGHBOR_COUNT,
-      edgeStrength: ISLAND_EDGE_STRENGTH,
-      gridCellSize: ISLAND_GRID_CELL_SIZE,
-      candidateCount: ISLAND_CANDIDATE_COUNT,
-      minSeedSize: ISLAND_MIN_SEED_SIZE,
+      supervisedTargetWeight: UMAP_SUPERVISED_TARGET_WEIGHT,
     },
     initialView,
     clusters,
