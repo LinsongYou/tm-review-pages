@@ -676,6 +676,23 @@ function Icon({ name }: { name: IconName }) {
   );
 }
 
+function SectionHeader({ title, count }: { title: string; count: ReactNode }) {
+  return (
+    <div className="atlas-section-header">
+      <strong>{title}</strong>
+      <span>{count}</span>
+    </div>
+  );
+}
+
+function EmptyState({ children }: { children: ReactNode }) {
+  return (
+    <div className="empty-state">
+      <p>{children}</p>
+    </div>
+  );
+}
+
 function islandPanelStyle(panel: IslandPanelData): CssVars {
   const light = isLightHex(panel.cluster.color);
   return {
@@ -728,14 +745,6 @@ function PairCard({
         </button>
       )}
 
-      {startMs != null && (
-        <div className="pair-card-timestamps">
-          <span>{formatCueTimestamp(startMs)}</span>
-          <span className="ts-sep">–</span>
-          <span>{formatCueTimestamp(endMs ?? null)}</span>
-        </div>
-      )}
-
       <div className="pair-card-header">
         <div className="pair-card-meta">
           <button
@@ -749,6 +758,11 @@ function PairCard({
             {videoId}
           </button>
           <span className="pair-card-seg">#{segIndex}</span>
+          {startMs != null && (
+            <span className="pair-card-time">
+              {formatCueTimestamp(startMs)}-{formatCueTimestamp(endMs ?? null)}
+            </span>
+          )}
         </div>
 
         {score !== undefined && <span className="pair-card-score">{score.toFixed(3)}</span>}
@@ -1687,6 +1701,22 @@ export default function TmAtlasPanel({
     clearAtlas();
   }
 
+  function renderPairCard(
+    entry: EntrySummary,
+    props: Omit<Partial<PairCardProps>, 'entry' | 'onOpenTranscript' | 'onSearchLine'> = {},
+  ) {
+    return (
+      <PairCard
+        entry={entry}
+        isFocus={entry.entryId === selectedEntryId}
+        onSelect={selectEntry}
+        onOpenTranscript={openTranscript}
+        onSearchLine={searchLine}
+        {...props}
+      />
+    );
+  }
+
   return (
     <section
       className={classNames('atlas-shell', isTextMode && 'is-text-mode')}
@@ -1850,16 +1880,12 @@ export default function TmAtlasPanel({
               </div>
 
               {transcriptLoading ? (
-                <div className="empty-state">
-                  <p>Loading the full transcript...</p>
-                </div>
+                <EmptyState>Loading the full transcript...</EmptyState>
               ) : transcriptErrorText ? (
-                <div className="empty-state">
-                  <p>{transcriptErrorText}</p>
-                </div>
+                <EmptyState>{transcriptErrorText}</EmptyState>
               ) : (
                 <div ref={transcriptBodyRef} className="transcript-panel-body">
-                  <ol className="transcript-row-list">
+                  <ol className="atlas-card-list">
                     {transcriptItems.map((item) => (
                       <li
                         key={item.entryId}
@@ -1868,13 +1894,7 @@ export default function TmAtlasPanel({
                           else transcriptItemRefs.current.delete(item.entryId);
                         }}
                       >
-                        <PairCard
-                          entry={item}
-                          isFocus={item.entryId === selectedEntryId}
-                          onSelect={selectTranscriptCard}
-                          onOpenTranscript={openTranscript}
-                          onSearchLine={searchLine}
-                        />
+                        {renderPairCard(item, { onSelect: selectTranscriptCard })}
                       </li>
                     ))}
                   </ol>
@@ -1914,20 +1934,11 @@ export default function TmAtlasPanel({
                 </div>
               </article>
 
-              <div className="atlas-section-header">
-                <strong>Island Lines</strong>
-                <span>{selectedIslandPanel.entries.length.toLocaleString()}</span>
-              </div>
-              <ol className="atlas-island-entry-list">
+              <SectionHeader title="Island Lines" count={selectedIslandPanel.entries.length.toLocaleString()} />
+              <ol className="atlas-card-list is-scroll">
                 {selectedIslandPanel.entries.map((entry) => (
                   <li key={entry.entryId}>
-                    <PairCard
-                      entry={entry}
-                      isFocus={entry.entryId === selectedEntryId}
-                      onSelect={selectEntry}
-                      onOpenTranscript={openTranscript}
-                      onSearchLine={searchLine}
-                    />
+                    {renderPairCard(entry)}
                   </li>
                 ))}
               </ol>
@@ -1935,41 +1946,29 @@ export default function TmAtlasPanel({
           )}
 
           {sidebarMode === 'entry' && selectedEntry && (
-            <PairCard
-              entry={selectedEntry}
-              isFocus
-              onSelect={selectEntry}
-              onOpenTranscript={openTranscript}
-              onSearchLine={searchLine}
-              clusterColor={selectedCluster?.color}
-              clusterLabel={selectedCluster?.label}
-              onClusterClick={selectedCluster ? () => selectIsland(selectedCluster) : undefined}
-            />
+            renderPairCard(selectedEntry, {
+              isFocus: true,
+              clusterColor: selectedCluster?.color,
+              clusterLabel: selectedCluster?.label,
+              onClusterClick: selectedCluster ? () => selectIsland(selectedCluster) : undefined,
+            })
           )}
 
           {sidebarMode === 'search' && (
             <section className="atlas-section">
-              <div className="atlas-section-header">
-                <strong>Semantic Matches</strong>
-                <span>{searchResults.length}</span>
-              </div>
-              <ol className="atlas-result-list">
+              <SectionHeader title="Semantic Matches" count={searchResults.length} />
+              <ol className="atlas-card-list">
                 {topSearchResults.map((result) => {
                   const point = pointById.get(result.entryId);
                   const cluster = point ? clusterById.get(point.clusterId) : null;
                   return (
                     <li key={result.entryId}>
-                      <PairCard
-                        entry={result}
-                        isFocus={result.entryId === selectedEntryId}
-                        onSelect={selectEntry}
-                        onOpenTranscript={openTranscript}
-                        onSearchLine={searchLine}
-                        score={result.score}
-                        clusterColor={cluster?.color}
-                        clusterLabel={cluster?.label}
-                        onClusterClick={cluster ? () => selectIsland(cluster) : undefined}
-                      />
+                      {renderPairCard(result, {
+                        score: result.score,
+                        clusterColor: cluster?.color,
+                        clusterLabel: cluster?.label,
+                        onClusterClick: cluster ? () => selectIsland(cluster) : undefined,
+                      })}
                     </li>
                   );
                 })}
@@ -1979,10 +1978,7 @@ export default function TmAtlasPanel({
 
           {sidebarMode === 'idle' && showIslandBrowser && (
             <section className="atlas-section atlas-island-section">
-              <div className="atlas-section-header">
-                <strong>Islands</strong>
-                <span>{rankedIslands.length}</span>
-              </div>
+              <SectionHeader title="Islands" count={rankedIslands.length} />
               <ol className="atlas-island-list">
                 {rankedIslands.map((cluster) => (
                   <li key={cluster.id}>

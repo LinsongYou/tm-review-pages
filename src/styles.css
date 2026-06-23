@@ -690,10 +690,8 @@ button:disabled {
 
 /* ─── Lists ─────────────────────────────────────────────────────── */
 
-.atlas-result-list,
-.atlas-island-list,
-.atlas-island-entry-list,
-.transcript-row-list {
+.atlas-card-list,
+.atlas-island-list {
   display: grid;
   gap: 6px;
   margin: 0;
@@ -707,7 +705,7 @@ button:disabled {
   padding-right: 3px;
 }
 
-.atlas-island-entry-list {
+.atlas-card-list.is-scroll {
   min-height: 0;
   overflow-y: auto;
   padding-right: 3px;
@@ -1093,11 +1091,16 @@ button:disabled {
   max-width: 100%;
 }
 
-.pair-card-meta .pair-card-seg {
+.pair-card-meta .pair-card-seg,
+.pair-card-time {
   color: var(--muted);
   font-family: 'IBM Plex Mono', monospace;
   font-size: 0.74rem;
   white-space: nowrap;
+}
+
+.pair-card-time {
+  color: var(--muted-strong);
 }
 
 .pair-card-en {
@@ -1129,49 +1132,6 @@ button:disabled {
   font-weight: 300;
   line-height: 1.5;
   margin: 0;
-}
-
-.pair-card-timestamps {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: calc(100% + 24px);
-  margin: -12px -12px 4px -12px;
-  padding: 4px 12px;
-  border-radius: 0;
-  background: var(--surface-strong);
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.78rem;
-  font-weight: 500;
-  color: var(--muted-strong);
-  letter-spacing: 0.02em;
-}
-
-.pair-card-timestamps:first-child {
-  border-radius: 10px 10px 0 0;
-}
-
-.pair-card-timestamps:last-child {
-  margin-bottom: -12px;
-  border-radius: 0 0 10px 10px;
-}
-
-.pair-card-timestamps:first-child:last-child {
-  margin-bottom: -12px;
-  border-radius: 10px;
-}
-
-.pair-card-timestamps span {
-  color: var(--muted-strong);
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.78rem;
-  font-weight: 500;
-  letter-spacing: 0.02em;
-  text-transform: none;
-}
-
-.pair-card-timestamps .ts-sep {
-  opacity: 0.4;
 }
 
 .pair-card-score {
@@ -1386,13 +1346,12 @@ button:disabled {
   overflow: visible;
 }
 
-.atlas-shell.is-text-mode .atlas-result-list,
-.atlas-shell.is-text-mode .atlas-island-entry-list {
+.atlas-shell.is-text-mode .atlas-card-list {
   grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
   overflow: visible;
 }
 
-.atlas-shell.is-text-mode .atlas-island-entry-list > li {
+.atlas-shell.is-text-mode .atlas-card-list > li {
   content-visibility: auto;
   contain-intrinsic-size: auto 132px;
 }
@@ -1412,7 +1371,7 @@ button:disabled {
 }
 
 .atlas-shell.is-text-mode .atlas-island-focus > .atlas-section-header,
-.atlas-shell.is-text-mode .atlas-island-focus > .atlas-island-entry-list {
+.atlas-shell.is-text-mode .atlas-island-focus > .atlas-card-list {
   grid-column: 2;
 }
 
@@ -1421,9 +1380,7 @@ button:disabled {
   margin: 0 auto;
 }
 
-.atlas-shell.is-text-mode .atlas-result-list .pair-card,
-.atlas-shell.is-text-mode .atlas-island-entry-list .pair-card,
-.atlas-shell.is-text-mode .transcript-row-list .pair-card,
+.atlas-shell.is-text-mode .atlas-card-list .pair-card,
 .atlas-shell.is-text-mode .atlas-sidebar-body > .pair-card {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   column-gap: clamp(18px, 2.5vw, 36px);
@@ -1431,7 +1388,6 @@ button:disabled {
 }
 
 .atlas-shell.is-text-mode .pair-card-cluster,
-.atlas-shell.is-text-mode .pair-card-timestamps,
 .atlas-shell.is-text-mode .pair-card-header {
   grid-column: 1 / -1;
 }
@@ -1480,12 +1436,12 @@ button:disabled {
     grid-template-rows: auto auto auto;
   }
 
-  .atlas-shell.is-text-mode .atlas-island-card,
-  .atlas-shell.is-text-mode .atlas-island-focus > .atlas-section-header,
-  .atlas-shell.is-text-mode .atlas-island-focus > .atlas-island-entry-list {
-    grid-column: 1;
-    grid-row: auto;
-  }
+.atlas-shell.is-text-mode .atlas-island-card,
+.atlas-shell.is-text-mode .atlas-island-focus > .atlas-section-header,
+.atlas-shell.is-text-mode .atlas-island-focus > .atlas-card-list {
+  grid-column: 1;
+  grid-row: auto;
+}
 
   .atlas-shell.is-text-mode .atlas-island-card {
     position: static;
@@ -1510,15 +1466,12 @@ button:disabled {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .atlas-shell.is-text-mode .atlas-result-list,
-  .atlas-shell.is-text-mode .atlas-island-entry-list,
+  .atlas-shell.is-text-mode .atlas-card-list,
   .atlas-shell.is-text-mode .atlas-island-list {
     grid-template-columns: 1fr;
   }
 
-  .atlas-shell.is-text-mode .atlas-result-list .pair-card,
-  .atlas-shell.is-text-mode .atlas-island-entry-list .pair-card,
-  .atlas-shell.is-text-mode .transcript-row-list .pair-card,
+  .atlas-shell.is-text-mode .atlas-card-list .pair-card,
   .atlas-shell.is-text-mode .atlas-sidebar-body > .pair-card {
     grid-template-columns: 1fr;
   }
