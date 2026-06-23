@@ -1237,7 +1237,7 @@ button:disabled {
 
 .atlas-shell.is-text-mode .atlas-sidebar.is-idle .atlas-sidebar-body {
   width: min(100%, 1320px);
-  grid-template-rows: minmax(0, 1fr);
+  grid-template-rows: auto;
   overflow-y: auto;
 }
 
@@ -1247,10 +1247,54 @@ button:disabled {
 
 .atlas-shell.is-text-mode .atlas-island-list {
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  grid-auto-rows: max-content;
+  grid-auto-rows: 1fr;
   align-content: start;
   max-height: none;
   overflow: visible;
+}
+
+.atlas-shell.is-text-mode .atlas-island-section {
+  grid-template-rows: auto auto;
+  align-content: start;
+}
+
+.atlas-shell.is-text-mode .atlas-island-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  height: 100%;
+  min-height: 92px;
+  border-color: var(--island-overlay-border);
+  background: var(--cluster-color);
+  color: var(--island-text);
+  box-shadow: var(--card-inset);
+}
+
+.atlas-shell.is-text-mode .atlas-island-row:hover,
+.atlas-shell.is-text-mode .atlas-island-row:focus-visible,
+.atlas-shell.is-text-mode .atlas-island-row.is-active {
+  border-color: var(--island-overlay-border);
+  background: var(--cluster-color);
+  box-shadow: var(--card-inset), var(--shadow);
+  filter: brightness(1.04);
+}
+
+.atlas-shell.is-text-mode .atlas-island-dot {
+  display: none;
+}
+
+.atlas-shell.is-text-mode .atlas-island-copy strong {
+  color: var(--island-text);
+}
+
+.atlas-shell.is-text-mode .atlas-island-copy em {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--island-text-strong);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.atlas-shell.is-text-mode .atlas-island-count {
+  color: var(--island-text-muted);
 }
 
 .atlas-shell.is-text-mode .atlas-card-list {

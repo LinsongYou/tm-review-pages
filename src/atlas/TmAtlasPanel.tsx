@@ -693,16 +693,20 @@ function EmptyState({ children }: { children: ReactNode }) {
   );
 }
 
-function islandPanelStyle(panel: IslandPanelData): CssVars {
-  const light = isLightHex(panel.cluster.color);
+function islandColorStyle(color: string): CssVars {
+  const light = isLightHex(color);
   return {
-    '--cluster-color': panel.cluster.color,
+    '--cluster-color': color,
     '--island-text': light ? '#020a06' : '#e2f5ea',
     '--island-text-muted': light ? 'rgba(2, 10, 6, 0.6)' : 'rgba(226, 245, 234, 0.6)',
     '--island-text-strong': light ? 'rgba(2, 10, 6, 0.75)' : 'rgba(226, 245, 234, 0.75)',
     '--island-overlay': light ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.1)',
     '--island-overlay-border': light ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.15)',
   };
+}
+
+function islandPanelStyle(panel: IslandPanelData): CssVars {
+  return islandColorStyle(panel.cluster.color);
 }
 
 function PairCard({
@@ -1960,7 +1964,7 @@ export default function TmAtlasPanel({
                         'atlas-island-row',
                         selectedIslandId === cluster.id && 'is-active',
                       )}
-                      style={{ ['--cluster-color' as string]: cluster.color }}
+                      style={islandColorStyle(cluster.color)}
                       type="button"
                       onClick={() => selectIsland(cluster)}
                     >
