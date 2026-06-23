@@ -16,10 +16,15 @@ const UMAP_NEIGHBORS = 22;
 const UMAP_MIN_DIST = 0.035;
 const UMAP_SPREAD = 1.2;
 const UMAP_EPOCHS = 220;
-const UMAP_SUPERVISED_TARGET_WEIGHT = 0.25;
+const UMAP_SUPERVISED_TARGET_WEIGHT = 0.01;
 const SEMANTIC_CLUSTER_COUNT = 15;
 const SEMANTIC_KMEANS_MAX_ITERATIONS = 30;
 const SEMANTIC_KMEANS_SEED = RANDOM_SEED + 97;
+const VISUAL_CLUSTER_CENTER_SPREAD = 0.58;
+const VISUAL_INTRA_CLUSTER_SPREAD = 0.98;
+const VISUAL_OUTLIER_SOFT_RADIUS = 155;
+const VISUAL_OUTLIER_TAIL_SPREAD = 0.5;
+const VISUAL_INITIAL_ZOOM = 1.36;
 const PHRASE_COUNT = 8;
 const COMPACTNESS_CORE_SHARE = 0.8;
 const COMPACTNESS_REFERENCE_PERCENTILE = 0.9;
@@ -346,6 +351,57 @@ function buildClusterCenters(points, assignments, clusterCount) {
   });
 }
 
+function globalCenter(points) {
+  const center = new Array(points[0].length).fill(0);
+  for (const point of points) {
+    for (let dimension = 0; dimension < point.length; dimension += 1) {
+      center[dimension] += point[dimension];
+    }
+  }
+  return center.map((value) => value / points.length);
+}
+
+function clampVisualCoordinate(value) {
+  return Math.round(Math.min(1000, Math.max(0, value)));
+}
+
+function compressedClusterDeltas(point, center) {
+  const deltas = point.map((value, dimension) => value - center[dimension]);
+  const distance = Math.sqrt(deltas.reduce((total, value) => total + value * value, 0));
+  if (distance === 0) {
+    return deltas;
+  }
+
+  const tailDistance = Math.max(0, distance - VISUAL_OUTLIER_SOFT_RADIUS);
+  const compressedDistance =
+    Math.min(distance, VISUAL_OUTLIER_SOFT_RADIUS) +
+    Math.log1p(tailDistance / VISUAL_OUTLIER_SOFT_RADIUS) *
+      VISUAL_OUTLIER_SOFT_RADIUS *
+      VISUAL_OUTLIER_TAIL_SPREAD;
+  const scale = (compressedDistance / distance) * VISUAL_INTRA_CLUSTER_SPREAD;
+  return deltas.map((value) => value * scale);
+}
+
+function applyVisualCompression(points, assignments, clusterCount) {
+  const centers = buildClusterCenters(points, assignments, clusterCount);
+  const atlasCenter = globalCenter(points);
+  const compressedCenters = centers.map((center) =>
+    center.map(
+      (value, dimension) => atlasCenter[dimension] + (value - atlasCenter[dimension]) * VISUAL_CLUSTER_CENTER_SPREAD,
+    ),
+  );
+
+  return points.map((point, index) => {
+    const clusterId = assignments[index];
+    const center = centers[clusterId];
+    const compressedCenter = compressedCenters[clusterId];
+    const deltas = compressedClusterDeltas(point, center);
+    return point.map((value, dimension) =>
+      clampVisualCoordinate(compressedCenter[dimension] + deltas[dimension]),
+    );
+  });
+}
+
 function toHexChannel(value) {
   return Math.round(value).toString(16).padStart(2, '0');
 }
@@ -568,7 +624,7 @@ function computeInitialView(scaled3d) {
   return {
     rotateX: Math.round(bestRotateX * 1000) / 1000,
     rotateY: Math.round(bestRotateY * 1000) / 1000,
-    zoom: 1.18,
+    zoom: VISUAL_INITIAL_ZOOM,
     offsetX: 0,
     offsetY: 0,
   };
@@ -851,8 +907,8 @@ async function main() {
 
   console.log('Running supervised UMAP 3D.');
   const coords3d = runUmap(vectors, 3, 1, assignments);
-  const scaled3d = scaleCoordinates(coords3d);
   const clusterCount = SEMANTIC_CLUSTER_COUNT;
+  const scaled3d = applyVisualCompression(scaleCoordinates(coords3d), assignments, clusterCount);
   const centers = buildClusterCenters(scaled3d, assignments, clusterCount);
   const islandColors = assignIslandColors(centers);
   const clusters = buildClusters(entries, assignments, scaled3d, centers, islandColors);
@@ -912,6 +968,13 @@ async function main() {
       epochs: UMAP_EPOCHS,
       randomSeed: RANDOM_SEED,
       supervisedTargetWeight: UMAP_SUPERVISED_TARGET_WEIGHT,
+    },
+    visualPostProcessing: {
+      clusterCenterSpread: VISUAL_CLUSTER_CENTER_SPREAD,
+      intraClusterSpread: VISUAL_INTRA_CLUSTER_SPREAD,
+      outlierSoftRadius: VISUAL_OUTLIER_SOFT_RADIUS,
+      outlierTailSpread: VISUAL_OUTLIER_TAIL_SPREAD,
+      initialZoom: VISUAL_INITIAL_ZOOM,
     },
     initialView,
     clusters,
