@@ -1839,30 +1839,6 @@ export default function TmAtlasPanel({
           {errorText ? <p className="atlas-message atlas-message--error">{errorText}</p> : null}
           {searchNote ? <p className="atlas-message">{searchNote}</p> : null}
 
-          {isTextMode && isIdle && showIslandBrowser && data ? (
-            <header className="text-mode-intro">
-              <div>
-                <span>Text-only workspace</span>
-                <h1>Browse the subtitle library</h1>
-                <p>Search by meaning, open a semantic island, or follow every cue in a video transcript.</p>
-              </div>
-              <dl>
-                <div>
-                  <dt>Subtitle pairs</dt>
-                  <dd>{data.pointCount.toLocaleString()}</dd>
-                </div>
-                <div>
-                  <dt>Semantic islands</dt>
-                  <dd>{data.clusters.length.toLocaleString()}</dd>
-                </div>
-                <div>
-                  <dt>Videos</dt>
-                  <dd>{videoCount.toLocaleString()}</dd>
-                </div>
-              </dl>
-            </header>
-          ) : null}
-
           {sidebarMode === 'transcript' && (
             <section className="atlas-section atlas-video-transcript">
               <div className="atlas-video-header">
