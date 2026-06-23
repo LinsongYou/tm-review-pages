@@ -32,7 +32,7 @@ Vite 7.3, React 19, TypeScript 5.9, `sql.js`, `@huggingface/transformers`, ONNX 
 **Data flow:**
 1. On mount, `App` spawns a Web Worker (`search/search.worker.ts`) and sends a `boot` message with the SQLite DB URL.
 2. The worker downloads `public/data/tm_misha_minilm.db` (a sql.js/WASM SQLite database), reads all `tm_main` rows and `tm_vectors` embeddings into memory, then signals `boot:ok`.
-3. Separately, `App` fetches `public/data/tm-atlas.json` (pre-computed UMAP projections + cluster labels) for the 3D atlas canvas.
+3. Separately, `App` fetches `public/data/tm-atlas.json` (pre-computed supervised 3D UMAP coordinates + cluster labels) for the atlas canvas.
 4. Searches go worker-ward: the worker loads `Xenova/all-MiniLM-L6-v2` via `@huggingface/transformers` (ONNX Runtime WASM), embeds the query, and does cosine-similarity ranking against stored vectors.
 
 **Worker protocol:** All worker communication uses a discriminated union on `kind` (see `protocol.ts`). Each request gets a monotonically increasing `requestId`; responses carry the same ID so the main thread can resolve the matching `Promise`.
@@ -43,9 +43,10 @@ Vite 7.3, React 19, TypeScript 5.9, `sql.js`, `@huggingface/transformers`, ONNX 
 
 ## Atlas & Island System
 
-- All TM entries are projected into 3D space via UMAP and rendered on an HTML `<canvas>` with 2D context (not WebGL). Projection math (rotation, perspective, depth sorting) is done manually in `TmAtlasPanel.tsx`.
-- Entries are grouped into semantic clusters ("islands") via mutual-kNN clustering.
-- Each island has a label, description, color, top phrases, theme confidence, and medoid entry.
+- All TM entries are laid out in 3D with supervised UMAP, visually compressed for presentation, and rendered on an HTML `<canvas>` with 2D context (not WebGL). Projection math (rotation, perspective, depth sorting) is done manually in `TmAtlasPanel.tsx`.
+- Entries are grouped into exactly 15 semantic clusters ("islands") via deterministic spherical k-means on normalized MiniLM embeddings; those assignments supervise the UMAP layout.
+- Each island has a label, description, color, top phrases, compactness, and medoid entry.
+- Island labels are generated automatically from cluster-aware phrase statistics and evidence-scored label candidates, with weak filler terms filtered out.
 - **Island Browser** in the sidebar lists all islands sorted by size; selecting one focuses the camera and opens the Island Focus Panel.
 - **Island Focus Panel** shows cluster metrics and a scrollable list of all entries in that island.
 - **Video Trace** draws a path through all entries of a video on the atlas when a transcript is open.
@@ -58,7 +59,7 @@ Vite 7.3, React 19, TypeScript 5.9, `sql.js`, `@huggingface/transformers`, ONNX 
 - **Island focus:** select an island to see its details, metrics, and entry list. Camera pans to cluster.
 - **Entry detail:** shows cluster info, video ID, EN/ZH text, cluster phrases, and local context (neighboring entries from same video).
 - **Transcript:** full video transcript panel with timestamp buttons, EN/ZH text per cue, search-from-line buttons.
-- **Tooltip:** follows cursor on hover, showing entry ID and English text.
+- **Tooltip:** follows cursor on hover, showing video ID, segment index, and English text.
 - **Interaction:** drag-to-rotate, scroll-to-zoom, Ctrl+drag to pan, click to select entries/islands.
 
 ## Visual Design
@@ -84,10 +85,9 @@ Vite 7.3, React 19, TypeScript 5.9, `sql.js`, `@huggingface/transformers`, ONNX 
 - `src/atlas/semantic-landscape.ts` — TypeScript interfaces for the atlas JSON data shape (`SemanticLandscapeData`, `SemanticLandscapeCluster`, `SemanticLandscapePoint`, `InitialView`).
 - `src/atlas/colors.ts` — hex/rgba color utilities (`hexToRgba`, `blendHexColors`, `isLightHex`).
 - `src/classes.ts` — `classNames()` helper.
-- `src/keyboard.ts` — keyboard event helper for accessibility.
 - `src/format.ts` — model name display formatting.
 - `src/styles.css` — all CSS styles with custom properties for theming.
-- `scripts/generate_tm_atlas.mjs` — Node.js script to rebuild `tm-atlas.json` from the DB (runs UMAP 2D+3D, mutual-KNN clustering, color assignment).
+- `scripts/generate_tm_atlas.mjs` — Node.js script to rebuild `tm-atlas.json` from the DB (runs MiniLM spherical k-means, supervised 3D UMAP, visual compression, color assignment, compactness, medoid selection, and automatic labels/top phrases).
 - `vite.config.ts` — React plugin, GitHub Pages base path, asset versioning via compile-time constants.
 - `.github/workflows/deploy.yml` — GitHub Actions build and deploy workflow for Pages.
 
