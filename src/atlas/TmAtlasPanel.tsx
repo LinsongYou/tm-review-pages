@@ -1741,8 +1741,9 @@ export default function TmAtlasPanel({
         ) : null}
 
         <div className="atlas-hud">
-          <button className="atlas-title" type="button" onClick={clearAtlas}>
-            TM Atlas
+          <button className="atlas-title" type="button" onClick={clearAtlas} aria-label="Translation Memory">
+            <span>Translation</span>
+            <span>Memory</span>
           </button>
 
           <div className="atlas-hud-status" aria-label="Load status">

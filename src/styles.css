@@ -225,14 +225,16 @@ button:disabled {
 }
 
 .atlas-title {
-  display: inline-flex;
-  align-items: center;
-  min-width: 100px;
+  display: inline-grid;
+  align-content: center;
+  gap: 1px;
+  min-width: 118px;
   padding: 0 10px;
   color: var(--accent);
   font-family: 'Rajdhani', sans-serif;
   font-weight: 700;
   letter-spacing: 0.1em;
+  line-height: 1.05;
   text-align: left;
   text-transform: uppercase;
   text-shadow: 0 0 20px rgba(74, 222, 128, 0.3);
@@ -832,7 +834,7 @@ button:disabled {
   }
 
   .atlas-title {
-    min-width: 100px;
+    min-width: 112px;
   }
 
   .atlas-control {
