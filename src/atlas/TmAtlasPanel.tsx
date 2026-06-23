@@ -1,4 +1,4 @@
-import { type CSSProperties, type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { type CSSProperties, type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { classNames } from '../classes';
 import type { EntrySummary, SearchResult } from '../search/protocol';
 import type {
@@ -633,6 +633,48 @@ interface PairCardProps {
 }
 
 type CssVars = CSSProperties & Record<`--${string}`, string>;
+type IconName = 'atlas' | 'back' | 'moon' | 'reset' | 'sun' | 'text';
+
+const ICONS: Record<IconName, ReactNode> = {
+  atlas: (
+    <>
+      <circle cx="6" cy="7" r="1.5" />
+      <circle cx="17" cy="5" r="1.5" />
+      <circle cx="14" cy="16" r="1.5" />
+      <circle cx="5" cy="18" r="1.5" />
+      <path d="m7.4 6.8 8.1-1.5M6.9 8.2l6.2 6.6m2.2-.2 1.4-8M6.5 17.5l6-1.2" />
+    </>
+  ),
+  back: (
+    <>
+      <path d="M19 12H5" />
+      <path d="m12 5-7 7 7 7" />
+    </>
+  ),
+  moon: <path d="M20 14.5A8 8 0 0 1 9.5 4a7 7 0 1 0 10.5 10.5Z" />,
+  reset: (
+    <>
+      <path d="M5 12a7 7 0 1 0 2.1-5H4" />
+      <path d="M4 3v4h4" />
+    </>
+  ),
+  sun: (
+    <>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M2 12h2M20 12h2" />
+      <path d="m4.9 4.9 1.4 1.4m11.4 11.4 1.4 1.4m-14.2 0 1.4-1.4m11.4-11.4 1.4-1.4" />
+    </>
+  ),
+  text: <path d="M5 6h14M5 11h14M5 16h9" />,
+};
+
+function Icon({ name }: { name: IconName }) {
+  return (
+    <svg className="atlas-icon" aria-hidden="true" viewBox="0 0 24 24">
+      {ICONS[name]}
+    </svg>
+  );
+}
 
 function islandPanelStyle(panel: IslandPanelData): CssVars {
   const light = isLightHex(panel.cluster.color);
@@ -1670,8 +1712,7 @@ export default function TmAtlasPanel({
 
         <div className="atlas-hud">
           <button className="atlas-title" type="button" onClick={clearAtlas}>
-            <span>Translation</span>
-            <span>Memory</span>
+            TM Atlas
           </button>
 
           <div className="atlas-hud-status" aria-label="Load status">
@@ -1695,73 +1736,36 @@ export default function TmAtlasPanel({
           </div>
 
           <button
-            className={classNames('atlas-view-toggle', isTextMode && 'is-text')}
+            className="atlas-control"
             type="button"
             onClick={onToggleViewMode}
-            role="switch"
-            aria-checked={isTextMode}
             aria-label={`Switch to ${isTextMode ? '3D atlas' : 'text-only'} view`}
             title={`Switch to ${isTextMode ? '3D atlas' : 'text-only'} view`}
           >
-            <span className="atlas-view-toggle-track" aria-hidden="true">
-              <span className="atlas-view-option">
-                <svg viewBox="0 0 24 24">
-                  <circle cx="6" cy="7" r="1.5" />
-                  <circle cx="17" cy="5" r="1.5" />
-                  <circle cx="14" cy="16" r="1.5" />
-                  <circle cx="5" cy="18" r="1.5" />
-                  <path d="m7.4 6.8 8.1-1.5M6.9 8.2l6.2 6.6m2.2-.2 1.4-8M6.5 17.5l6-1.2" />
-                </svg>
-                <span>Atlas</span>
-              </span>
-              <span className="atlas-view-option">
-                <svg viewBox="0 0 24 24">
-                  <path d="M5 6h14M5 11h14M5 16h9" />
-                </svg>
-                <span>Text</span>
-              </span>
-            </span>
+            <Icon name={isTextMode ? 'atlas' : 'text'} />
+            <span>{isTextMode ? 'Atlas' : 'Text'}</span>
           </button>
 
           <button
-            className="atlas-icon-button"
+            className="atlas-control"
             type="button"
             onClick={isTextMode ? clearAtlas : resetView}
             title={isTextMode ? 'Return to the island browser' : 'Reset atlas'}
             aria-label={isTextMode ? 'Return to the island browser' : 'Reset atlas'}
           >
-            <svg className="atlas-button-icon" aria-hidden="true" viewBox="0 0 24 24">
-              <path d="M5 12a7 7 0 1 0 2.1-5H4" />
-              <path d="M4 3v4h4" />
-            </svg>
+            <Icon name="reset" />
             <span>{isTextMode ? 'Home' : 'Reset'}</span>
           </button>
 
           <button
-            className={classNames('atlas-theme-toggle', theme === 'dark' && 'is-dark')}
+            className="atlas-control"
             type="button"
             onClick={onToggleTheme}
-            role="switch"
-            aria-checked={theme === 'dark'}
             aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
             title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
           >
-            <span className="atlas-theme-toggle-track" aria-hidden="true">
-              <svg className="atlas-theme-icon atlas-theme-icon--sun" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="4" />
-                <path d="M12 2v2" />
-                <path d="M12 20v2" />
-                <path d="m4.9 4.9 1.4 1.4" />
-                <path d="m17.7 17.7 1.4 1.4" />
-                <path d="M2 12h2" />
-                <path d="M20 12h2" />
-                <path d="m4.9 19.1 1.4-1.4" />
-                <path d="m17.7 6.3 1.4-1.4" />
-              </svg>
-              <svg className="atlas-theme-icon atlas-theme-icon--moon" viewBox="0 0 24 24">
-                <path d="M20 14.5A8 8 0 0 1 9.5 4a7 7 0 1 0 10.5 10.5Z" />
-              </svg>
-            </span>
+            <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
+            <span>{theme === 'dark' ? 'Light' : 'Dark'}</span>
           </button>
         </div>
 
@@ -1783,10 +1787,7 @@ export default function TmAtlasPanel({
         <form className="atlas-search" onSubmit={handleSubmit}>
           {canGoBack && (
             <button className="atlas-back-btn" type="button" onClick={handleBack} aria-label="Go back">
-              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M19 12H5" />
-                <path d="m12 5-7 7 7 7" />
-              </svg>
+              <Icon name="back" />
             </button>
           )}
           <input
