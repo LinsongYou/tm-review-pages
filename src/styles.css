@@ -891,6 +891,7 @@ button:disabled {
   .atlas-shell {
     grid-template-columns: 1fr;
     grid-template-rows: auto auto;
+    align-content: start;
     height: auto;
     overflow: visible;
   }
