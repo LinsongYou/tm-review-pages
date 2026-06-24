@@ -630,6 +630,7 @@ interface PairCardProps {
   clusterColor?: string;
   clusterLabel?: string;
   onClusterClick?: () => void;
+  showVideoId?: boolean;
 }
 
 type CssVars = CSSProperties & Record<`--${string}`, string>;
@@ -719,6 +720,7 @@ function PairCard({
   clusterColor,
   clusterLabel,
   onClusterClick,
+  showVideoId = true,
 }: PairCardProps) {
   const { entryId, videoId, segIndex, en, zh, startMs, endMs } = entry;
 
@@ -751,16 +753,18 @@ function PairCard({
 
       <div className="pair-card-header">
         <div className="pair-card-meta">
-          <button
-            className="video-id-button"
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              onOpenTranscript(videoId, entryId);
-            }}
-          >
-            {videoId}
-          </button>
+          {showVideoId && (
+            <button
+              className="video-id-button"
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onOpenTranscript(videoId, entryId);
+              }}
+            >
+              {videoId}
+            </button>
+          )}
           <span className="pair-card-seg">#{segIndex}</span>
           {startMs != null && (
             <span className="pair-card-time">
@@ -1873,7 +1877,7 @@ export default function TmAtlasPanel({
                           else transcriptItemRefs.current.delete(item.entryId);
                         }}
                       >
-                        {renderPairCard(item, { onSelect: selectTranscriptCard })}
+                        {renderPairCard(item, { onSelect: selectTranscriptCard, showVideoId: false })}
                       </li>
                     ))}
                   </ol>
