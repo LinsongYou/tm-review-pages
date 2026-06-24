@@ -1328,8 +1328,12 @@ button:disabled {
 }
 
 .atlas-shell.is-text-mode .atlas-video-transcript {
-  width: min(100%, 1440px);
+  width: min(100%, 1040px);
   margin: 0 auto;
+}
+
+.atlas-shell.is-text-mode .atlas-video-transcript .atlas-card-list {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .atlas-shell.is-text-mode .atlas-card-list .pair-card,
@@ -1352,6 +1356,15 @@ button:disabled {
 .atlas-shell.is-text-mode .pair-card-zh {
   grid-column: 2;
   font-size: 0.94rem;
+}
+
+.atlas-shell.is-text-mode .atlas-video-transcript .pair-card {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.atlas-shell.is-text-mode .atlas-video-transcript .pair-card-en,
+.atlas-shell.is-text-mode .atlas-video-transcript .pair-card-zh {
+  grid-column: 1;
 }
 
 .atlas-shell.is-text-mode .atlas-sidebar-body > .pair-card {
